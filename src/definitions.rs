@@ -1,9 +1,9 @@
 pub trait Set {
   type Point;
-  fn contains(&self, point: Self::Point) -> bool;
-  fn difference(&self, other: Self) -> Self;
-  fn intersect(&self, other: Self) -> Self;
-  fn union(&self, other: Self) -> Self;
+  fn contains(&self, point: &Self::Point) -> bool;
+  fn difference(&self, other: &Self) -> Self;
+  fn intersect(&self, other: &Self) -> Self;
+  fn union(&self, other: &Self) -> Self;
 }
 
 pub trait TopologicalSpace {
