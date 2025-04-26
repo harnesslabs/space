@@ -1,25 +1,51 @@
+use std::{collections::HashSet, hash::Hash, marker::PhantomData};
+
 use crate::definitions::{MetricSpace, Set, TopologicalSpace};
 
-pub struct UndirectedGraph {
-  pub vertices: HashSet<usize>,
-  pub edges: HashSet<(usize, usize)>,
+mod sealed {
+  pub trait Sealed {}
 }
 
-impl UndirectedGraph {
-  pub fn new(vertices: HashSet<usize>, edges: HashSet<(usize, usize)>) -> Self {
-    let edges =
-      edges.into_iter().map(|(a, b)| if a <= b { (a, b) } else { (b, a) }).collect::<HashSet<_>>();
+pub trait DirectedType: sealed::Sealed {
+  const DIRECTED: bool;
+}
+
+pub struct Undirected;
+impl sealed::Sealed for Undirected {}
+impl DirectedType for Undirected {
+  const DIRECTED: bool = false;
+}
+pub struct Directed;
+impl sealed::Sealed for Directed {}
+impl DirectedType for Directed {
+  const DIRECTED: bool = true;
+}
+
+#[derive(Debug, Clone)]
+pub struct Graph<V, D: DirectedType> {
+  vertices: HashSet<V>,
+  edges: HashSet<(V, V)>,
+  d: PhantomData<D>,
+}
+
+impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
+  pub fn new(vertices: HashSet<V>, edges: HashSet<(V, V)>) -> Self {
+    let edges = if D::DIRECTED {
+      edges
+    } else {
+      edges.into_iter().map(|(a, b)| if a <= b { (a, b) } else { (b, a) }).collect::<HashSet<_>>()
+    };
 
     assert!(
       edges.iter().all(|(a, b)| vertices.contains(a) && vertices.contains(b)),
       "All edges must be between vertices",
     );
-    Self { vertices, edges }
+    Self { vertices, edges, d: PhantomData }
   }
 }
 
-impl Set for HashSet<usize> {
-  type Point = usize;
+impl<V: PartialOrd + Eq + Hash, D: DirectedType> Set for Graph<V, D> {
+  type Point = V;
 
   fn intersect(&self, other: Self) -> Self {
     self.intersection(&other).cloned().collect()
@@ -29,60 +55,60 @@ impl Set for HashSet<usize> {
   }
 }
 
-impl TopologicalSpace for UndirectedGraph {
-  type Point = usize;
+// impl TopologicalSpace for UndirectedGraph {
+//   type Point = usize;
 
-  type OpenSet = HashSet<Self::Point>;
+//   type OpenSet = HashSet<Self::Point>;
 
-  fn points(&self) -> HashSet<Self::Point> {
-    self.vertices.clone()
-  }
+//   fn points(&self) -> HashSet<Self::Point> {
+//     self.vertices.clone()
+//   }
 
-  fn neighborhood(&self, point: Self::Point) -> Self::OpenSet {
-    self
-      .edges
-      .iter()
-      .filter_map(|(a, b)| {
-        if *a == point {
-          Some(*b)
-        } else if *b == point {
-          Some(*a)
-        } else {
-          None
-        }
-      })
-      .collect()
-  }
+//   fn neighborhood(&self, point: Self::Point) -> Self::OpenSet {
+//     self
+//       .edges
+//       .iter()
+//       .filter_map(|(a, b)| {
+//         if *a == point {
+//           Some(*b)
+//         } else if *b == point {
+//           Some(*a)
+//         } else {
+//           None
+//         }
+//       })
+//       .collect()
+//   }
 
-  fn is_open(&self, _set: Self::OpenSet) -> bool {
-    true
-  }
-}
+//   fn is_open(&self, _set: Self::OpenSet) -> bool {
+//     true
+//   }
+// }
 
-impl MetricSpace for UndirectedGraph {
-  type Distance = Option<usize>;
+// impl MetricSpace for UndirectedGraph {
+//   type Distance = Option<usize>;
 
-  fn distance(
-    &self,
-    point_a: <Self as TopologicalSpace>::Point,
-    point_b: <Self as TopologicalSpace>::Point,
-  ) -> Self::Distance {
-    let mut visited = HashSet::new();
-    let mut queue = vec![(point_a, 0)];
-    while let Some((point, distance)) = queue.pop() {
-      if point == point_b {
-        return Some(distance);
-      }
-      visited.insert(point);
-      for neighbor in self.neighborhood(point) {
-        if !visited.contains(&neighbor) {
-          queue.push((neighbor, distance + 1));
-        }
-      }
-    }
-    None
-  }
-}
+//   fn distance(
+//     &self,
+//     point_a: <Self as TopologicalSpace>::Point,
+//     point_b: <Self as TopologicalSpace>::Point,
+//   ) -> Self::Distance {
+//     let mut visited = HashSet::new();
+//     let mut queue = vec![(point_a, 0)];
+//     while let Some((point, distance)) = queue.pop() {
+//       if point == point_b {
+//         return Some(distance);
+//       }
+//       visited.insert(point);
+//       for neighbor in self.neighborhood(point) {
+//         if !visited.contains(&neighbor) {
+//           queue.push((neighbor, distance + 1));
+//         }
+//       }
+//     }
+//     None
+//   }
+// }
 
 #[cfg(test)]
 mod tests {
