@@ -1,0 +1,185 @@
+name: Check
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  format:
+    name: fmt
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: install Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: rustfmt
+
+      - name: install taplo
+        run: cargo install taplo-cli
+
+      - name: run Rust fmt
+        run: cargo fmt --all -- --check
+
+      - name: run TOML fmt
+        run: taplo fmt --check
+
+  per-target:
+    name: ${{ matrix.job }} / ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          - job: build
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - job: lint
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - job: build
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - job: lint
+            os: macos-latest
+            target: aarch64-apple-darwin
+          - job: build
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+          - job: lint
+            os: windows-latest
+            target: x86_64-pc-windows-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+          components: ${{ matrix.job == 'lint' && 'clippy' || '' }}
+
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install mingw --version=12.2.0 -y
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          refreshenv
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check/${{ matrix.job }}/${{ matrix.target }}
+
+      - name: Build
+        if: matrix.job == 'build'
+        run: cargo build --target ${{ matrix.target }} --workspace
+
+      - name: Clippy
+        if: matrix.job == 'lint'
+        run: cargo clippy --target ${{ matrix.target }} --all-targets --all-features -- --deny warnings
+
+  test:
+    name: test / ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install mingw --version=12.2.0 -y
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          refreshenv
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check/test/${{ matrix.target }}
+
+      - name: Run tests
+        run: cargo test --verbose --target ${{ matrix.target }} --workspace
+
+  udeps:
+    name: udeps / ${{ matrix.target }}
+    runs-on: ${{ matrix.os }}
+    continue-on-error: true
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+          - os: macos-latest
+            target: aarch64-apple-darwin
+          - os: windows-latest
+            target: x86_64-pc-windows-gnu
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+        with:
+          targets: ${{ matrix.target }}
+      
+      - name: Install MinGW (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install mingw --version=12.2.0 -y
+          Import-Module "$env:ChocolateyInstall\helpers\chocolateyProfile.psm1"
+          refreshenv
+          echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check/udeps/${{ matrix.target }}
+      
+      - name: Install cargo-udeps
+        run: cargo install cargo-udeps --locked
+      
+      - name: Check unused dependencies
+        run: cargo +nightly udeps --target ${{ matrix.target }} --workspace
+
+  semver:
+    name: semver
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@cargo-semver-checks
+
+      - name: Run semver checks
+        run: cargo semver-checks check-release --workspace

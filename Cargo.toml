@@ -1,0 +1,10 @@
+[package]
+authors     = ["Colin Roberts"]
+description = "A description of $THING"
+edition     = "2021"
+keywords    = ["THING1", "THING2"]
+license     = "MIT"
+name        = "$THING"
+readme      = "README.md"
+repository  = "https://github.com/autoparallel/$THING"
+version     = "0.1.0"
