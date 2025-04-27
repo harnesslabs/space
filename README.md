@@ -1,76 +1,122 @@
-# Project Name
+# Harness
 
-Brief description of what this project does and its core value proposition.
+A Rust ecosystem for mathematical abstractions and computations, focusing on rigorous implementations of mathematical structures and algorithms.
 
-## Features
+## Overview
 
-- Key feature one with a brief explanation
-- Key feature two with a brief explanation
-- ...
+Harness provides a collection of crates that implement various mathematical structures and algorithms with a focus on type safety, correctness, and composability. The project aims to provide foundational mathematical tools that can be used in scientific computing, computer graphics, machine learning, and other domains requiring robust mathematical implementations.
+
+## Crates
+
+### `space`
+
+The `space` crate implements fundamental topological and geometric structures:
+
+- Topological spaces with rigorous axiom enforcement
+- Metric spaces and distance functions
+- Normed and inner product spaces
+- Graph structures with topology
+- Simplicial complexes and homology computations
+
+### `algebra` (Coming Soon)
+
+The `algebra` crate will provide implementations of algebraic structures:
+
+- Groups, rings, and fields
+- Vector spaces and linear transformations
+- Modules and tensor products
+- Polynomial rings and factorization
+
+## Design Philosophy
+
+- **Type Safety**: Mathematical properties are encoded in the type system where possible
+- **Correctness**: Implementations prioritize mathematical correctness over performance
+- **Composability**: Structures are designed to work together seamlessly
+- **Documentation**: Extensive mathematical documentation and examples
 
 ## Getting Started
 
-These instructions will help you get a copy of the project up and running on your local machine.
-
 ### Prerequisites
 
-What things you need to install and how to install them:
-
-```bash
-npm install
-# or ...
-```
+Harness requires Rust 1.70 or later.
 
 ### Installation
 
-1. Clone the repository
+Add the desired crates to your `Cargo.toml`:
 
-   ```bash
-   git clone https://github.com/username/project.git
-   ```
+```toml
+[dependencies]
+harness-space = "0.1"
+harness-algebra = "0.1"  # Coming soon
+```
 
-2. Install dependencies
+### Example Usage
 
-   ```bash
-   cd project
-   npm install # or equivalent for your project
-   ```
+```rust
+use harness_space::{
+    definitions::{MetricSpace, TopologicalSpace},
+    graph::{Graph, Undirected},
+};
+use std::collections::HashSet;
 
-3. Configure environment variables
+// Create an undirected graph
+let mut vertices = HashSet::new();
+vertices.insert(1);
+vertices.insert(2);
 
-   ```bash
-   cp .env.example .env
-   # Edit .env with your values
-   ```
+let mut edges = HashSet::new();
+edges.insert((1, 2));
 
-4. ...
+let graph: Graph<_, Undirected> = Graph::new(vertices, edges);
 
-## Usage
-
-Show basic examples of how to use your project:
-
-```python
-# If it's a Python project
-from project import Example
-
-example = Example()
-result = example.do_something()
+// Work with the graph as a metric space
+let distance = graph.distance(1, 2);
 ```
 
 ## Contributing
 
-We welcome contributions to our open-source projects. If you want to contribute or follow along with contributor discussions, join our main [Telegram channel](https://t.me/pluto_xyz/1) to chat about Pluto's development.
+We welcome contributions! Whether you're interested in:
 
-Our contributor guidelines can be found in our [CONTRIBUTING.md](https://github.com/pluto/.github/blob/main/profile/CONTRIBUTING.md).
+- Adding new mathematical structures
+- Improving documentation
+- Adding examples and test cases
+- Optimizing implementations
+- Finding and fixing bugs
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.
+Please check our [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
+### Development
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/yourusername/harness.git
+   cd harness
+   ```
+
+2. Run the tests:
+   ```bash
+   cargo test --all
+   ```
+
+## Documentation
+
+- [API Documentation](https://docs.rs/harness-space) (Coming soon)
+- [Mathematical Background](docs/math.md) (Coming soon)
+- [Design Decisions](docs/design.md) (Coming soon)
 
 ## License
 
-This project is licensed under the MIT - see the [LICENSE](LICENSE) file for details.
+Licensed under either of:
+
+- Apache License, Version 2.0 ([LICENSE-APACHE](LICENSE-APACHE) or http://www.apache.org/licenses/LICENSE-2.0)
+- MIT license ([LICENSE-MIT](LICENSE-MIT) or http://opensource.org/licenses/MIT)
+
+at your option.
 
 ## Acknowledgments
 
-- List any contributors
-- Reference any inspiration, code snippets, etc.
-- Link to relevant blog posts or documentation
+This project draws inspiration from:
+
+- Category theory and its applications to programming
+- The Haskell ecosystem's approach to mathematical abstractions
+- Modern algebraic topology and its computational aspects
