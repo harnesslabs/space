@@ -1,40 +1,97 @@
+//! Graph implementation with support for both directed and undirected graphs.
+//!
+//! This module provides a flexible graph data structure that can represent both directed
+//! and undirected graphs through a type parameter. The implementation supports basic
+//! set operations and is designed to work with the topology traits defined in the
+//! definitions module.
+
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
 use crate::definitions::Set;
 
+/// Private module to implement the sealed trait pattern.
+/// This prevents other crates from implementing DirectedType.
 mod sealed {
   pub trait Sealed {}
 }
 
+/// A trait to distinguish between directed and undirected graphs.
+///
+/// This trait is sealed and can only be implemented by the `Directed` and
+/// `Undirected` types provided in this module.
 pub trait DirectedType: sealed::Sealed {
+  /// Whether the graph is directed (`true`) or undirected (`false`).
   const DIRECTED: bool;
 }
 
+/// Type marker for undirected graphs.
 pub struct Undirected;
 impl sealed::Sealed for Undirected {}
 impl DirectedType for Undirected {
   const DIRECTED: bool = false;
 }
+
+/// Type marker for directed graphs.
 pub struct Directed;
 impl sealed::Sealed for Directed {}
 impl DirectedType for Directed {
   const DIRECTED: bool = true;
 }
 
+/// Represents a point in a graph, which can be either a vertex or a point on an edge.
+///
+/// # Type Parameters
+/// * `V` - The type of vertex identifiers
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GraphPoint<V> {
+  /// A vertex in the graph
   Vertex(V),
+  /// A point on an edge between two vertices
   EdgePoint(V, V),
 }
 
+/// A graph data structure supporting both directed and undirected graphs.
+///
+/// # Type Parameters
+/// * `V` - The type of vertex identifiers
+/// * `D` - The directedness type (`Directed` or `Undirected`)
+///
+/// # Examples
+/// ```
+/// use std::collections::HashSet;
+/// # use crate::graph::{Graph, Undirected};
+///
+/// let mut vertices = HashSet::new();
+/// vertices.insert(1);
+/// vertices.insert(2);
+///
+/// let mut edges = HashSet::new();
+/// edges.insert((1, 2));
+///
+/// let graph: Graph<_, Undirected> = Graph::new(vertices, edges);
+/// ```
 #[derive(Debug, Clone)]
 pub struct Graph<V, D: DirectedType> {
+  /// The set of vertices in the graph
   vertices: HashSet<V>,
+  /// The set of edges in the graph
   edges: HashSet<(V, V)>,
+  /// Phantom data to carry the directedness type
   d: PhantomData<D>,
 }
 
 impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
+  /// Creates a new graph with the given vertices and edges.
+  ///
+  /// For undirected graphs, edges are normalized so that the smaller vertex
+  /// (by `PartialOrd`) is always first in the pair.
+  ///
+  /// # Arguments
+  /// * `vertices` - The set of vertices in the graph
+  /// * `edges` - The set of edges in the graph
+  ///
+  /// # Panics
+  /// * If any edge references a vertex not in the vertex set
   pub fn new(vertices: HashSet<V>, edges: HashSet<(V, V)>) -> Self {
     let edges = if D::DIRECTED {
       edges
@@ -53,6 +110,14 @@ impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
 impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
   type Point = GraphPoint<V>;
 
+  /// Tests if a point is contained in the graph.
+  ///
+  /// # Arguments
+  /// * `point` - The point to test for containment
+  ///
+  /// # Returns
+  /// * `true` if the point is a vertex or edge point in the graph
+  /// * `false` otherwise
   fn contains(&self, point: &Self::Point) -> bool {
     match point {
       GraphPoint::Vertex(v) => self.vertices.contains(v),
@@ -62,6 +127,10 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
     }
   }
 
+  /// Computes the set difference of two graphs (self - other).
+  ///
+  /// The resulting graph contains vertices and edges that are in `self` but not in `other`.
+  /// Note that edges are only included if both their vertices are in the result.
   fn difference(&self, other: &Self) -> Self {
     let vertices: HashSet<V> = self.vertices.difference(&other.vertices).cloned().collect();
 
@@ -69,7 +138,6 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
       .edges
       .iter()
       .filter(|(u, v)| {
-        // Keep edge if both vertices are in our result
         self.vertices.contains(u)
           && self.vertices.contains(v)
           && !other.edges.contains(&(u.clone(), v.clone()))
@@ -80,79 +148,33 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
     Self::new(vertices, edges)
   }
 
+  /// Computes the intersection of two graphs.
+  ///
+  /// The resulting graph contains vertices and edges that are in both graphs.
   fn intersect(&self, other: &Self) -> Self {
     let vertices: HashSet<V> = self.vertices.intersection(&other.vertices).cloned().collect();
-
     let edges: HashSet<(V, V)> = self.edges.intersection(&other.edges).cloned().collect();
-
     Self::new(vertices, edges)
   }
 
+  /// Computes the union of two graphs.
+  ///
+  /// The resulting graph contains all vertices and edges from both graphs.
   fn union(&self, other: &Self) -> Self {
     let vertices: HashSet<V> = self.vertices.union(&other.vertices).cloned().collect();
-
     let edges: HashSet<(V, V)> = self.edges.union(&other.edges).cloned().collect();
-
     Self::new(vertices, edges)
   }
 }
 
-// impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> TopologicalSpace for Graph<V, D> {
-//   type Point = GraphPoint<V>;
-
-//   type OpenSet = HashSet<GraphPoint<V>>;
-
-//   fn neighborhood(&self, point: Self::Point) -> Self::OpenSet {
-//     self
-//       .edges
-//       .iter()
-//       .filter_map(|(a, b)| {
-//         if a == point {
-//           Some(*b)
-//         } else if b == point {
-//           Some(*a)
-//         } else {
-//           None
-//         }
-//       })
-//       .collect()
-//   }
-
-//   fn is_open(&self, _set: Self::OpenSet) -> bool {
-//     true
-//   }
-// }
-
-// impl MetricSpace for UndirectedGraph {
-//   type Distance = Option<usize>;
-
-//   fn distance(
-//     &self,
-//     point_a: <Self as TopologicalSpace>::Point,
-//     point_b: <Self as TopologicalSpace>::Point,
-//   ) -> Self::Distance {
-//     let mut visited = HashSet::new();
-//     let mut queue = vec![(point_a, 0)];
-//     while let Some((point, distance)) = queue.pop() {
-//       if point == point_b {
-//         return Some(distance);
-//       }
-//       visited.insert(point);
-//       for neighbor in self.neighborhood(point) {
-//         if !visited.contains(&neighbor) {
-//           queue.push((neighbor, distance + 1));
-//         }
-//       }
-//     }
-//     None
-//   }
-// }
+// TODO: Implement TopologicalSpace and MetricSpace traits
+// Commented implementations left for reference
 
 #[cfg(test)]
 mod tests {
-
   use super::*;
 
+  /// Helper function to create a test graph.
   fn create_graph() -> Graph<usize, Undirected> {
     let mut vertices = HashSet::new();
     vertices.insert(1);
@@ -176,22 +198,5 @@ mod tests {
     assert_eq!(graph.edges.len(), 3);
   }
 
-  //   #[test]
-  //   fn neighborhood() {
-  //     let graph = create_graph();
-  //     assert_eq!(graph.neighborhood(1), vec![2].into_iter().collect::<HashSet<_>>());
-  //     assert_eq!(graph.neighborhood(2), vec![1, 3].into_iter().collect::<HashSet<_>>());
-  //     assert_eq!(graph.neighborhood(3), vec![2, 4].into_iter().collect::<HashSet<_>>());
-  //     assert_eq!(graph.neighborhood(4), vec![3].into_iter().collect::<HashSet<_>>());
-  //   }
-
-  //   #[test]
-  //   fn distance() {
-  //     let graph = create_graph();
-  //     assert_eq!(graph.distance(1, 1), Some(0));
-  //     assert_eq!(graph.distance(1, 2), Some(1));
-  //     assert_eq!(graph.distance(1, 3), Some(2));
-  //     assert_eq!(graph.distance(1, 4), Some(3));
-  //     assert_eq!(graph.distance(1, 5), None);
-  //   }
+  // TODO: Uncomment and fix these tests when implementing TopologicalSpace and MetricSpace
 }
