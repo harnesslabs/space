@@ -69,6 +69,7 @@ impl SimplicialComplex {
     }
   }
 
+  // TODO: This should break if we glue more than 2 simplices together
   pub fn boundary<R: Clone + Neg<Output = R> + Add<Output = R> + Zero + One>(
     &self,
     dimension: usize,
