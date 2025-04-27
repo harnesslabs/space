@@ -1,5 +1,5 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use super::*;
 
-use num::{One, Zero};
+pub trait Ring: Zero + One + Add + Neg + Sub + Mul + AddAssign + SubAssign + MulAssign {}
 
-pub trait Ring: Zero + One + Add + Neg + Sub + Mul {}
+pub trait Field: Ring + Div + DivAssign {}

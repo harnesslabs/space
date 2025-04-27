@@ -11,4 +11,5 @@ repository  = "https://github.com/harness-labs/space"
 version     = "0.1.0"
 
 [dependencies]
-num = { workspace = true }
+const_num_bigint = "0.2"
+num              = { workspace = true }
