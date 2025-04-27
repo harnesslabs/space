@@ -1,7 +1,8 @@
-use std::ops::{Add, Mul};
+use std::ops::{Add, Mul, Neg};
 
 use itertools::Itertools;
 
+// NOTE: Vertices are always stored sorted.
 #[derive(Clone, Debug)]
 pub struct Simplex<V> {
   vertices: Vec<V>,
@@ -10,20 +11,19 @@ pub struct Simplex<V> {
 
 impl<V: Clone + Ord + PartialEq> PartialEq for Simplex<V> {
   fn eq(&self, other: &Self) -> bool {
-    let mut sorted_self = self.vertices.clone();
-    sorted_self.sort();
-    let mut sorted_other = other.vertices.clone();
-    sorted_other.sort();
-    sorted_self.iter().zip(sorted_other.iter()).all(|(a, b)| a == b)
+    self.vertices == other.vertices
   }
 }
 
-impl<V: Clone + PartialEq> Simplex<V> {
+impl<V> Simplex<V> {
   // Create a new simplex from K+1 vertices
-  pub fn new(dimension: usize, vertices: Vec<V>) -> Self {
+  pub fn new(dimension: usize, vertices: Vec<V>) -> Self
+  where
+    V: Ord,
+  {
     assert!(vertices.iter().combinations(2).all(|v| v[0] != v[1]));
     assert!(vertices.len() == dimension + 1);
-    Self { vertices, dimension }
+    Self { vertices: vertices.into_iter().sorted().collect(), dimension }
   }
 
   // Get a reference to the vertices
@@ -35,7 +35,10 @@ impl<V: Clone + PartialEq> Simplex<V> {
     self.dimension
   }
 
-  pub fn faces(&self) -> Vec<Simplex<V>> {
+  pub fn faces(&self) -> Vec<Simplex<V>>
+  where
+    V: Clone + Ord,
+  {
     self
       .vertices
       .clone()
@@ -77,15 +80,82 @@ pub struct Chain<R, V> {
   coefficients: Vec<R>,
 }
 
-impl<R: Add + Mul<Output = R>, V: Clone + PartialEq + Ord> Chain<R, V> {
-  pub fn new(simplices: Vec<Simplex<V>>, coefficients: Vec<R>) -> Self {
-    Self { simplices, coefficients }
+impl<R, V> Chain<R, V> {
+  pub fn new() -> Self {
+    Self { simplices: vec![], coefficients: vec![] }
+  }
+
+  pub fn from_simplex_and_coeff(simplex: Simplex<V>, coeff: R) -> Self {
+    Self { simplices: vec![simplex], coefficients: vec![coeff] }
+  }
+
+  pub fn boundary(&self) -> Self
+  where
+    R: Clone + Neg<Output = R> + Add<Output = R>,
+    V: Clone + Ord,
+  {
+    let mut boundary = Self::new();
+    for (coeff, simplex) in self.coefficients.clone().into_iter().zip(self.simplices.iter()) {
+      for i in 0..simplex.dimension() {
+        let mut vertices = simplex.vertices().to_vec();
+        vertices.remove(i);
+        // Get the sign of the permutation of the vertices
+        let permutation = permutation_sign(&vertices);
+        // Make a new simplex with the remaining vertices
+        let face = Simplex::new(simplex.dimension() - 1, vertices);
+        // Make a new chain with the face and the coefficient where the sign of the permutation is applied
+        let chain = Self::from_simplex_and_coeff(
+          face,
+          if permutation == Permutation::Even { coeff.clone() } else { -coeff.clone() },
+        );
+        // Add the chain to the boundary
+        boundary = boundary + chain;
+      }
+    }
+    boundary
   }
 }
 
-impl<R: Add + Mul<Output = R>, V: Clone + PartialEq + Ord> PartialEq for Chain<R, V> {
+impl<R: Clone + Neg + PartialEq, V: Clone + PartialEq + Ord> PartialEq for Chain<R, V> {
   fn eq(&self, other: &Self) -> bool {
-    self.simplices == other.simplices && self.coefficients == other.coefficients
+    let self_chain = self.coefficients.clone().into_iter().zip(self.simplices.iter());
+    let other_chain = other.coefficients.clone().into_iter().zip(other.simplices.iter());
+
+    self_chain.zip(other_chain).all(|((coeff_a, simplex_a), (coeff_b, simplex_b))| {
+      coeff_a == coeff_b
+        && permutation_sign(simplex_a.vertices()) == permutation_sign(simplex_b.vertices())
+        && simplex_a.vertices() == simplex_b.vertices()
+    })
+  }
+}
+
+impl<R: Add + Neg, V: Clone + PartialEq + Ord> Add for Chain<R, V> {
+  type Output = Self;
+
+  fn add(self, other: Self) -> Self::Output {
+    todo!()
+  }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Permutation {
+  Odd,
+  Even,
+}
+
+pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
+  let mut count = 0;
+  for i in 0..item.len() {
+    for j in i + 1..item.len() {
+      if item[i] > item[j] {
+        count += 1;
+      }
+    }
+  }
+  if count % 2 == 0 {
+    Permutation::Even
+  } else {
+    Permutation::Odd
   }
 }
 
