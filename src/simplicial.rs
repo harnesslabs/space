@@ -1,7 +1,7 @@
 use std::ops::{Add, Mul, Neg};
 
 use itertools::Itertools;
-use num::Zero;
+use num::{One, Zero};
 
 // NOTE: Vertices are always stored sorted.
 #[derive(Clone, Debug)]
@@ -69,15 +69,23 @@ impl SimplicialComplex {
     }
   }
 
-  pub fn boundary<R: Clone + Neg<Output = R> + Add<Output = R> + Zero>(
+  pub fn boundary<R: Clone + Neg<Output = R> + Add<Output = R> + Zero + One>(
     &self,
     dimension: usize,
   ) -> Chain<R> {
-    let mut boundary = Chain::new();
+    if dimension == 0 || dimension >= self.simplices.len() {
+      return Chain::new(); // 0-dimensional simplices have no boundary
+    }
+    let mut chain = Chain::new();
     let simplices = self.simplices[dimension].clone();
-    // TODO: Iterate through the simplices, check if any share a face, if so make sure only two do and they have opposite signs when we make a chain
-    // TODO: Then take the sum of the coefficients of the chains using the signs, and return the chain
-    boundary
+    for simplex in simplices {
+      if chain.simplices.iter().flat_map(Simplex::faces).any(|f| simplex.faces().contains(&f)) {
+        chain = chain + Chain::from_simplex_and_coeff(simplex, -R::one());
+      } else {
+        chain = chain + Chain::from_simplex_and_coeff(simplex, R::one());
+      }
+    }
+    chain.boundary()
   }
 }
 
@@ -388,5 +396,14 @@ mod tests {
 
     // The shared edge [1,2] should not be present because its coefficients cancel
     assert!(!edge_vertices.contains(&vec![1, 2]));
+  }
+
+  #[test]
+  fn test_simplicial_complex_boundary() {
+    let mut complex = SimplicialComplex::new();
+    complex.join_simplex(Simplex::new(2, vec![0, 1, 2]));
+    complex.join_simplex(Simplex::new(2, vec![1, 2, 3]));
+    let boundary: Chain<i32> = complex.boundary(2);
+    dbg!(&boundary);
   }
 }
