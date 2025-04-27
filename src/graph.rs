@@ -59,7 +59,7 @@ pub enum GraphPoint<V> {
 /// # Examples
 /// ```
 /// use std::collections::HashSet;
-/// # use crate::graph::{Graph, Undirected};
+/// # use space::graph::{Graph, Undirected};
 ///
 /// let mut vertices = HashSet::new();
 /// vertices.insert(1);
