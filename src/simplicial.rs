@@ -68,6 +68,17 @@ impl SimplicialComplex {
       }
     }
   }
+
+  pub fn boundary<R: Clone + Neg<Output = R> + Add<Output = R> + Zero>(
+    &self,
+    dimension: usize,
+  ) -> Chain<R> {
+    let mut boundary = Chain::new();
+    let simplices = self.simplices[dimension].clone();
+    // TODO: Iterate through the simplices, check if any share a face, if so make sure only two do and they have opposite signs when we make a chain
+    // TODO: Then take the sum of the coefficients of the chains using the signs, and return the chain
+    boundary
+  }
 }
 
 #[derive(Clone, Debug)]
@@ -356,7 +367,7 @@ mod tests {
     let triangle2 = Simplex::new(2, vec![1, 2, 3]);
 
     let chain1 = Chain::from_simplex_and_coeff(triangle1, 1);
-    let chain2 = Chain::from_simplex_and_coeff(triangle2, 1);
+    let chain2 = Chain::from_simplex_and_coeff(triangle2, -1);
 
     let combined_chain = chain1 + chain2;
     let boundary = combined_chain.boundary();
