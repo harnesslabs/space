@@ -1,9 +1,25 @@
-use std::ops::{Add, Mul, Neg};
+//! A module for working with simplicial complexes and computing their boundaries.
+//!
+//! This module provides data structures and algorithms for working with simplicial complexes,
+//! including operations for computing boundaries and manipulating chains of simplices.
+//! The implementation ensures that vertices in simplices are always stored in sorted order.
+
+use std::ops::{Add, Neg};
 
 use itertools::Itertools;
 use num::{One, Zero};
 
-// NOTE: Vertices are always stored sorted.
+/// A simplex represents a k-dimensional geometric object that is the convex hull of k+1 vertices.
+///
+/// For example:
+/// - A 0-simplex is a point
+/// - A 1-simplex is a line segment
+/// - A 2-simplex is a triangle
+/// - A 3-simplex is a tetrahedron
+///
+/// # Fields
+/// * `vertices` - A sorted vector of vertex indices that define the simplex
+/// * `dimension` - The dimension of the simplex (number of vertices - 1)
 #[derive(Clone, Debug)]
 pub struct Simplex {
   vertices: Vec<usize>,
@@ -17,22 +33,34 @@ impl PartialEq for Simplex {
 }
 
 impl Simplex {
-  // Create a new simplex from K+1 vertices
+  /// Creates a new simplex from k+1 vertices where k is the dimension.
+  ///
+  /// # Arguments
+  /// * `dimension` - The dimension of the simplex
+  /// * `vertices` - A vector of vertex indices
+  ///
+  /// # Panics
+  /// * If the number of vertices does not equal dimension + 1
+  /// * If any vertex indices are repeated
   pub fn new(dimension: usize, vertices: Vec<usize>) -> Self {
     assert!(vertices.iter().combinations(2).all(|v| v[0] != v[1]));
     assert!(vertices.len() == dimension + 1);
     Self { vertices: vertices.into_iter().sorted().collect(), dimension }
   }
 
-  // Get a reference to the vertices
+  /// Returns a reference to the sorted vertices of the simplex.
   pub fn vertices(&self) -> &[usize] {
     &self.vertices
   }
 
+  /// Returns the dimension of the simplex.
   pub fn dimension(&self) -> usize {
     self.dimension
   }
 
+  /// Computes all (dimension-1)-dimensional faces of this simplex.
+  ///
+  /// For example, a triangle's faces are its three edges.
   pub fn faces(&self) -> Vec<Simplex> {
     self
       .vertices
@@ -44,15 +72,26 @@ impl Simplex {
   }
 }
 
+/// A simplicial complex represents a collection of simplices that are properly glued together.
+///
+/// The complex stores simplices grouped by dimension, where each dimension's simplices
+/// are stored in a vector at the corresponding index.
+#[derive(Debug, Default)]
 pub struct SimplicialComplex {
+  /// Vector of simplices grouped by dimension
   simplices: Vec<Vec<Simplex>>,
 }
 
 impl SimplicialComplex {
+  /// Creates a new empty simplicial complex.
   pub fn new() -> Self {
     Self { simplices: vec![] }
   }
 
+  /// Adds a simplex and all its faces to the complex.
+  ///
+  /// If the simplex is already present, it will not be added again.
+  /// This method recursively adds all faces of the simplex as well.
   pub fn join_simplex(&mut self, simplex: Simplex) {
     while self.simplices.len() <= simplex.dimension() {
       self.simplices.push(Vec::new());
@@ -60,22 +99,35 @@ impl SimplicialComplex {
     if self.simplices[simplex.dimension()].contains(&simplex) {
       return;
     }
-    self.simplices[simplex.dimension()].push(simplex.clone());
 
     if simplex.dimension() > 0 {
       for face in simplex.faces() {
         self.join_simplex(face);
       }
     }
+    self.simplices[simplex.dimension()].push(simplex);
   }
 
-  // TODO: This should break if we glue more than 2 simplices together
+  /// Computes the boundary of all simplices of a given dimension in the complex.
+  ///
+  /// # Type Parameters
+  /// * `R` - The coefficient ring type (must implement Clone, Neg, Add, Zero, and One)
+  ///
+  /// # Arguments
+  /// * `dimension` - The dimension of simplices whose boundary to compute
+  ///
+  /// # Returns
+  /// A chain representing the boundary. If dimension is 0 or exceeds the maximum
+  /// dimension in the complex, returns an empty chain.
+  ///
+  /// # Note
+  /// This implementation assumes at most two simplices share any given face.
   pub fn boundary<R: Clone + Neg<Output = R> + Add<Output = R> + Zero + One>(
     &self,
     dimension: usize,
   ) -> Chain<R> {
     if dimension == 0 || dimension >= self.simplices.len() {
-      return Chain::new(); // 0-dimensional simplices have no boundary
+      return Chain::new();
     }
     let mut chain = Chain::new();
     let simplices = self.simplices[dimension].clone();
@@ -90,21 +142,33 @@ impl SimplicialComplex {
   }
 }
 
-#[derive(Clone, Debug)]
+/// A chain represents a formal sum of simplices with coefficients from a ring.
+///
+/// # Type Parameters
+/// * `R` - The coefficient ring type
+#[derive(Clone, Debug, Default)]
 pub struct Chain<R> {
+  /// The simplices in the chain
   simplices: Vec<Simplex>,
+  /// The coefficients corresponding to each simplex
   coefficients: Vec<R>,
 }
 
 impl<R> Chain<R> {
+  /// Creates a new empty chain.
   pub fn new() -> Self {
     Self { simplices: vec![], coefficients: vec![] }
   }
 
+  /// Creates a new chain with a single simplex and coefficient.
   pub fn from_simplex_and_coeff(simplex: Simplex, coeff: R) -> Self {
     Self { simplices: vec![simplex], coefficients: vec![coeff] }
   }
 
+  /// Computes the boundary of this chain.
+  ///
+  /// The boundary operator satisfies the property that ∂² = 0,
+  /// meaning the boundary of a boundary is empty.
   pub fn boundary(&self) -> Self
   where
     R: Clone + Neg<Output = R> + Add<Output = R> + Zero,
@@ -114,14 +178,11 @@ impl<R> Chain<R> {
       for i in 0..=simplex.dimension() {
         let mut vertices = simplex.vertices().to_vec();
         let _ = vertices.remove(i);
-        // Make a new simplex with the remaining vertices
         let face = Simplex::new(simplex.dimension() - 1, vertices);
-        // Make a new chain with the face and the coefficient where the sign is applied
         let chain = Self::from_simplex_and_coeff(
           face,
           if i % 2 == 0 { coeff.clone() } else { -coeff.clone() },
         );
-        // Add the chain to the boundary
         boundary = boundary + chain;
       }
     }
@@ -130,6 +191,10 @@ impl<R> Chain<R> {
 }
 
 impl<R: Clone + PartialEq> PartialEq for Chain<R> {
+  /// Checks if two chains are equal.
+  ///
+  /// Two chains are equal if they have the same simplices with the same coefficients,
+  /// taking into account the orientation of the simplices.
   fn eq(&self, other: &Self) -> bool {
     let self_chain = self.coefficients.clone().into_iter().zip(self.simplices.iter());
     let other_chain = other.coefficients.clone().into_iter().zip(other.simplices.iter());
@@ -145,7 +210,13 @@ impl<R: Clone + PartialEq> PartialEq for Chain<R> {
 impl<R: Add<Output = R> + Neg<Output = R> + Clone + Zero> Add for Chain<R> {
   type Output = Self;
 
-  // TODO: Check that the simplicies are the same dimension
+  /// Adds two chains together.
+  ///
+  /// The addition combines like terms (simplices) by adding their coefficients.
+  /// Terms with zero coefficients are removed from the result.
+  ///
+  /// # Note
+  /// This implementation assumes the chains contain simplices of the same dimension.
   fn add(self, other: Self) -> Self::Output {
     let mut result_simplices = Vec::new();
     let mut result_coefficients: Vec<R> = Vec::new();
@@ -211,12 +282,23 @@ impl<R: Add<Output = R> + Neg<Output = R> + Clone + Zero> Add for Chain<R> {
   }
 }
 
+/// Represents whether a permutation is odd or even.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Permutation {
+  /// An odd permutation
   Odd,
+  /// An even permutation
   Even,
 }
 
+/// Computes the sign of a permutation by counting inversions.
+///
+/// # Arguments
+/// * `item` - A slice of ordered items
+///
+/// # Returns
+/// `Permutation::Even` if the number of inversions is even,
+/// `Permutation::Odd` if the number of inversions is odd.
 pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
   let mut count = 0;
   for i in 0..item.len() {
@@ -316,8 +398,6 @@ mod tests {
 
     let boundary = chain.boundary();
 
-    dbg!(&boundary);
-
     // Should have two 0-simplices (vertices)
     assert_eq!(boundary.simplices.len(), 2);
     assert_eq!(boundary.coefficients.len(), 2);
@@ -339,8 +419,6 @@ mod tests {
 
     let boundary = chain.boundary();
 
-    dbg!(&boundary);
-
     // Should have three 1-simplices (edges)
     assert_eq!(boundary.simplices.len(), 3);
 
@@ -360,9 +438,7 @@ mod tests {
     let chain = Chain::from_simplex_and_coeff(triangle, 1);
 
     let boundary = chain.boundary();
-    dbg!(&boundary);
     let boundary_squared = boundary.boundary();
-    dbg!(&boundary_squared);
 
     // Boundary of boundary should be empty (∂² = 0)
     assert_eq!(boundary_squared.simplices.len(), 0);
@@ -380,8 +456,6 @@ mod tests {
 
     let combined_chain = chain1 + chain2;
     let boundary = combined_chain.boundary();
-
-    dbg!(&boundary);
 
     // The boundary should have 4 edges (the shared edge [1,2] cancels out)
     assert_eq!(boundary.simplices.len(), 4);
@@ -405,6 +479,15 @@ mod tests {
     complex.join_simplex(Simplex::new(2, vec![0, 1, 2]));
     complex.join_simplex(Simplex::new(2, vec![1, 2, 3]));
     let boundary: Chain<i32> = complex.boundary(2);
-    dbg!(&boundary);
+    assert_eq!(boundary.simplices.len(), 4);
+    assert_eq!(boundary.coefficients.len(), 4);
+    assert_eq!(boundary.simplices[0].vertices(), &[0, 2]);
+    assert_eq!(boundary.simplices[1].vertices(), &[0, 1]);
+    assert_eq!(boundary.simplices[2].vertices(), &[2, 3]);
+    assert_eq!(boundary.simplices[3].vertices(), &[1, 3]);
+    assert_eq!(boundary.coefficients[0], -1);
+    assert_eq!(boundary.coefficients[1], 1);
+    assert_eq!(boundary.coefficients[2], -1);
+    assert_eq!(boundary.coefficients[3], 1);
   }
 }

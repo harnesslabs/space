@@ -1,6 +1,6 @@
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
-use crate::definitions::{MetricSpace, Set, TopologicalSpace};
+use crate::definitions::Set;
 
 mod sealed {
   pub trait Sealed {}
@@ -55,7 +55,7 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
 
   fn contains(&self, point: &Self::Point) -> bool {
     match point {
-      GraphPoint::Vertex(v) => self.vertices.contains(&v),
+      GraphPoint::Vertex(v) => self.vertices.contains(v),
       GraphPoint::EdgePoint(u, v) => {
         self.edges.contains(&(u.clone(), v.clone())) | self.edges.contains(&(v.clone(), u.clone()))
       },
