@@ -3,12 +3,12 @@ name = "harness-space"
 
 authors     = ["Harness Labs"]
 description = "The library for topological and other spaces"
-edition     = "2024"
+edition     = "2021"
 keywords    = ["mathematics", "topology"]
 license     = "MIT"
 readme      = "README.md"
 repository  = "https://github.com/harness-labs/space"
-version     = "0.1.0"
+version     = "0.1.1"
 
 [dependencies]
 itertools  = { workspace = true }

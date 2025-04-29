@@ -11,7 +11,7 @@ on:
 
 jobs:
   release:
-    name: Release
+    name: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -19,7 +19,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust toolchain
+      - name: Install Rust toolchain (stable)
         uses: dtolnay/rust-toolchain@stable
 
       - name: Rust Cache
@@ -32,7 +32,7 @@ jobs:
         run: cargo semver-checks check-release --workspace
 
       - name: Update Cargo.lock
-        uses: stefanzweifel/git-auto-commit-action@v5  # Better commit action
+        uses: stefanzweifel/git-auto-commit-action@v5
         with:
           commit_message: "chore: update Cargo.lock"
           file_pattern: "Cargo.lock"

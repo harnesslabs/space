@@ -1,6 +1,5 @@
-use crate::{arithmetic::Multiplicative, group::AbelianGroup};
-
 use super::*;
+use crate::{arithmetic::Multiplicative, group::AbelianGroup};
 
 pub trait Ring: AbelianGroup + Multiplicative {
   fn one() -> Self;
