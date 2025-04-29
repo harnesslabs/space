@@ -27,7 +27,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: check/rustfmt
+          key: rust/rustfmt
 
       - name: Run Rust fmt
         run: cargo fmt --all -- --check
@@ -49,7 +49,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: check/taplo
+          key: rust/taplo
 
       - name: Run TOML fmt
         run: taplo fmt --check
@@ -62,13 +62,30 @@ jobs:
 
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: rust/check
+
+      - name: Run cargo check
+        run: cargo check --workspace
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
         with:
           components: clippy
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: check/check
+          key: rust/clippy
 
       - name: Build
         run: cargo build --workspace
@@ -88,7 +105,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: check/test
+          key: rust/test
 
       - name: Run tests
         run: cargo test --verbose --workspace
