@@ -15,7 +15,7 @@ on:
 
 jobs:
   release:
-    name: Release
+    name: release
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
@@ -23,19 +23,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust toolchain (stable or nightly)
-        shell: bash
-        run: |
-          set -eux
-          rustup toolchain install stable
-          rustup default stable
-          RUSTC_VERSION=$(rustc --version | awk '{print $2}')
-          if [ "$(printf '%s\n' \"1.80.0\" \"$RUSTC_VERSION\" | sort -V | head -n1)" != "1.80.0" ]; then
-            echo "Stable is too old, installing nightly..."
-            rustup toolchain install nightly
-            rustup default nightly
-          fi
-          rustc --version
+      - name: Install Rust toolchain (nightly)
+        uses: dtolnay/rust-toolchain@nightly
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
@@ -54,6 +43,8 @@ jobs:
 
       - name: Run release-plz
         uses: MarcoIeni/release-plz-action@v0.5.41
+        with:
+          toolchain: nightly
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}
