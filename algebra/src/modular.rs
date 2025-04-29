@@ -16,7 +16,7 @@ macro_rules! modular {
       }
     }
 
-    impl num::Zero for $name {
+    impl num_traits::Zero for $name {
       fn zero() -> Self {
         Self(0)
       }
@@ -42,11 +42,7 @@ macro_rules! modular {
     impl std::ops::Neg for $name {
       type Output = Self;
       fn neg(self) -> Self {
-        if self.0 == 0 {
-          self
-        } else {
-          Self::new(Self::MODULUS - self.0)
-        }
+        if self.0 == 0 { self } else { Self::new(Self::MODULUS - self.0) }
       }
     }
 
@@ -63,7 +59,7 @@ macro_rules! modular {
       }
     }
 
-    impl num::Bounded for $name {
+    impl num_traits::Bounded for $name {
       fn min_value() -> Self {
         Self(0)
       }
@@ -73,7 +69,7 @@ macro_rules! modular {
       }
     }
 
-    impl num::One for $name {
+    impl num_traits::One for $name {
       fn one() -> Self {
         Self(1)
       }

@@ -9,5 +9,5 @@ harness-algebra = { version = "*", path = "algebra" }
 harness-space   = { version = "*", path = "space" }
 
 # External dependencies
-itertools = "0.14"
-num       = "0.4"
+itertools  = "0.14"
+num-traits = "0.2"
