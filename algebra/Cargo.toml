@@ -3,7 +3,7 @@ name = "harness-algebra"
 
 authors     = ["Harness Labs"]
 description = "The library for algebraic structures"
-edition     = "2024"
+edition     = "2021"
 keywords    = ["mathematics", "algebra"]
 license     = "MIT"
 readme      = "README.md"
