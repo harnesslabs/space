@@ -1,4 +1,4 @@
-name: Check
+name: Rust
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
@@ -13,8 +13,8 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  format:
-    name: fmt
+  rust-fmt:
+    name: rustfmt
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,6 +24,23 @@ jobs:
         with:
           components: rustfmt
 
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: check/rustfmt
+
+      - name: Run Rust fmt
+        run: cargo fmt --all -- --check
+
+  toml-fmt:
+    name: taplo
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
       - name: Install taplo
         uses: taiki-e/install-action@cargo-binstall
         with:
@@ -32,10 +49,7 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          key: check/fmt
-
-      - name: Run Rust fmt
-        run: cargo fmt --all -- --check
+          key: check/taplo
 
       - name: Run TOML fmt
         run: taplo fmt --check
