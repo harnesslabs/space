@@ -1,0 +1,12 @@
+[workspace]
+allow_dirty         = false
+dependencies_update = false
+semver_check        = true
+
+[[package]]
+name    = "harness-algebra"
+publish = true
+
+[[package]]
+name    = "harness-space"
+publish = true

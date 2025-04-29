@@ -3,7 +3,7 @@ name = "harness-algebra"
 
 authors     = ["Harness Labs"]
 description = "The library for algebraic structures"
-edition     = "2021"
+edition     = "2024"
 keywords    = ["mathematics", "algebra"]
 license     = "MIT"
 readme      = "README.md"
@@ -11,4 +11,4 @@ repository  = "https://github.com/harness-labs/space"
 version     = "0.1.0"
 
 [dependencies]
-num = { workspace = true }
+num-traits = { workspace = true }

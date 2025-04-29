@@ -1,5 +1,12 @@
-use std::ops::{Add, Mul, Neg, Sub};
+use crate::{arithmetic::Multiplicative, group::AbelianGroup};
 
-use num::{One, Zero};
+use super::*;
 
-pub trait Ring: Zero + One + Add + Neg + Sub + Mul {}
+pub trait Ring: AbelianGroup + Multiplicative {
+  fn one() -> Self;
+  fn zero() -> Self;
+}
+
+pub trait Field: Ring + Div + DivAssign {
+  fn multiplicative_inverse(&self) -> Self;
+}

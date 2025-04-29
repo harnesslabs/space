@@ -7,7 +7,7 @@
 use std::ops::{Add, Neg};
 
 use itertools::Itertools;
-use num::{One, Zero};
+use num_traits::{One, Zero};
 
 /// A simplex represents a k-dimensional geometric object that is the convex hull of k+1 vertices.
 ///
@@ -308,11 +308,7 @@ pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
       }
     }
   }
-  if count % 2 == 0 {
-    Permutation::Even
-  } else {
-    Permutation::Odd
-  }
+  if count % 2 == 0 { Permutation::Even } else { Permutation::Odd }
 }
 
 #[cfg(test)]
