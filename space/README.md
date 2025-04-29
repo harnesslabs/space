@@ -1,76 +1,109 @@
-# Project Name
+# Space Crate
 
-Brief description of what this project does and its core value proposition.
+A Rust library providing mathematical structures and operations for topological spaces, simplicial complexes, and graphs. This crate is designed to support computational topology and geometry applications.
 
 ## Features
 
-- Key feature one with a brief explanation
-- Key feature two with a brief explanation
-- ...
+- **Topological Spaces**: Implementation of fundamental topological concepts
+  - Sets with basic operations (union, intersection, difference)
+  - Topological spaces with neighborhoods and open sets
+  - Metric spaces with distance functions
+  - Normed and inner product spaces
 
-## Getting Started
+- **Simplicial Complexes**: Tools for working with simplicial complexes
+  - Simplex representation (points, edges, triangles, etc.)
+  - Chain complexes with boundary operations
+  - Support for arbitrary coefficient rings
 
-These instructions will help you get a copy of the project up and running on your local machine.
-
-### Prerequisites
-
-What things you need to install and how to install them:
-
-```bash
-npm install
-# or ...
-```
-
-### Installation
-
-1. Clone the repository
-
-   ```bash
-   git clone https://github.com/username/project.git
-   ```
-
-2. Install dependencies
-
-   ```bash
-   cd project
-   npm install # or equivalent for your project
-   ```
-
-3. Configure environment variables
-
-   ```bash
-   cp .env.example .env
-   # Edit .env with your values
-   ```
-
-4. ...
+- **Graph Theory**: Flexible graph data structures
+  - Support for both directed and undirected graphs
+  - Basic graph operations and set operations
+  - Vertex and edge point representation
 
 ## Usage
 
-Show basic examples of how to use your project:
+### Topological Spaces
 
-```python
-# If it's a Python project
-from project import Example
+```rust
+use space::definitions::{Set, TopologicalSpace, MetricSpace};
 
-example = Example()
-result = example.do_something()
+// Define your own space type
+struct MySpace {
+    // ... implementation details
+}
+
+impl Set for MySpace {
+    type Point = MyPoint;
+    // ... implement set operations
+}
+
+impl TopologicalSpace for MySpace {
+    type Point = MyPoint;
+    type OpenSet = MyOpenSet;
+    // ... implement topological operations
+}
 ```
 
-## Contributing
+### Simplicial Complexes
 
-We welcome contributions to our open-source projects. If you want to contribute or follow along with contributor discussions, join our main [Telegram channel](https://t.me/pluto_xyz/1) to chat about Pluto's development.
+```rust
+use space::simplicial::{Simplex, SimplicialComplex, Chain};
 
-Our contributor guidelines can be found in our [CONTRIBUTING.md](https://github.com/pluto/.github/blob/main/profile/CONTRIBUTING.md).
+// Create a simplex (e.g., a triangle)
+let triangle = Simplex::new(2, vec![0, 1, 2]);
 
-Unless you explicitly state otherwise, any contribution intentionally submitted for inclusion in the work by you, as defined in the Apache-2.0 license, shall be licensed as above, without any additional terms or conditions.
+// Create a simplicial complex
+let mut complex = SimplicialComplex::new();
+complex.join_simplex(triangle);
 
-## License
+// Compute boundaries
+let boundary = complex.boundary::<i32>(2);
+```
 
-This project is licensed under the MIT - see the [LICENSE](LICENSE) file for details.
+### Graphs
 
-## Acknowledgments
+```rust
+use space::graph::{Graph, Undirected};
+use std::collections::HashSet;
 
-- List any contributors
-- Reference any inspiration, code snippets, etc.
-- Link to relevant blog posts or documentation
+// Create a graph
+let mut vertices = HashSet::new();
+vertices.insert(1);
+vertices.insert(2);
+
+let mut edges = HashSet::new();
+edges.insert((1, 2));
+
+let graph: Graph<_, Undirected> = Graph::new(vertices, edges);
+```
+
+## Dependencies
+
+- `itertools`: For combinatorial operations
+- `num`: For numeric traits and operations
+
+## Examples
+
+### Creating a Simplicial Complex
+
+```rust
+use space::simplicial::{Simplex, SimplicialComplex};
+
+// Create a tetrahedron
+let mut complex = SimplicialComplex::new();
+complex.join_simplex(Simplex::new(3, vec![0, 1, 2, 3]));
+```
+
+### Working with Graphs
+
+```rust
+use space::graph::{Graph, Directed};
+use std::collections::HashSet;
+
+// Create a directed graph
+let vertices: HashSet<_> = [1, 2, 3].into_iter().collect();
+let edges: HashSet<_> = [(1, 2), (2, 3)].into_iter().collect();
+let graph: Graph<_, Directed> = Graph::new(vertices, edges);
+```
+
+
