@@ -109,3 +109,21 @@ jobs:
 
       - name: Run tests
         run: cargo test --verbose --workspace
+
+  semver:
+    name: semver
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install cargo-semver-checks
+        uses: taiki-e/install-action@cargo-semver-checks
+
+      - name: Run semver checks
+        run: cargo semver-checks check-release --workspace
