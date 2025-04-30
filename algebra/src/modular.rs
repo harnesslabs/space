@@ -216,6 +216,7 @@ macro_rules! prime_field {
     {
       type Output = Self;
 
+      #[allow(clippy::suspicious_arithmetic_impl)]
       fn div(self, rhs: Self) -> Self { self * rhs.multiplicative_inverse() }
     }
 
