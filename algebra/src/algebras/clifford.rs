@@ -54,18 +54,95 @@ where [(); 2_usize.pow(N as u32)]:
       assert!(indices[i - 1] < indices[i] && indices[i] < N, "Indices must be sorted and in range");
     }
 
-    // The position in the 2^N array is determined by the binary representation
-    // where 1s indicate which basis vectors are included
-    let mut pos = 0usize;
-    for &idx in indices.iter() {
-      pos |= 1 << idx;
-    }
+    // Convert indices to bit position using our helper function
+    let bit_position = Self::blade_indices_to_bit(&indices);
 
     let mut value = Vector::<{ 2_usize.pow(N as u32) }, F>::zero();
-    value.0[pos] = <F as Ring>::one();
+    value.0[bit_position] = <F as Ring>::one();
 
     CliffordAlgebraElement { value, bilinear_space: Some(&self.bilinear_space) }
   }
+
+  /// Maps a bit position to the corresponding basis blade indices.
+  /// The bit position is interpreted as an index into the graded structure:
+  /// - First C(n,0) positions are scalars
+  /// - Next C(n,1) positions are vectors
+  /// - Next C(n,2) positions are bivectors
+  /// - And so on...
+  fn bit_to_blade_indices(bits: usize) -> Vec<usize> {
+    let mut remaining_bits = bits;
+    let mut grade = 0;
+
+    // Find which grade this element belongs to
+    while grade <= N {
+      let grade_size = binomial(N, grade);
+      if remaining_bits < grade_size {
+        break;
+      }
+      remaining_bits -= grade_size;
+      grade += 1;
+    }
+
+    // Now we know the grade, we need to find which combination of indices
+    // corresponds to the remaining_bits position within that grade
+    let mut indices = Vec::with_capacity(grade);
+    let mut current = 0;
+
+    for _ in 0..grade {
+      // Find the next index to include
+      while current < N {
+        let remaining_combinations = binomial(N - current - 1, grade - indices.len() - 1);
+        if remaining_bits < remaining_combinations {
+          indices.push(current);
+          current += 1;
+          break;
+        }
+        remaining_bits -= remaining_combinations;
+        current += 1;
+      }
+    }
+
+    indices
+  }
+
+  /// Maps a set of basis blade indices back to a bit position.
+  /// This is the inverse of bit_to_blade_indices.
+  fn blade_indices_to_bit(indices: &[usize]) -> usize {
+    let grade = indices.len();
+    let mut bit_position = 0;
+
+    // Add up all the positions from lower grades
+    for g in 0..grade {
+      bit_position += binomial(N, g);
+    }
+
+    // Now add the position within this grade
+    let mut remaining_bits = 0;
+    for (i, &idx) in indices.iter().enumerate() {
+      // For each index, add the number of combinations that come before it
+      for j in if i == 0 { 0 } else { indices[i - 1] + 1 }..idx {
+        remaining_bits += binomial(N - j - 1, grade - i - 1);
+      }
+    }
+
+    bit_position + remaining_bits
+  }
+}
+
+/// Computes the binomial coefficient C(n, k)
+fn binomial(n: usize, k: usize) -> usize {
+  if k > n {
+    return 0;
+  }
+  if k == 0 || k == n {
+    return 1;
+  }
+  let k = std::cmp::min(k, n - k);
+  let mut result = 1;
+  for i in 1..=k {
+    result = result * (n - k + i) / i;
+  }
+  result
 }
 
 // TODO: We can make both an option and make the case where both are none the zero element.
@@ -210,41 +287,35 @@ where [(); 2_usize.pow(N as u32)]:
 
     // Helper function to write basis element
     let write_basis = |f: &mut Formatter<'_>, idx: usize| -> std::fmt::Result {
-      let mut bits = idx;
-      let mut first_e = true;
-      let mut first_index = true;
+      let indices = CliffordAlgebra::<F, N>::bit_to_blade_indices(idx);
+      if indices.is_empty() {
+        return Ok(());
+      }
 
-      for i in 0..N {
-        if bits & 1 == 1 {
-          if !first_e {
-            if !first_index {
-              write!(f, "‚")?;
-            }
-          } else {
-            write!(f, "e")?;
-          }
-          // Convert number to Unicode subscript by converting each digit
-          let num = i + 1;
-          for digit in num.to_string().chars() {
-            let subscript = match digit {
-              '0' => "₀",
-              '1' => "₁",
-              '2' => "₂",
-              '3' => "₃",
-              '4' => "₄",
-              '5' => "₅",
-              '6' => "₆",
-              '7' => "₇",
-              '8' => "₈",
-              '9' => "₉",
-              _ => panic!("Invalid digit"),
-            };
-            write!(f, "{}", subscript)?;
-          }
-          first_e = false;
-          first_index = false;
+      write!(f, "e")?;
+      for (i, &index) in indices.iter().enumerate() {
+        // Convert number to Unicode subscript by converting each digit
+        let num = index + 1;
+        for digit in num.to_string().chars() {
+          let subscript = match digit {
+            '0' => "₀",
+            '1' => "₁",
+            '2' => "₂",
+            '3' => "₃",
+            '4' => "₄",
+            '5' => "₅",
+            '6' => "₆",
+            '7' => "₇",
+            '8' => "₈",
+            '9' => "₉",
+            _ => panic!("Invalid digit"),
+          };
+          write!(f, "{}", subscript)?;
         }
-        bits >>= 1;
+
+        if i < indices.len() - 1 {
+          write!(f, "‚")?;
+        }
       }
       Ok(())
     };
@@ -314,17 +385,46 @@ mod tests {
     let e3 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
     println!("{e3}");
 
-    let sum = one + 2.0 * e1 + e2 * 3.0 + 4.0 * e3;
+    let e12 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
+    println!("{e12}");
+
+    let e13 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
+    println!("{e13}");
+
+    let e23 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
+    println!("{e23}");
+
+    let e123 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
+    println!("{e123}");
+
+    let sum = one + 2.0 * e1 + e2 * 3.0 + 4.0 * e3 + e12 * 5.0 + e13 * 6.0 + e23 * 7.0 + e123 * 8.0;
     println!("{sum}");
+  }
 
-    // let e1 = algebra.blade([1]);
-    // dbg!(&e1);
-    // let e2 = algebra.blade([2]);
-    // dbg!(&e2);
-    // let e3 = algebra.blade([3]);
-    // dbg!(&e3);
+  #[test]
+  fn test_blade() {
+    let algebra = clifford_algebra();
 
-    // let e12 = e1 * e2;
-    // let e123 = e12 * e3;
+    let e1 = algebra.blade([1]);
+    println!("{e1}");
+  }
+
+  #[test]
+  fn test_blade_indices_to_bit() {
+    // Test scalar (empty indices)
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[]), 0);
+
+    // Test vectors
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[0]), 1);
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[1]), 2);
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[2]), 3);
+
+    // Test bivectors
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[0, 1]), 4);
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[0, 2]), 5);
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[1, 2]), 6);
+
+    // Test trivector
+    assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[0, 1, 2]), 7);
   }
 }
