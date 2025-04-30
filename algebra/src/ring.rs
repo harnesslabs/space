@@ -46,7 +46,7 @@ macro_rules! impl_field {
 
     impl $crate::group::AbelianGroup for $inner {}
     impl $crate::ring::Ring for $inner {
-      fn one() -> Self { Self::one() }
+      fn one() -> Self { 1.0 }
 
       fn zero() -> Self { 0.0 }
     }

@@ -51,14 +51,18 @@ where [(); 2_usize.pow(N as u32)]:
   pub fn blade<const I: usize>(&self, indices: [usize; I]) -> CliffordAlgebraElement<'_, F, N> {
     // Validate indices are in range and sorted
     for i in 1..I {
-      assert!(indices[i - 1] < indices[i] && indices[i] < N, "Indices must be sorted and in range");
+      assert!(
+        indices[i - 1] < indices[i] && indices[i] < N,
+        "Indices must be sorted and in
+    range"
+      );
     }
 
     // Convert indices to bit position using our helper function
     let bit_position = Self::blade_indices_to_bit(&indices);
 
     let mut value = Vector::<{ 2_usize.pow(N as u32) }, F>::zero();
-    value.0[bit_position] = <F as Ring>::one();
+    value.0[bit_position] = F::one();
 
     CliffordAlgebraElement { value, bilinear_space: Some(&self.bilinear_space) }
   }
@@ -295,7 +299,7 @@ where [(); 2_usize.pow(N as u32)]:
       write!(f, "e")?;
       for (i, &index) in indices.iter().enumerate() {
         // Convert number to Unicode subscript by converting each digit
-        let num = index + 1;
+        let num = index;
         for digit in num.to_string().chars() {
           let subscript = match digit {
             '0' => "₀",
@@ -376,28 +380,28 @@ mod tests {
     let one = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
     println!("{one}");
 
-    let e1 = algebra.element(Vector::<8, f64>([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e0 = algebra.element(Vector::<8, f64>([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    println!("{e0}");
+
+    let e1 = algebra.element(Vector::<8, f64>([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
     println!("{e1}");
 
-    let e2 = algebra.element(Vector::<8, f64>([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e2 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
     println!("{e2}");
 
-    let e3 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
-    println!("{e3}");
+    let e01 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
+    println!("{e01}");
 
-    let e12 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
+    let e02 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
+    println!("{e02}");
+
+    let e12 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
     println!("{e12}");
 
-    let e13 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
-    println!("{e13}");
+    let e012 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
+    println!("{e012}");
 
-    let e23 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
-    println!("{e23}");
-
-    let e123 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
-    println!("{e123}");
-
-    let sum = one + 2.0 * e1 + e2 * 3.0 + 4.0 * e3 + e12 * 5.0 + e13 * 6.0 + e23 * 7.0 + e123 * 8.0;
+    let sum = one + 2.0 * e0 + e1 * 3.0 + e2 * 4.0 + e01 * 5.0 + e02 * 6.0 + e12 * 7.0 + e012 * 8.0;
     println!("{sum}");
   }
 
