@@ -151,15 +151,51 @@ where [(); 1 << N]:
   fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
-impl<F: Field + Copy, const N: usize> Mul for CliffordAlgebraElement<'_, F, N>
+impl<F: Field + Copy + From<i32> + Debug, const N: usize> Mul for CliffordAlgebraElement<'_, F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
 
   fn mul(self, other: Self) -> Self::Output {
-    let value = todo!();
+    assert_eq!(self.bilinear_space, other.bilinear_space);
+    let bilinear_space = self.bilinear_space.expect("Both elements must have a bilinear space");
 
-    Self { value, bilinear_space: self.bilinear_space }
+    let mut result = Vector::<{ 1 << N }, F>::zero();
+
+    // For each non-zero component in the first element
+    for i in 0..(1 << N) {
+      if self.value.0[i].is_zero() {
+        continue;
+      }
+
+      // For each non-zero component in the second element
+      for j in 0..(1 << N) {
+        if other.value.0[j].is_zero() {
+          continue;
+        }
+
+        // Get the indices for both basis blades
+        let left_indices = Self::bit_to_blade_indices(i);
+        let right_indices = Self::bit_to_blade_indices(j);
+
+        // Calculate the sign and product indices
+        let (sign, product_indices) =
+          multiply_blades(&left_indices, &right_indices, bilinear_space);
+
+        // Calculate the coefficient
+        let coefficient = if sign {
+          self.value.0[i] * other.value.0[j]
+        } else {
+          (self.value.0[i] * other.value.0[j]).inverse()
+        };
+
+        // Add to the result
+        let product_bit = Self::blade_indices_to_bit(&product_indices);
+        result.0[product_bit] += coefficient;
+      }
+    }
+
+    Self { value: result, bilinear_space: self.bilinear_space }
   }
 }
 
@@ -179,7 +215,7 @@ where [(); 1 << N]:
   }
 }
 
-impl<F: Field + Copy, const N: usize> Multiplicative for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
+impl<F: Field + Copy + Debug, const N: usize> Multiplicative for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
 
 // TODO: This is weird... i'll use option to note the zero element.
 impl<F: Field + Copy + Debug, const N: usize> Zero for CliffordAlgebraElement<'_, F, N>
@@ -338,6 +374,117 @@ macro_rules! impl_mul_scalar_clifford {
 
 impl_mul_scalar_clifford!(f32);
 impl_mul_scalar_clifford!(f64);
+
+/// Helper function to multiply two basis blades
+fn multiply_blades<F: Field + Copy, const N: usize>(
+  left: &[usize],
+  right: &[usize],
+  bilinear_space: &BilinearSpace<F, N>,
+) -> (bool, Vec<usize>) {
+  let mut result_indices = Vec::new();
+  let mut sign = false;
+
+  // Handle the case where either blade is empty (scalar)
+  if left.is_empty() {
+    return (true, right.to_vec());
+  }
+  if right.is_empty() {
+    return (true, left.to_vec());
+  }
+
+  // Merge the indices while keeping track of sign changes
+  let mut i = 0;
+  let mut j = 0;
+
+  while i < left.len() && j < right.len() {
+    if left[i] == right[j] {
+      // Same index: apply quadratic form
+      let mut v = Vector::<N, F>::zero();
+      v.0[left[i]] = F::one();
+      let q = bilinear_space.evaluate(&v, &v);
+      sign = !sign;
+      i += 1;
+      j += 1;
+    } else if left[i] < right[j] {
+      // Left index comes first: no sign change
+      result_indices.push(left[i]);
+      i += 1;
+    } else {
+      // Right index comes first: count swaps for sign
+      result_indices.push(right[j]);
+      sign = !sign;
+      j += 1;
+    }
+  }
+
+  // Add remaining indices
+  result_indices.extend_from_slice(&left[i..]);
+  result_indices.extend_from_slice(&right[j..]);
+
+  (sign, result_indices)
+}
+
+impl<F: Field + Copy, const N: usize> CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
+{
+  /// Maps a bit position to the corresponding basis blade indices.
+  fn bit_to_blade_indices(bits: usize) -> Vec<usize> {
+    let mut remaining_bits = bits;
+    let mut grade = 0;
+
+    // Find which grade this element belongs to
+    while grade <= N {
+      let grade_size = binomial(N, grade);
+      if remaining_bits < grade_size {
+        break;
+      }
+      remaining_bits -= grade_size;
+      grade += 1;
+    }
+
+    // Now we know the grade, we need to find which combination of indices
+    // corresponds to the remaining_bits position within that grade
+    let mut indices = Vec::with_capacity(grade);
+    let mut current = 0;
+
+    for _ in 0..grade {
+      // Find the next index to include
+      while current < N {
+        let remaining_combinations = binomial(N - current - 1, grade - indices.len() - 1);
+        if remaining_bits < remaining_combinations {
+          indices.push(current);
+          current += 1;
+          break;
+        }
+        remaining_bits -= remaining_combinations;
+        current += 1;
+      }
+    }
+
+    indices
+  }
+
+  /// Maps a set of basis blade indices back to a bit position.
+  fn blade_indices_to_bit(indices: &[usize]) -> usize {
+    let grade = indices.len();
+    let mut bit_position = 0;
+
+    // Add up all the positions from lower grades
+    for g in 0..grade {
+      bit_position += binomial(N, g);
+    }
+
+    // Now add the position within this grade
+    let mut remaining_bits = 0;
+    for (i, &idx) in indices.iter().enumerate() {
+      for j in if i == 0 { 0 } else { indices[i - 1] + 1 }..idx {
+        remaining_bits += binomial(N - j - 1, grade - i - 1);
+      }
+    }
+
+    bit_position + remaining_bits
+  }
+}
 
 #[cfg(test)]
 mod tests {
