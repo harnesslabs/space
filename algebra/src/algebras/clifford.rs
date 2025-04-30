@@ -521,19 +521,19 @@ where [(); 1 << N]:
 mod tests {
   use super::*;
 
-  fn clifford_algebra() -> CliffordAlgebra<f64, 3> {
-    let bilinear_space = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
-    CliffordAlgebra::new(bilinear_space)
+  fn clifford_algebra_non_euclidean() -> CliffordAlgebra<f64, 3> {
+    let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+    CliffordAlgebra::new(quadratic_form)
   }
 
   fn clifford_algebra_euclidean() -> CliffordAlgebra<f64, 3> {
-    let bilinear_space = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, 1.0]));
-    CliffordAlgebra::new(bilinear_space)
+    let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, 1.0]));
+    CliffordAlgebra::new(quadratic_form)
   }
 
   #[test]
   fn test_display_order() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let one = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
     let e0 = algebra.element(Vector::<8, f64>([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
     let e1 = algebra.element(Vector::<8, f64>([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
@@ -568,14 +568,14 @@ mod tests {
 
   #[test]
   fn test_blade() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e1 = algebra.blade([1]);
     assert_eq!(format!("{e1}"), "1e₁");
   }
 
   #[test]
   fn test_add() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
     let sum = e1 + e2;
@@ -584,7 +584,7 @@ mod tests {
 
   #[test]
   fn test_mul_basic() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
     let product = e1 * e2;
@@ -593,7 +593,7 @@ mod tests {
 
   #[test]
   fn test_mul_with_quadratic_form() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e1 = algebra.blade([1]);
     let e01 = algebra.blade([0, 1]);
     let product = e1 * e01;
@@ -611,21 +611,21 @@ mod tests {
 
   #[test]
   fn test_mul_anti_commutativity() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e0 = algebra.blade([0]);
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
 
     // Test anti-commutativity of basis vectors
-    assert_eq!(format!("{}", e0 * e1), "-1e₁‚₀");
-    assert_eq!(format!("{}", e1 * e0), "1e₀‚₁");
+    assert_eq!(format!("{}", e0 * e1), "1e₀‚₁");
+    assert_eq!(format!("{}", e1 * e0), "-1e₀‚₁");
     assert_eq!(format!("{}", e1 * e2), "1e₁‚₂");
     assert_eq!(format!("{}", e2 * e1), "-1e₁‚₂");
   }
 
   #[test]
   fn test_mul_scalar() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let one = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
@@ -639,7 +639,7 @@ mod tests {
 
   #[test]
   fn test_mul_quadratic_form_application() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e0 = algebra.blade([0]);
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
@@ -652,20 +652,23 @@ mod tests {
 
   #[test]
   fn test_mul_higher_grade() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e01 = algebra.blade([0, 1]);
     let e12 = algebra.blade([1, 2]);
     let e02 = algebra.blade([0, 2]);
 
     // Test multiplication of bivectors
-    assert_eq!(format!("{}", e01 * e12), "-1e₀‚₂");
+    assert_eq!(format!("{}", e01 * e12), "1e₀‚₂"); // e01 * e12 = e0 * e1 * e1 * e2 = e0 * Q(e1) * e2 = e0 * 1 * e2 = e0 * e2 = e02
+
     assert_eq!(format!("{}", e12 * e01), "1e₀‚₂");
-    assert_eq!(format!("{}", e02 * e12), "-1e₀‚₁");
+    assert_eq!(format!("{}", e02 * e12), "1e₀‚₁"); // e02 * e12 = e0 * e2 * e1 * e2 = -e0 * e1 * e2
+                                                   // * e2 = -e0 * e1 * Q(e2) = -e0 * e1 * -1 = e0
+                                                   // * e1 = e01
   }
 
   #[test]
   fn test_mul_trivector() {
-    let algebra = clifford_algebra();
+    let algebra = clifford_algebra_non_euclidean();
     let e01 = algebra.blade([0, 1]);
     let e2 = algebra.blade([2]);
     let e012 = algebra.blade([0, 1, 2]);
@@ -673,6 +676,7 @@ mod tests {
     // Test multiplication with trivector
     assert_eq!(format!("{}", e01 * e2), "1e₀‚₁‚₂");
     assert_eq!(format!("{}", e2 * e01), "1e₀‚₁‚₂");
-    assert_eq!(format!("{}", e012 * e2), "1e₀‚₁"); // e012 * e2 = -e2 * e012 = -e2 * e0e1e2 = e0e1
+    assert_eq!(format!("{}", e012 * e2), "-1e₀‚₁"); // e012 * e2 = e0 * e1 * e2 * e2 = e0 * e1 *
+                                                    // Q(e2) = e0 * e1 * -1 = -e0 * e1 = -e01
   }
 }
