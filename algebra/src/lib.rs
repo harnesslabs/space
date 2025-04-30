@@ -51,10 +51,12 @@
 //! - [`modular`]: Modular arithmetic abstractions and implementations
 
 #![warn(missing_docs)]
-pub mod group;
-pub mod ring;
+#![feature(generic_const_exprs)]
 
+pub mod algebras;
 pub mod arithmetic;
+pub mod group;
 pub mod modular;
 pub mod module;
+pub mod ring;
 pub mod vector;
