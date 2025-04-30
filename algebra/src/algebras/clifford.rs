@@ -151,7 +151,8 @@ where [(); 1 << N]:
   fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
-impl<F: Field + Copy + From<i32> + Debug, const N: usize> Mul for CliffordAlgebraElement<'_, F, N>
+// TODO: We need to make sure that the bilinear space is the same for both elements.
+impl<F: Field + Copy + Debug, const N: usize> Mul for CliffordAlgebraElement<'_, F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
@@ -183,10 +184,9 @@ where [(); 1 << N]:
           multiply_blades(&left_indices, &right_indices, bilinear_space);
 
         // Calculate the coefficient
-        let coefficient = if sign {
-          self.value.0[i] * other.value.0[j]
-        } else {
-          (self.value.0[i] * other.value.0[j]).inverse()
+        let coefficient = match sign {
+          Sign::Positive => self.value.0[i] * other.value.0[j],
+          Sign::Negative => (self.value.0[i] * other.value.0[j]).inverse(),
         };
 
         // Add to the result
@@ -199,7 +199,7 @@ where [(); 1 << N]:
   }
 }
 
-impl<F: Field + Copy, const N: usize> MulAssign for CliffordAlgebraElement<'_, F, N>
+impl<F: Field + Copy + Debug, const N: usize> MulAssign for CliffordAlgebraElement<'_, F, N>
 where [(); 1 << N]:
 {
   fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
@@ -375,21 +375,26 @@ macro_rules! impl_mul_scalar_clifford {
 impl_mul_scalar_clifford!(f32);
 impl_mul_scalar_clifford!(f64);
 
+pub enum Sign {
+  Positive,
+  Negative,
+}
+
 /// Helper function to multiply two basis blades
 fn multiply_blades<F: Field + Copy, const N: usize>(
   left: &[usize],
   right: &[usize],
   bilinear_space: &BilinearSpace<F, N>,
-) -> (bool, Vec<usize>) {
+) -> (Sign, Vec<usize>) {
   let mut result_indices = Vec::new();
-  let mut sign = false;
+  let mut sign = Sign::Positive;
 
   // Handle the case where either blade is empty (scalar)
   if left.is_empty() {
-    return (true, right.to_vec());
+    return (Sign::Positive, right.to_vec());
   }
   if right.is_empty() {
-    return (true, left.to_vec());
+    return (Sign::Positive, left.to_vec());
   }
 
   // Merge the indices while keeping track of sign changes
@@ -402,7 +407,6 @@ fn multiply_blades<F: Field + Copy, const N: usize>(
       let mut v = Vector::<N, F>::zero();
       v.0[left[i]] = F::one();
       let q = bilinear_space.evaluate(&v, &v);
-      sign = !sign;
       i += 1;
       j += 1;
     } else if left[i] < right[j] {
@@ -412,7 +416,6 @@ fn multiply_blades<F: Field + Copy, const N: usize>(
     } else {
       // Right index comes first: count swaps for sign
       result_indices.push(right[j]);
-      sign = !sign;
       j += 1;
     }
   }
@@ -554,5 +557,9 @@ mod tests {
     let e2 = algebra.blade([2]);
     let sum = e1 * e2;
     assert_eq!(format!("{sum}"), "1e₁‚₂");
+
+    let e01 = algebra.blade([0, 1]);
+    let minus_e0 = e1 * e01;
+    assert_eq!(format!("{minus_e0}"), "-1e₀");
   }
 }
