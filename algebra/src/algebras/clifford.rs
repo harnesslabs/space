@@ -252,7 +252,7 @@ where [(); 2_usize.pow(N as u32)]:
 }
 
 #[macro_export]
-macro_rules! impl_mul_scalar {
+macro_rules! impl_mul_scalar_clifford {
   ($($t:ty)*) => ($(
     impl<'a, const N: usize> Mul<CliffordAlgebraElement<'a, $t, N>> for $t
     where [(); 2_usize.pow(N as u32)]:
@@ -264,10 +264,8 @@ macro_rules! impl_mul_scalar {
   )*)
 }
 
-crate::impl_mul_scalar_generic!(f32, CliffordAlgebraElement<'a, f32, N>);
-
-// impl_mul_scalar!(f32);
-impl_mul_scalar!(f64);
+impl_mul_scalar_clifford!(f32);
+impl_mul_scalar_clifford!(f64);
 
 #[cfg(test)]
 mod tests {
@@ -294,7 +292,7 @@ mod tests {
     let e3 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
     println!("{e3}");
 
-    let sum = one + 2.0 * e1 + e2 + e3;
+    let sum = one + 2.0 * e1 + e2 * 3.0 + 4.0 * e3;
     println!("{sum}");
 
     // let e1 = algebra.blade([1]);

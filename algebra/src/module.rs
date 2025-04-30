@@ -111,10 +111,9 @@ impl<R: Ring + Mul<TrivialModule<R>>> TwoSidedModule for TrivialModule<R> {
 }
 
 #[macro_export]
-macro_rules! impl_mul_scalar_generic {
+macro_rules! impl_mul_scalar_module {
   ($($ring:ty, $module:ty)*) => ($(
-    impl<'a, const N: usize> Mul<$ring> for $module
-    where [(); 2_usize.pow(N as u32)]:
+    impl Mul<$ring> for $module
     {
       type Output = $module;
 
