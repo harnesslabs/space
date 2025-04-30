@@ -7,10 +7,10 @@ resolver = "2"
 # Local dependencies
 harness-algebra = { version = "*", path = "algebra" }
 harness-space   = { version = "*", path = "space" }
-harness-cat = { version = "*", path = "cat" }
+harness-cat     = { version = "*", path = "cat" }
 harness-common  = { version = "0.1.0", path = "common" }
 
 # External dependencies
-itertools  = "0.14"
-num-traits = "0.2"
+itertools   = "0.14"
+num-traits  = "0.2"
 candle-core =  "0.9.0"

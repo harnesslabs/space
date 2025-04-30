@@ -22,14 +22,12 @@ use num_traits::{One, Zero};
 /// * `dimension` - The dimension of the simplex (number of vertices - 1)
 #[derive(Clone, Debug)]
 pub struct Simplex {
-  vertices: Vec<usize>,
+  vertices:  Vec<usize>,
   dimension: usize,
 }
 
 impl PartialEq for Simplex {
-  fn eq(&self, other: &Self) -> bool {
-    self.vertices == other.vertices
-  }
+  fn eq(&self, other: &Self) -> bool { self.vertices == other.vertices }
 }
 
 impl Simplex {
@@ -49,14 +47,10 @@ impl Simplex {
   }
 
   /// Returns a reference to the sorted vertices of the simplex.
-  pub fn vertices(&self) -> &[usize] {
-    &self.vertices
-  }
+  pub fn vertices(&self) -> &[usize] { &self.vertices }
 
   /// Returns the dimension of the simplex.
-  pub fn dimension(&self) -> usize {
-    self.dimension
-  }
+  pub fn dimension(&self) -> usize { self.dimension }
 
   /// Computes all (dimension-1)-dimensional faces of this simplex.
   ///
@@ -84,9 +78,7 @@ pub struct SimplicialComplex {
 
 impl SimplicialComplex {
   /// Creates a new empty simplicial complex.
-  pub fn new() -> Self {
-    Self { simplices: vec![] }
-  }
+  pub fn new() -> Self { Self { simplices: vec![] } }
 
   /// Adds a simplex and all its faces to the complex.
   ///
@@ -149,16 +141,14 @@ impl SimplicialComplex {
 #[derive(Clone, Debug, Default)]
 pub struct Chain<R> {
   /// The simplices in the chain
-  simplices: Vec<Simplex>,
+  simplices:    Vec<Simplex>,
   /// The coefficients corresponding to each simplex
   coefficients: Vec<R>,
 }
 
 impl<R> Chain<R> {
   /// Creates a new empty chain.
-  pub fn new() -> Self {
-    Self { simplices: vec![], coefficients: vec![] }
-  }
+  pub fn new() -> Self { Self { simplices: vec![], coefficients: vec![] } }
 
   /// Creates a new chain with a single simplex and coefficient.
   pub fn from_simplex_and_coeff(simplex: Simplex, coeff: R) -> Self {
@@ -170,9 +160,7 @@ impl<R> Chain<R> {
   /// The boundary operator satisfies the property that ∂² = 0,
   /// meaning the boundary of a boundary is empty.
   pub fn boundary(&self) -> Self
-  where
-    R: Clone + Neg<Output = R> + Add<Output = R> + Zero,
-  {
+  where R: Clone + Neg<Output = R> + Add<Output = R> + Zero {
     let mut boundary = Self::new();
     for (coeff, simplex) in self.coefficients.clone().into_iter().zip(self.simplices.iter()) {
       for i in 0..=simplex.dimension() {

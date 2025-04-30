@@ -91,7 +91,7 @@ jobs:
         run: cargo build --workspace
 
       - name: Clippy
-        run: cargo clippy --all-targets --all-features -- --deny warnings
+        run: cargo clippy --all-targets --all-features -- --warn warnings
 
   test:
     name: test

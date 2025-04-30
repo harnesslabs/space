@@ -1,16 +1,16 @@
 [package]
 name = "harness-space"
 
-authors     = ["Harness Labs"]
-description = "The library for topological and other spaces"
-edition     = "2021"
-keywords    = ["mathematics", "topology"]
-license     = "AGPL-3.0"
-readme      = "README.md"
-repository  = "https://github.com/harness-labs/space"
-version     = "0.1.1"
+authors        = ["Harness Labs"]
+description    = "The library for topological and other spaces"
+edition        = "2021"
+keywords       = ["mathematics", "topology"]
+license        = "AGPL-3.0"
+readme         = "README.md"
+repository     = "https://github.com/harness-labs/space"
+version        = "0.1.1"
 
 [dependencies]
-itertools  = { workspace = true }
-num-traits = { workspace = true }
+itertools      = { workspace = true }
+num-traits     = { workspace = true }
 harness-common = { workspace = true }

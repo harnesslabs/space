@@ -1,7 +1,8 @@
 //! Core traits and definitions for constructing a cell complex over arbitrary types
 
-use harness_common::error::MathError;
 use std::{collections::HashSet, hash::Hash};
+
+use harness_common::error::MathError;
 
 /// `Point` wrapper of a generic type `T`
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -13,13 +14,15 @@ pub trait OpenSet: IntoIterator<Item = Self::Point> + Clone {
   type Point: Eq + std::hash::Hash;
   /// returns an `OpenSet` consisting of the union of the current and `other` OpenSets
   fn union(&self, other: Self) -> Self;
-  /// returns an `OpenSet` consisting of the intersection of points in the current and `other` OpenSets
+  /// returns an `OpenSet` consisting of the intersection of points in the current and `other`
+  /// OpenSets
   fn intersection(&self, other: Self) -> Self;
   /// builds an `OpenSet` from an `Iterator`
   fn from(iter: Box<dyn Iterator<Item = Self::Point>>) -> Self;
 }
 
-/// `Topology` is a collection of `OpenSet` intended to enforce closure over union and finite intersection operations.
+/// `Topology` is a collection of `OpenSet` intended to enforce closure over union and finite
+/// intersection operations.
 pub trait Topology {
   /// Type for points within `OpenSet`
   type Point;
@@ -50,16 +53,14 @@ pub trait KCell<T: Eq + Hash + Clone, O: OpenSet> {
 /// `KCell` wrapper struct
 pub struct Cell<T: Eq + Hash + Clone, O: OpenSet> {
   /// Smart pointer to the `KCell`
-  pub cell: Box<dyn KCell<T, O>>,
+  pub cell:      Box<dyn KCell<T, O>>,
   /// Collection of incident cell id's within the cell complex
   pub incidents: Vec<usize>,
 }
 
 impl<T: Eq + Hash + Clone, O: OpenSet> Cell<T, O> {
   /// Create a new `Cell` from a `KCell`
-  pub fn new(cell: Box<dyn KCell<T, O>>) -> Self {
-    Self { cell, incidents: Vec::new() }
-  }
+  pub fn new(cell: Box<dyn KCell<T, O>>) -> Self { Self { cell, incidents: Vec::new() } }
 }
 
 /// A `Skeleton` is a collection of `Cells` that have been glued together along `Cell::attach` maps
@@ -67,14 +68,13 @@ pub struct Skeleton<T: Eq + Hash + Clone, O: OpenSet> {
   /// Dimension of the `Skeleton`
   pub dimension: usize,
   /// The collection of `Cells`
-  pub cells: Vec<Cell<T, O>>,
+  pub cells:     Vec<Cell<T, O>>,
 }
 
 impl<T: Eq + Hash + Clone, O: OpenSet> Skeleton<T, O> {
   /// Initialize a new `Skeleton`
-  pub fn init() -> Self {
-    Self { dimension: 0, cells: Vec::new() }
-  }
+  pub fn init() -> Self { Self { dimension: 0, cells: Vec::new() } }
+
   /// Attach a cell to the existing cell complex
   pub fn attach(&mut self, cell: Box<dyn KCell<T, O>>) -> Result<(), MathError> {
     let incoming_dim = cell.dimension() as i64;
@@ -160,8 +160,7 @@ impl<T: Eq + Hash + Clone, O: OpenSet> Skeleton<T, O> {
 
 #[cfg(test)]
 mod cw_tests {
-  use std::collections::HashSet;
-  use std::hash::Hash;
+  use std::{collections::HashSet, hash::Hash};
 
   use super::*;
 
@@ -183,6 +182,7 @@ mod cw_tests {
       }
       Self { points }
     }
+
     fn intersection(&self, other: Self) -> Self {
       let mut points = HashSet::new();
       for point in self.points.iter() {
@@ -192,6 +192,7 @@ mod cw_tests {
       }
       Self { points }
     }
+
     fn from(iter: Box<dyn Iterator<Item = Self::Point>>) -> Self {
       let points = iter.collect();
       Self { points }
@@ -199,12 +200,10 @@ mod cw_tests {
   }
 
   impl IntoIterator for TestOpenSet {
-    type Item = TestPoint;
     type IntoIter = std::collections::hash_set::IntoIter<TestPoint>;
+    type Item = TestPoint;
 
-    fn into_iter(self) -> Self::IntoIter {
-      self.points.into_iter()
-    }
+    fn into_iter(self) -> Self::IntoIter { self.points.into_iter() }
   }
 
   struct TestVertex {
@@ -217,12 +216,11 @@ mod cw_tests {
       points.insert(&self.point);
       points
     }
-    fn dimension(&self) -> usize {
-      0
-    }
-    fn boundary(&mut self) -> HashSet<TestPoint> {
-      HashSet::new()
-    }
+
+    fn dimension(&self) -> usize { 0 }
+
+    fn boundary(&mut self) -> HashSet<TestPoint> { HashSet::new() }
+
     fn attach(
       &self,
       _point: &TestPoint,
@@ -230,14 +228,13 @@ mod cw_tests {
     ) -> TestPoint {
       self.point.clone()
     }
-    fn remove(&mut self, _set: HashSet<TestPoint>) -> bool {
-      false
-    }
+
+    fn remove(&mut self, _set: HashSet<TestPoint>) -> bool { false }
   }
 
   struct TestEdge {
-    start: TestPoint,
-    end: TestPoint,
+    start:   TestPoint,
+    end:     TestPoint,
     removed: HashSet<TestPoint>,
   }
 
@@ -248,15 +245,16 @@ mod cw_tests {
       points.insert(&self.end);
       points
     }
-    fn dimension(&self) -> usize {
-      1
-    }
+
+    fn dimension(&self) -> usize { 1 }
+
     fn boundary(&mut self) -> HashSet<TestPoint> {
       let mut boundary = HashSet::new();
       boundary.insert(self.start.clone());
       boundary.insert(self.end.clone());
       boundary
     }
+
     fn attach(
       &self,
       point: &TestPoint,
@@ -268,6 +266,7 @@ mod cw_tests {
         self.end.clone()
       }
     }
+
     fn remove(&mut self, set: HashSet<TestPoint>) -> bool {
       self.removed = set;
       !self.removed.is_empty()
@@ -276,9 +275,9 @@ mod cw_tests {
 
   struct TestFace {
     vertices: Vec<TestPoint>,
-    _edges: Vec<String>,
-    _id: String,
-    removed: HashSet<TestPoint>,
+    _edges:   Vec<String>,
+    _id:      String,
+    removed:  HashSet<TestPoint>,
   }
 
   impl KCell<String, TestOpenSet> for TestFace {
@@ -290,9 +289,7 @@ mod cw_tests {
       points
     }
 
-    fn dimension(&self) -> usize {
-      2
-    }
+    fn dimension(&self) -> usize { 2 }
 
     fn boundary(&mut self) -> HashSet<TestPoint> {
       let mut boundary = HashSet::new();
@@ -348,8 +345,8 @@ mod cw_tests {
     skeleton.attach(Box::new(vertex2)).unwrap();
 
     let edge = TestEdge {
-      start: TestPoint("A".to_string()),
-      end: TestPoint("B".to_string()),
+      start:   TestPoint("A".to_string()),
+      end:     TestPoint("B".to_string()),
       removed: HashSet::new(),
     };
 
@@ -369,9 +366,9 @@ mod cw_tests {
         TestPoint("B".to_string()),
         TestPoint("C".to_string()),
       ],
-      _edges: vec!["Edge_AB".to_string(), "Edge_BC".to_string(), "Edge_CA".to_string()],
-      _id: "Face_ABC".to_string(),
-      removed: HashSet::new(),
+      _edges:   vec!["Edge_AB".to_string(), "Edge_BC".to_string(), "Edge_CA".to_string()],
+      _id:      "Face_ABC".to_string(),
+      removed:  HashSet::new(),
     };
 
     let result = skeleton.attach(Box::new(face));
@@ -383,8 +380,8 @@ mod cw_tests {
     let mut skeleton: Skeleton<String, TestOpenSet> = Skeleton::init();
 
     let edge = TestEdge {
-      start: TestPoint("A".to_string()),
-      end: TestPoint("B".to_string()),
+      start:   TestPoint("A".to_string()),
+      end:     TestPoint("B".to_string()),
       removed: HashSet::new(),
     };
 
@@ -414,8 +411,8 @@ mod cw_tests {
     skeleton.attach(Box::new(vertex2)).unwrap();
 
     let edge = TestEdge {
-      start: TestPoint("A".to_string()),
-      end: TestPoint("B".to_string()),
+      start:   TestPoint("A".to_string()),
+      end:     TestPoint("B".to_string()),
       removed: HashSet::new(),
     };
     skeleton.attach(Box::new(edge)).unwrap();
@@ -445,18 +442,18 @@ mod cw_tests {
     skeleton.attach(Box::new(vertex3)).unwrap();
 
     let edge1 = TestEdge {
-      start: TestPoint("A".to_string()),
-      end: TestPoint("B".to_string()),
+      start:   TestPoint("A".to_string()),
+      end:     TestPoint("B".to_string()),
       removed: HashSet::new(),
     };
     let edge2 = TestEdge {
-      start: TestPoint("B".to_string()),
-      end: TestPoint("C".to_string()),
+      start:   TestPoint("B".to_string()),
+      end:     TestPoint("C".to_string()),
       removed: HashSet::new(),
     };
     let edge3 = TestEdge {
-      start: TestPoint("C".to_string()),
-      end: TestPoint("A".to_string()),
+      start:   TestPoint("C".to_string()),
+      end:     TestPoint("A".to_string()),
       removed: HashSet::new(),
     };
     skeleton.attach(Box::new(edge1)).unwrap();
@@ -469,9 +466,9 @@ mod cw_tests {
         TestPoint("B".to_string()),
         TestPoint("C".to_string()),
       ],
-      _edges: vec!["Edge_AB".to_string(), "Edge_BC".to_string(), "Edge_CA".to_string()],
-      _id: "Face_ABC".to_string(),
-      removed: HashSet::new(),
+      _edges:   vec!["Edge_AB".to_string(), "Edge_BC".to_string(), "Edge_CA".to_string()],
+      _id:      "Face_ABC".to_string(),
+      removed:  HashSet::new(),
     };
     skeleton.attach(Box::new(face)).unwrap();
 
