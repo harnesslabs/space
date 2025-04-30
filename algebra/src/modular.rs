@@ -6,7 +6,7 @@
 //! # Examples
 //!
 //! ```
-//! use algebra::{modular, Group, Ring};
+//! use harness_algebra::{group::Group, modular, ring::Ring};
 //!
 //! modular!(Mod7, u32, 7);
 //!
@@ -23,7 +23,7 @@
 /// # Examples
 ///
 /// ```
-/// use algebra::{modular, Group, Ring};
+/// use harness_algebra::{group::Group, modular, ring::Ring};
 ///
 /// // Create a type for numbers modulo 7
 /// modular!(Mod7, u32, 7);

@@ -2,25 +2,6 @@
 //!
 //! This module provides traits and implementations for ring theory concepts,
 //! including both general rings and fields (which are special types of rings).
-//!
-//! # Examples
-//!
-//! ```
-//! use algebra::ring::{Field, Ring};
-//!
-//! #[derive(Copy, Clone, PartialEq, Eq)]
-//! struct MyRing(i32);
-//!
-//! impl Ring for MyRing {
-//!   fn one() -> Self { MyRing(1) }
-//!
-//!   fn zero() -> Self { MyRing(0) }
-//! }
-//!
-//! impl Field for MyRing {
-//!   fn multiplicative_inverse(&self) -> Self { MyRing(1 / self.0) }
-//! }
-//! ```
 
 use crate::{
   arithmetic::{Div, DivAssign, Multiplicative},
@@ -32,21 +13,6 @@ use crate::{
 /// A ring is a set equipped with two binary operations (addition and multiplication)
 /// satisfying properties analogous to those of addition and multiplication of integers.
 /// This trait combines the requirements for an Abelian group with multiplicative properties.
-///
-/// # Examples
-///
-/// ```
-/// use algebra::ring::Ring;
-///
-/// #[derive(Copy, Clone, PartialEq, Eq)]
-/// struct MyRing(i32);
-///
-/// impl Ring for MyRing {
-///   fn one() -> Self { MyRing(1) }
-///
-///   fn zero() -> Self { MyRing(0) }
-/// }
-/// ```
 pub trait Ring: AbelianGroup + Multiplicative {
   /// Returns the multiplicative identity element of the ring.
   fn one() -> Self;
@@ -60,19 +26,6 @@ pub trait Ring: AbelianGroup + Multiplicative {
 /// A field is a set on which addition, subtraction, multiplication, and division
 /// are defined and behave as the corresponding operations on rational and real numbers.
 /// Every non-zero element has a multiplicative inverse.
-///
-/// # Examples
-///
-/// ```
-/// use algebra::ring::Field;
-///
-/// #[derive(Copy, Clone, PartialEq, Eq)]
-/// struct MyField(f64);
-///
-/// impl Field for MyField {
-///   fn multiplicative_inverse(&self) -> Self { MyField(1.0 / self.0) }
-/// }
-/// ```
 pub trait Field: Ring + Div + DivAssign {
   /// Returns the multiplicative inverse of a non-zero element.
   ///
@@ -81,3 +34,27 @@ pub trait Field: Ring + Div + DivAssign {
   /// This function may panic if called on the zero element.
   fn multiplicative_inverse(&self) -> Self;
 }
+
+#[macro_export]
+macro_rules! impl_field {
+  ($inner:ty) => {
+    impl $crate::group::Group for $inner {
+      fn identity() -> Self { 0.0 }
+
+      fn inverse(&self) -> Self { -self }
+    }
+
+    impl $crate::group::AbelianGroup for $inner {}
+    impl $crate::ring::Ring for $inner {
+      fn one() -> Self { Self::one() }
+
+      fn zero() -> Self { 0.0 }
+    }
+    impl $crate::ring::Field for $inner {
+      fn multiplicative_inverse(&self) -> Self { self.recip() }
+    }
+  };
+}
+
+impl_field!(f32);
+impl_field!(f64);

@@ -7,7 +7,7 @@
 //! # Examples
 //!
 //! ```
-//! use algebra::arithmetic::{Additive, Multiplicative};
+//! use harness_algebra::arithmetic::{Additive, Multiplicative};
 //!
 //! // Types implementing Additive can be added and assigned
 //! fn add<T: Additive>(a: T, b: T) -> T { a + b }
@@ -25,29 +25,12 @@ pub use num_traits::{One, Zero};
 /// This trait combines the basic requirements for types that can be added together:
 /// - Addition operation with [`Add`] trait
 /// - Addition assignment with [`AddAssign`] trait
-/// - Equality comparison with [`PartialEq`] and [`Eq`]
+/// - Equality comparison with [`PartialEq`]
 ///
-/// # Examples
-///
-/// ```
-/// use algebra::arithmetic::Additive;
-///
-/// #[derive(Copy, Clone, PartialEq, Eq)]
-/// struct MyNumber(i32);
-///
-/// impl std::ops::Add for MyNumber {
-///   type Output = Self;
-///
-///   fn add(self, rhs: Self) -> Self::Output { MyNumber(self.0 + rhs.0) }
-/// }
-///
-/// impl std::ops::AddAssign for MyNumber {
-///   fn add_assign(&mut self, rhs: Self) { self.0 += rhs.0; }
-/// }
-///
-/// impl Additive for MyNumber {}
-/// ```
-pub trait Additive: Add<Output = Self> + AddAssign + PartialEq + Eq + Sized {}
+///  # Examples
+/// - All primitive numeric types implement this trait
+/// - [`Boolean`] type implements this trait using bitwise [`std::ops::BitXor`]
+pub trait Additive: Add<Output = Self> + AddAssign + PartialEq + Sized {}
 
 /// A trait for types that support multiplication operations.
 ///
@@ -55,26 +38,106 @@ pub trait Additive: Add<Output = Self> + AddAssign + PartialEq + Eq + Sized {}
 /// together:
 /// - Multiplication operation with [`Mul`] trait
 /// - Multiplication assignment with [`MulAssign`] trait
-/// - Equality comparison with [`PartialEq`] and [`Eq`]
+/// - Equality comparison with [`PartialEq`]
+///
+/// # Examples
+/// - All primitive numeric types implement this trait
+/// - [`Boolean`] type implements this trait using bitwise [`std::ops::BitAnd`]
+pub trait Multiplicative: Mul<Output = Self> + MulAssign + PartialEq + Sized {}
+
+/// A wrapper around `bool` that implements algebraic operations.
+///
+/// This type implements both [`Additive`] and [`Multiplicative`] traits using
+/// bitwise operations:
+/// - Addition is implemented as XOR (`^`)
+/// - Multiplication is implemented as AND (`&`)
+///
+/// This makes `Boolean` a field with two elements, where:
+/// - `false` is the additive identity (0)
+/// - `true` is the multiplicative identity (1)
 ///
 /// # Examples
 ///
 /// ```
-/// use algebra::arithmetic::Multiplicative;
+/// use harness_algebra::arithmetic::Boolean;
 ///
-/// #[derive(Copy, Clone, PartialEq, Eq)]
-/// struct MyNumber(i32);
+/// let a = Boolean(true);
+/// let b = Boolean(false);
 ///
-/// impl std::ops::Mul for MyNumber {
-///   type Output = Self;
+/// // Addition (XOR)
+/// assert_eq!(a + b, Boolean(true));
+/// assert_eq!(a + a, Boolean(false)); // a + a = 0
 ///
-///   fn mul(self, rhs: Self) -> Self::Output { MyNumber(self.0 * rhs.0) }
-/// }
-///
-/// impl std::ops::MulAssign for MyNumber {
-///   fn mul_assign(&mut self, rhs: Self) { self.0 *= rhs.0; }
-/// }
-///
-/// impl Multiplicative for MyNumber {}
+/// // Multiplication (AND)
+/// assert_eq!(a * b, Boolean(false));
+/// assert_eq!(a * a, Boolean(true)); // a * a = a
 /// ```
-pub trait Multiplicative: Mul<Output = Self> + MulAssign + PartialEq + Eq + Sized {}
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct Boolean(pub bool);
+
+impl Add for Boolean {
+  type Output = Self;
+
+  /// Implements addition as XOR operation.
+  ///
+  /// This corresponds to the addition operation in the field GF(2).
+  fn add(self, rhs: Self) -> Self::Output { Self(self.0 ^ rhs.0) }
+}
+
+impl AddAssign for Boolean {
+  /// Implements addition assignment as XOR operation.
+  fn add_assign(&mut self, rhs: Self) { self.0 ^= rhs.0; }
+}
+
+impl Mul for Boolean {
+  type Output = Self;
+
+  /// Implements multiplication as AND operation.
+  ///
+  /// This corresponds to the multiplication operation in the field GF(2).
+  fn mul(self, rhs: Self) -> Self::Output { Self(self.0 && rhs.0) }
+}
+
+impl MulAssign for Boolean {
+  /// Implements multiplication assignment as AND operation.
+  fn mul_assign(&mut self, rhs: Self) { self.0 &= rhs.0; }
+}
+
+impl Additive for Boolean {}
+impl Multiplicative for Boolean {}
+
+// Implement Additive for all primitive numeric types
+impl Additive for u8 {}
+impl Additive for u16 {}
+impl Additive for u32 {}
+impl Additive for u64 {}
+impl Additive for u128 {}
+impl Additive for usize {}
+
+impl Additive for i8 {}
+impl Additive for i16 {}
+impl Additive for i32 {}
+impl Additive for i64 {}
+impl Additive for i128 {}
+impl Additive for isize {}
+
+impl Additive for f32 {}
+impl Additive for f64 {}
+
+// Implement Multiplicative for all primitive numeric types
+impl Multiplicative for u8 {}
+impl Multiplicative for u16 {}
+impl Multiplicative for u32 {}
+impl Multiplicative for u64 {}
+impl Multiplicative for u128 {}
+impl Multiplicative for usize {}
+
+impl Multiplicative for i8 {}
+impl Multiplicative for i16 {}
+impl Multiplicative for i32 {}
+impl Multiplicative for i64 {}
+impl Multiplicative for i128 {}
+impl Multiplicative for isize {}
+
+impl Multiplicative for f32 {}
+impl Multiplicative for f64 {}

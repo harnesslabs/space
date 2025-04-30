@@ -18,7 +18,7 @@
 //! ## Modular Arithmetic
 //!
 //! ```
-//! use algebra::{modular, Group, Ring};
+//! use harness_algebra::{group::Group, modular, ring::Ring};
 //!
 //! // Create a type for numbers modulo 7
 //! modular!(Mod7, u32, 7);
@@ -31,20 +31,13 @@
 //! ## Vector Spaces
 //!
 //! ```
-//! use algebra::{
+//! use harness_algebra::{
 //!   ring::Field,
 //!   vector::{Vector, VectorSpace},
 //! };
 //!
-//! #[derive(Copy, Clone, PartialEq, Eq)]
-//! struct MyField(f64);
-//!
-//! impl Field for MyField {
-//!   fn multiplicative_inverse(&self) -> Self { MyField(1.0 / self.0) }
-//! }
-//!
-//! let v1 = Vector::<3, MyField>([MyField(1.0), MyField(2.0), MyField(3.0)]);
-//! let v2 = Vector::<3, MyField>([MyField(4.0), MyField(5.0), MyField(6.0)]);
+//! let v1 = Vector::<3, f64>([1.0, 2.0, 3.0]);
+//! let v2 = Vector::<3, f64>([4.0, 5.0, 6.0]);
 //! let sum = v1 + v2;
 //! ```
 //!

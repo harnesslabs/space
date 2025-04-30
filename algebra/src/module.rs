@@ -2,28 +2,6 @@
 //!
 //! This module provides traits and implementations for module theory concepts,
 //! which generalize vector spaces by allowing the scalars to lie in a ring rather than a field.
-//!
-//! # Examples
-//!
-//! ```
-//! use algebra::{module::Module, ring::Ring};
-//!
-//! #[derive(Copy, Clone, PartialEq, Eq)]
-//! struct MyRing(i32);
-//!
-//! impl Ring for MyRing {
-//!   fn one() -> Self { MyRing(1) }
-//!
-//!   fn zero() -> Self { MyRing(0) }
-//! }
-//!
-//! #[derive(Copy, Clone, PartialEq, Eq)]
-//! struct MyModule(i32);
-//!
-//! impl Module for MyModule {
-//!   type Ring = MyRing;
-//! }
-//! ```
 
 use core::marker::PhantomData;
 
@@ -38,28 +16,6 @@ use crate::{
 /// A module is a generalization of a vector space, where the scalars lie in a ring
 /// rather than a field. This trait combines the requirements for an Abelian group
 /// with scalar multiplication by elements of the ring.
-///
-/// # Examples
-///
-/// ```
-/// use algebra::{module::Module, ring::Ring};
-///
-/// #[derive(Copy, Clone, PartialEq, Eq)]
-/// struct MyRing(i32);
-///
-/// impl Ring for MyRing {
-///   fn one() -> Self { MyRing(1) }
-///
-///   fn zero() -> Self { MyRing(0) }
-/// }
-///
-/// #[derive(Copy, Clone, PartialEq, Eq)]
-/// struct MyModule(i32);
-///
-/// impl Module for MyModule {
-///   type Ring = MyRing;
-/// }
-/// ```
 pub trait Module: AbelianGroup + Mul<Self::Ring, Output = Self> {
   /// The ring over which this module is defined.
   type Ring: Ring;
@@ -69,23 +25,6 @@ pub trait Module: AbelianGroup + Mul<Self::Ring, Output = Self> {
 ///
 /// This is a simple implementation of a module that has only one element.
 /// It's useful as a base case or for testing purposes.
-///
-/// # Examples
-///
-/// ```
-/// use algebra::{module::TrivialModule, ring::Ring};
-///
-/// #[derive(Copy, Clone, PartialEq, Eq)]
-/// struct MyRing(i32);
-///
-/// impl Ring for MyRing {
-///   fn one() -> Self { MyRing(1) }
-///
-///   fn zero() -> Self { MyRing(0) }
-/// }
-///
-/// let trivial = TrivialModule::<MyRing>::default();
-/// ```
 #[derive(Clone, Copy, Default, Eq, PartialEq)]
 pub struct TrivialModule<R> {
   pub(crate) _r: PhantomData<R>,
