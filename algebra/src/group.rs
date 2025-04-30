@@ -1,5 +1,4 @@
-use super::*;
-use crate::arithmetic::{Additive, Multiplicative};
+use crate::arithmetic::{Additive, Div, DivAssign, Multiplicative, Neg, One, Sub, SubAssign, Zero};
 
 pub trait Group {
   fn identity() -> Self;
