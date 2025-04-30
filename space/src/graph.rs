@@ -75,9 +75,9 @@ pub struct Graph<V, D: DirectedType> {
   /// The set of vertices in the graph
   vertices: HashSet<V>,
   /// The set of edges in the graph
-  edges:    HashSet<(V, V)>,
+  edges: HashSet<(V, V)>,
   /// Phantom data to carry the directedness type
-  d:        PhantomData<D>,
+  d: PhantomData<D>,
 }
 
 impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
@@ -121,8 +121,9 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
   fn contains(&self, point: &Self::Point) -> bool {
     match point {
       GraphPoint::Vertex(v) => self.vertices.contains(v),
-      GraphPoint::EdgePoint(u, v) =>
-        self.edges.contains(&(u.clone(), v.clone())) | self.edges.contains(&(v.clone(), u.clone())),
+      GraphPoint::EdgePoint(u, v) => {
+        self.edges.contains(&(u.clone(), v.clone())) | self.edges.contains(&(v.clone(), u.clone()))
+      },
     }
   }
 

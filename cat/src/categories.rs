@@ -32,7 +32,7 @@ pub enum PowerObjectType {
     Exponential(usize, usize),
 }
 
-pub trait PowerObjectGenerator<O: Object + ?Sized> {
+pub trait PowerObjectGenerator<O: Object> {
     fn generate_power_object(
         &self,
         power_type: &PowerObjectType,
@@ -42,14 +42,14 @@ pub trait PowerObjectGenerator<O: Object + ?Sized> {
 
 /// A `Category` of a single class of object
 /// e.g. Vect_k, Hilb_k
-pub struct Category<O: Object + ?Sized> {
+pub struct Category<O: Object> {
     objects: Vec<O>,
     morphisms: HashMap<(usize, usize), HomSet<O, O>>,
     power_objects: HashMap<PowerObjectType, usize>,
     generator: Box<dyn PowerObjectGenerator<O>>,
 }
 
-impl<O: Object + ?Sized> Category<O> {
+impl<O: Object> Category<O> {
     pub fn create(generator: Box<dyn PowerObjectGenerator<O>>) -> Self {
         Category { objects: Vec::new(), morphisms: HashMap::new(), power_objects: HashMap::new(), generator }
     }
@@ -116,10 +116,10 @@ impl<O: Object + ?Sized> Category<O> {
 
             let domain_idx = self.objects.iter()
                 .position(|o| o == domain_obj)
-                .ok_or_else(|| format!("Domain object not found for morphism"))?;
+                .ok_or("Domain object not found for morphism".to_string())?;
             let codomain_idx = self.objects.iter()
                 .position(|o| o == codomain_obj)
-                .ok_or_else(|| format!("Codomain object not found for morphism"))?;
+                .ok_or("Codomain object not found for morphism".to_string())?;
 
             self.add_morphism(domain_idx, codomain_idx, morph)?;
         }
@@ -153,7 +153,7 @@ impl<O: Object + ?Sized> Category<O> {
                 if self.is_monic(morphs.0.0, morphs.0.1, morph)? {
                     subobjects
                             .entry(morphs.0.1)
-                            .or_insert_with(Vec::new)
+                            .or_default()
                             .push((morphs.0.0, morph));
                 }
             }

@@ -7,25 +7,37 @@ macro_rules! modular {
     impl $name {
       pub const MODULUS: $inner = $modulus;
 
-      pub fn new(value: $inner) -> Self { Self(value % Self::MODULUS) }
+      pub fn new(value: $inner) -> Self {
+        Self(value % Self::MODULUS)
+      }
 
-      pub fn value(&self) -> $inner { self.0 }
+      pub fn value(&self) -> $inner {
+        self.0
+      }
     }
 
     impl num_traits::Zero for $name {
-      fn zero() -> Self { Self(0) }
+      fn zero() -> Self {
+        Self(0)
+      }
 
-      fn is_zero(&self) -> bool { self.0 == 0 }
+      fn is_zero(&self) -> bool {
+        self.0 == 0
+      }
     }
 
     impl std::ops::Add for $name {
       type Output = Self;
 
-      fn add(self, rhs: Self) -> Self { Self::new(self.0.wrapping_add(rhs.0)) }
+      fn add(self, rhs: Self) -> Self {
+        Self::new(self.0.wrapping_add(rhs.0))
+      }
     }
 
     impl std::ops::AddAssign for $name {
-      fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
+      fn add_assign(&mut self, rhs: Self) {
+        *self = *self + rhs;
+      }
     }
 
     impl std::ops::Neg for $name {
@@ -43,47 +55,69 @@ macro_rules! modular {
     impl std::ops::Sub for $name {
       type Output = Self;
 
-      fn sub(self, rhs: Self) -> Self { self + (-rhs) }
+      fn sub(self, rhs: Self) -> Self {
+        self + (-rhs)
+      }
     }
 
     impl std::ops::SubAssign for $name {
-      fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
+      fn sub_assign(&mut self, rhs: Self) {
+        *self = *self - rhs;
+      }
     }
 
     impl num_traits::Bounded for $name {
-      fn min_value() -> Self { Self(0) }
+      fn min_value() -> Self {
+        Self(0)
+      }
 
-      fn max_value() -> Self { Self(Self::MODULUS - 1) }
+      fn max_value() -> Self {
+        Self(Self::MODULUS - 1)
+      }
     }
 
     impl num_traits::One for $name {
-      fn one() -> Self { Self(1) }
+      fn one() -> Self {
+        Self(1)
+      }
     }
 
     impl std::ops::Mul for $name {
       type Output = Self;
 
-      fn mul(self, rhs: Self) -> Self { Self::new(self.0.wrapping_mul(rhs.0)) }
+      fn mul(self, rhs: Self) -> Self {
+        Self::new(self.0.wrapping_mul(rhs.0))
+      }
     }
 
     impl std::ops::MulAssign for $name {
-      fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
+      fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+      }
     }
 
     impl $crate::arithmetic::Additive for $name {}
     impl $crate::arithmetic::Multiplicative for $name {}
 
     impl $crate::group::Group for $name {
-      fn identity() -> Self { Self(0) }
+      fn identity() -> Self {
+        Self(0)
+      }
 
-      fn inverse(&self) -> Self { Self(Self::MODULUS - self.0) }
+      fn inverse(&self) -> Self {
+        Self(Self::MODULUS - self.0)
+      }
     }
 
     impl $crate::group::AbelianGroup for $name {}
     impl $crate::ring::Ring for $name {
-      fn one() -> Self { Self(1) }
+      fn one() -> Self {
+        Self(1)
+      }
 
-      fn zero() -> Self { Self(0) }
+      fn zero() -> Self {
+        Self(0)
+      }
     }
   };
 }
