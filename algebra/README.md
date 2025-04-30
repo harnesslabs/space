@@ -30,8 +30,7 @@ algebra = "0.1.0"
 Create a new modular number type using the `modular!` macro:
 
 ```rust
-use algebra::modular;
-use algebra::{Group, Ring};
+use harness_algebra::{group::Group, modular, ring::Ring};
 
 // Create a type for numbers modulo 7
 modular!(Mod7, u32, 7);
@@ -50,23 +49,21 @@ assert_eq!(product.value(), 1);
 
 ### Vector Spaces
 
-Create and manipulate vectors over any field:
+Create and manipulate vectors over any field, such as the finite field of integers modulo 7:
 
 ```rust
-use algebra::vector::{Vector, VectorSpace};
-use algebra::ring::Field;
+use harness_algebra::{vector::{Vector, VectorSpace}, ring::Field, modular};
 
-#[derive(Copy, Clone, PartialEq, Eq)]
-struct MyField(f64);
+modular!(Mod7, u32, 7);
 
-impl Field for MyField {
+impl Field for Mod7 {
     fn multiplicative_inverse(&self) -> Self {
-        MyField(1.0 / self.0)
+        todo!("Implement multiplicative inverse for Mod7")
     }
 }
 
-let v1 = Vector::<3, MyField>([MyField(1.0), MyField(2.0), MyField(3.0)]);
-let v2 = Vector::<3, MyField>([MyField(4.0), MyField(5.0), MyField(6.0)]);
+let v1 = Vector::<3, Mod7>([Mod7::new(1), Mod7::new(2), Mod7::new(3)]);
+let v2 = Vector::<3, Mod7>([Mod7::new(4), Mod7::new(5), Mod7::new(6)]);
 let sum = v1 + v2;
 ```
 
