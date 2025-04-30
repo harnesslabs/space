@@ -1,13 +1,10 @@
-use std::{
-  fmt::{Debug, Display, Formatter},
-  ops::{Add, AddAssign, MulAssign, Neg, Sub, SubAssign},
-};
+use std::fmt::{Debug, Display, Formatter};
 
-use num_traits::Zero;
-
-use super::Algebra;
 use crate::{
-  arithmetic::{Additive, Mul, Multiplicative},
+  algebras::Algebra,
+  arithmetic::{
+    Add, AddAssign, Additive, Mul, MulAssign, Multiplicative, Neg, Sub, SubAssign, Zero,
+  },
   group::{AbelianGroup, Group},
   module::{LeftModule, RightModule, TwoSidedModule},
   ring::{Field, Ring},
@@ -26,7 +23,7 @@ impl<F: Field + Copy, const N: usize> BilinearSpace<F, N> {
   pub fn evaluate(&self, v: &Vector<N, F>, w: &Vector<N, F>) -> F {
     let mut result = <F as Ring>::zero();
     for i in 0..N {
-      result = result + self.coefficients.0[i] * v.0[i] * w.0[i];
+      result += self.coefficients.0[i] * v.0[i] * w.0[i];
     }
     result
   }
@@ -37,14 +34,11 @@ pub struct CliffordAlgebra<F: Field, const N: usize> {
 }
 
 impl<F: Field + Copy, const N: usize> CliffordAlgebra<F, N>
-where [(); 2_usize.pow(N as u32)]:
+where [(); 1 << N]:
 {
   pub const fn new(bilinear_space: BilinearSpace<F, N>) -> Self { Self { bilinear_space } }
 
-  pub fn element(
-    &self,
-    value: Vector<{ 2_usize.pow(N as u32) }, F>,
-  ) -> CliffordAlgebraElement<'_, F, N> {
+  pub const fn element(&self, value: Vector<{ 1 << N }, F>) -> CliffordAlgebraElement<'_, F, N> {
     CliffordAlgebraElement { value, bilinear_space: Some(&self.bilinear_space) }
   }
 
@@ -61,52 +55,10 @@ where [(); 2_usize.pow(N as u32)]:
     // Convert indices to bit position using our helper function
     let bit_position = Self::blade_indices_to_bit(&indices);
 
-    let mut value = Vector::<{ 2_usize.pow(N as u32) }, F>::zero();
+    let mut value = Vector::<{ 1 << N }, F>::zero();
     value.0[bit_position] = F::one();
 
     CliffordAlgebraElement { value, bilinear_space: Some(&self.bilinear_space) }
-  }
-
-  /// Maps a bit position to the corresponding basis blade indices.
-  /// The bit position is interpreted as an index into the graded structure:
-  /// - First C(n,0) positions are scalars
-  /// - Next C(n,1) positions are vectors
-  /// - Next C(n,2) positions are bivectors
-  /// - And so on...
-  fn bit_to_blade_indices(bits: usize) -> Vec<usize> {
-    let mut remaining_bits = bits;
-    let mut grade = 0;
-
-    // Find which grade this element belongs to
-    while grade <= N {
-      let grade_size = binomial(N, grade);
-      if remaining_bits < grade_size {
-        break;
-      }
-      remaining_bits -= grade_size;
-      grade += 1;
-    }
-
-    // Now we know the grade, we need to find which combination of indices
-    // corresponds to the remaining_bits position within that grade
-    let mut indices = Vec::with_capacity(grade);
-    let mut current = 0;
-
-    for _ in 0..grade {
-      // Find the next index to include
-      while current < N {
-        let remaining_combinations = binomial(N - current - 1, grade - indices.len() - 1);
-        if remaining_bits < remaining_combinations {
-          indices.push(current);
-          current += 1;
-          break;
-        }
-        remaining_bits -= remaining_combinations;
-        current += 1;
-      }
-    }
-
-    indices
   }
 
   /// Maps a set of basis blade indices back to a bit position.
@@ -152,16 +104,16 @@ fn binomial(n: usize, k: usize) -> usize {
 // TODO: We can make both an option and make the case where both are none the zero element.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CliffordAlgebraElement<'a, F: Field, const N: usize>
-where [(); 2_usize.pow(N as u32)]: {
-  value:          Vector<{ 2_usize.pow(N as u32) }, F>,
+where [(); 1 << N]: {
+  value:          Vector<{ 1 << N }, F>,
   bilinear_space: Option<&'a BilinearSpace<F, N>>,
 }
 
 // TODO: All of these impls should check the same bilinear space. This should probably be a compile
 // time thing.
 
-impl<'a, F: Field + Copy + Debug, const N: usize> Add for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug, const N: usize> Add for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Output = Self;
 
@@ -171,36 +123,36 @@ where [(); 2_usize.pow(N as u32)]:
   }
 }
 
-impl<'a, F: Field + Copy + Debug, const N: usize> AddAssign for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug, const N: usize> AddAssign for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
 
-impl<'a, F: Field + Copy, const N: usize> Neg for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy, const N: usize> Neg for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Output = Self;
 
   fn neg(self) -> Self::Output { Self { value: -self.value, bilinear_space: self.bilinear_space } }
 }
 
-impl<'a, F: Field + Copy + Debug, const N: usize> Sub for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug, const N: usize> Sub for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Output = Self;
 
   fn sub(self, other: Self) -> Self::Output { self + -other }
 }
 
-impl<'a, F: Field + Copy + Debug, const N: usize> SubAssign for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug, const N: usize> SubAssign for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
-impl<'a, F: Field + Copy, const N: usize> Mul for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy, const N: usize> Mul for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Output = Self;
 
@@ -211,14 +163,14 @@ where [(); 2_usize.pow(N as u32)]:
   }
 }
 
-impl<'a, F: Field + Copy, const N: usize> MulAssign for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy, const N: usize> MulAssign for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
 }
 
-impl<'a, F: Field + Copy, const N: usize> Mul<F> for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy, const N: usize> Mul<F> for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Output = Self;
 
@@ -227,64 +179,59 @@ where [(); 2_usize.pow(N as u32)]:
   }
 }
 
-impl<'a, F: Field + Copy, const N: usize> Multiplicative for CliffordAlgebraElement<'a, F, N> where [(); 2_usize.pow(N as u32)]: {}
+impl<F: Field + Copy, const N: usize> Multiplicative for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
 
 // TODO: This is weird... i'll use option to note the zero element.
-impl<'a, F: Field + Copy + Debug, const N: usize> Zero for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug, const N: usize> Zero for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
-  fn zero() -> Self {
-    Self { value: Vector::<{ 2_usize.pow(N as u32) }, F>::zero(), bilinear_space: None }
-  }
+  fn zero() -> Self { Self { value: Vector::<{ 1 << N }, F>::zero(), bilinear_space: None } }
 
   fn is_zero(&self) -> bool { self.value.is_zero() }
 }
 
-impl<'a, F: Field + Copy + Debug, const N: usize> Additive for CliffordAlgebraElement<'a, F, N> where [(); 2_usize.pow(N as u32)]: {}
-impl<'a, F: Field + Copy + Debug, const N: usize> Group for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug, const N: usize> Additive for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
+impl<F: Field + Copy + Debug, const N: usize> Group for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   fn identity() -> Self {
-    CliffordAlgebraElement {
-      value:          Vector::<{ 2_usize.pow(N as u32) }, F>::zero(),
-      bilinear_space: None,
-    }
+    CliffordAlgebraElement { value: Vector::<{ 1 << N }, F>::zero(), bilinear_space: None }
   }
 
   fn inverse(&self) -> Self { Self { value: -self.value, bilinear_space: self.bilinear_space } }
 }
-impl<'a, F: Field + Copy + Debug, const N: usize> AbelianGroup for CliffordAlgebraElement<'a, F, N> where [(); 2_usize.pow(N as u32)]: {}
-impl<'a, F: Field + Copy + Debug + Mul<CliffordAlgebraElement<'a, F, N>>, const N: usize> LeftModule
-  for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug, const N: usize> AbelianGroup for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
+impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> LeftModule
+  for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Ring = F;
 }
-impl<'a, F: Field + Copy + Debug + Mul<CliffordAlgebraElement<'a, F, N>>, const N: usize>
-  RightModule for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> RightModule
+  for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Ring = F;
 }
-impl<'a, F: Field + Copy + Debug + Mul<CliffordAlgebraElement<'a, F, N>>, const N: usize>
-  TwoSidedModule for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> TwoSidedModule
+  for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   type Ring = F;
 }
-impl<'a, F: Field + Copy + Debug + Mul<CliffordAlgebraElement<'a, F, N>>, const N: usize>
-  VectorSpace for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> VectorSpace
+  for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
 }
-impl<'a, F: Field + Copy + Debug + Mul<CliffordAlgebraElement<'a, F, N>>, const N: usize> Algebra
-  for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> Algebra
+  for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
 }
 
-impl<'a, F: Field + Copy + Display, const N: usize> Display for CliffordAlgebraElement<'a, F, N>
-where [(); 2_usize.pow(N as u32)]:
+impl<F: Field + Copy + Display, const N: usize> Display for CliffordAlgebraElement<'_, F, N>
+where [(); 1 << N]:
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
     let mut first = true;
@@ -313,7 +260,7 @@ where [(); 2_usize.pow(N as u32)]:
             '9' => "₉",
             _ => panic!("Invalid digit"),
           };
-          write!(f, "{}", subscript)?;
+          write!(f, "{subscript}")?;
         }
 
         if i < indices.len() - 1 {
@@ -380,7 +327,7 @@ fn generate_combinations(
 macro_rules! impl_mul_scalar_clifford {
   ($($t:ty)*) => ($(
     impl<'a, const N: usize> Mul<CliffordAlgebraElement<'a, $t, N>> for $t
-    where [(); 2_usize.pow(N as u32)]:
+    where [(); 1 << N]:
     {
       type Output = CliffordAlgebraElement<'a, $t, N>;
 
