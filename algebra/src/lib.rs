@@ -1,3 +1,63 @@
+//! A Rust library for abstract algebra and number theory.
+//!
+//! This crate provides implementations of various algebraic structures and operations,
+//! with a focus on modular arithmetic and abstract algebra concepts.
+//!
+//! # Features
+//!
+//! - **Modular Arithmetic**: Create custom modular number types with the `modular!` macro
+//! - **Abstract Algebra**: Implementations of fundamental algebraic structures:
+//!   - Groups (both Abelian and Non-Abelian)
+//!   - Rings
+//!   - Fields
+//!   - Modules
+//!   - Vector Spaces
+//!
+//! # Examples
+//!
+//! ## Modular Arithmetic
+//!
+//! ```
+//! use algebra::{modular, Group, Ring};
+//!
+//! // Create a type for numbers modulo 7
+//! modular!(Mod7, u32, 7);
+//!
+//! let a = Mod7::new(3);
+//! let b = Mod7::new(5);
+//! let sum = a + b; // 8 ≡ 1 (mod 7)
+//! ```
+//!
+//! ## Vector Spaces
+//!
+//! ```
+//! use algebra::{
+//!   ring::Field,
+//!   vector::{Vector, VectorSpace},
+//! };
+//!
+//! #[derive(Copy, Clone, PartialEq, Eq)]
+//! struct MyField(f64);
+//!
+//! impl Field for MyField {
+//!   fn multiplicative_inverse(&self) -> Self { MyField(1.0 / self.0) }
+//! }
+//!
+//! let v1 = Vector::<3, MyField>([MyField(1.0), MyField(2.0), MyField(3.0)]);
+//! let v2 = Vector::<3, MyField>([MyField(4.0), MyField(5.0), MyField(6.0)]);
+//! let sum = v1 + v2;
+//! ```
+//!
+//! # Modules
+//!
+//! - [`arithmetic`]: Basic arithmetic traits and operations
+//! - [`group`]: Group theory abstractions and implementations
+//! - [`ring`]: Ring theory abstractions and implementations
+//! - [`module`]: Module theory abstractions and implementations
+//! - [`vector`]: Vector space abstractions and implementations
+//! - [`modular`]: Modular arithmetic abstractions and implementations
+
+#![warn(missing_docs)]
 pub mod group;
 pub mod ring;
 

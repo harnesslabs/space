@@ -1,3 +1,29 @@
+//! Vector space abstractions and implementations.
+//!
+//! This module provides traits and implementations for vector space concepts,
+//! which are modules over fields. It includes a concrete implementation of
+//! a fixed-size vector type.
+//!
+//! # Examples
+//!
+//! ```
+//! use algebra::{
+//!   ring::Field,
+//!   vector::{Vector, VectorSpace},
+//! };
+//!
+//! #[derive(Copy, Clone, PartialEq, Eq)]
+//! struct MyField(f64);
+//!
+//! impl Field for MyField {
+//!   fn multiplicative_inverse(&self) -> Self { MyField(1.0 / self.0) }
+//! }
+//!
+//! let v1 = Vector::<3, MyField>([MyField(1.0), MyField(2.0), MyField(3.0)]);
+//! let v2 = Vector::<3, MyField>([MyField(4.0), MyField(5.0), MyField(6.0)]);
+//! let sum = v1 + v2;
+//! ```
+
 use crate::{
   arithmetic::{Add, AddAssign, Additive, Mul, Neg, Sub, SubAssign, Zero},
   group::{AbelianGroup, Group},
@@ -5,22 +31,63 @@ use crate::{
   ring::{Field, Ring},
 };
 
+/// A trait representing a vector space over a field.
+///
+/// A vector space is a module over a field, meaning it has both addition and
+/// scalar multiplication operations, with the scalars coming from a field.
+///
+/// # Examples
+///
+/// ```
+/// use algebra::{ring::Field, vector::VectorSpace};
+///
+/// #[derive(Copy, Clone, PartialEq, Eq)]
+/// struct MyField(f64);
+///
+/// impl Field for MyField {
+///   fn multiplicative_inverse(&self) -> Self { MyField(1.0 / self.0) }
+/// }
+///
+/// #[derive(Copy, Clone, PartialEq, Eq)]
+/// struct MyVectorSpace(f64);
+///
+/// impl VectorSpace for MyVectorSpace {}
+/// ```
 pub trait VectorSpace: Module
 where Self::Ring: Field {
 }
 
+/// A fixed-size vector over a field.
+///
+/// This is a concrete implementation of a vector space, where vectors have
+/// a fixed number of components and the scalars come from a field.
+///
+/// # Examples
+///
+/// ```
+/// use algebra::{ring::Field, vector::Vector};
+///
+/// #[derive(Copy, Clone, PartialEq, Eq)]
+/// struct MyField(f64);
+///
+/// impl Field for MyField {
+///   fn multiplicative_inverse(&self) -> Self { MyField(1.0 / self.0) }
+/// }
+///
+/// let v = Vector::<3, MyField>([MyField(1.0), MyField(2.0), MyField(3.0)]);
+/// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Vector<const M: usize, F: Field>(pub [F; M]);
 
-impl<const M: usize, F: Field> Default for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> Default for Vector<M, F> {
   fn default() -> Self { Self([<F as Ring>::zero(); M]) }
 }
 
-impl<const M: usize, F: Field> Add for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> Add for Vector<M, F> {
   type Output = Self;
 
   fn add(self, other: Self) -> Self::Output {
-    let mut sum = Self::default();
+    let mut sum = Self::zero();
     for i in 0..M {
       sum.0[i] = self.0[i] + other.0[i];
     }
@@ -28,15 +95,15 @@ impl<const M: usize, F: Field> Add for Vector<M, F> {
   }
 }
 
-impl<const M: usize, F: Field> AddAssign for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> AddAssign for Vector<M, F> {
   fn add_assign(&mut self, rhs: Self) { *self = *self + rhs }
 }
 
-impl<const M: usize, F: Field> Neg for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> Neg for Vector<M, F> {
   type Output = Self;
 
   fn neg(self) -> Self::Output {
-    let mut neg = Self::default();
+    let mut neg = Self::zero();
     for i in 0..M {
       neg.0[i] = -self.0[i];
     }
@@ -44,11 +111,11 @@ impl<const M: usize, F: Field> Neg for Vector<M, F> {
   }
 }
 
-impl<const M: usize, F: Field> Mul<F> for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> Mul<F> for Vector<M, F> {
   type Output = Self;
 
   fn mul(self, scalar: F) -> Self::Output {
-    let mut scalar_multiple = Self::default();
+    let mut scalar_multiple = Self::zero();
     for i in 0..M {
       scalar_multiple.0[i] = scalar * self.0[i];
     }
@@ -56,34 +123,34 @@ impl<const M: usize, F: Field> Mul<F> for Vector<M, F> {
   }
 }
 
-impl<const M: usize, F: Field> Sub for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> Sub for Vector<M, F> {
   type Output = Self;
 
   fn sub(self, other: Self) -> Self::Output { self + -other }
 }
 
-impl<const M: usize, F: Field> SubAssign for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> SubAssign for Vector<M, F> {
   fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs }
 }
 
-impl<const M: usize, F: Field> Additive for Vector<M, F> {}
+impl<const M: usize, F: Field + Copy> Additive for Vector<M, F> {}
 
-impl<const M: usize, F: Field> Group for Vector<M, F> {
-  fn identity() -> Self { Self::default() }
+impl<const M: usize, F: Field + Copy> Group for Vector<M, F> {
+  fn identity() -> Self { Self::zero() }
 
   fn inverse(&self) -> Self { -*self }
 }
 
-impl<const M: usize, F: Field> Zero for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> Zero for Vector<M, F> {
   fn zero() -> Self { Self([<F as Ring>::zero(); M]) }
 
   fn is_zero(&self) -> bool { self.0.iter().all(|x| *x == <F as Ring>::zero()) }
 }
 
-impl<const M: usize, F: Field> AbelianGroup for Vector<M, F> {}
+impl<const M: usize, F: Field + Copy> AbelianGroup for Vector<M, F> {}
 
-impl<const M: usize, F: Field> Module for Vector<M, F> {
+impl<const M: usize, F: Field + Copy> Module for Vector<M, F> {
   type Ring = F;
 }
 
-impl<const M: usize, F: Field> VectorSpace for Vector<M, F> {}
+impl<const M: usize, F: Field + Copy> VectorSpace for Vector<M, F> {}

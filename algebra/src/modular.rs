@@ -1,3 +1,44 @@
+//! Modular arithmetic abstractions and implementations.
+//!
+//! This module provides a macro for creating custom modular number types
+//! and implementations of various arithmetic operations for them.
+//!
+//! # Examples
+//!
+//! ```
+//! use algebra::{modular, Group, Ring};
+//!
+//! modular!(Mod7, u32, 7);
+//!
+//! let a = Mod7::new(3);
+//! let b = Mod7::new(5);
+//! let sum = a + b; // 8 ≡ 1 (mod 7)
+//! ```
+
+/// A macro for creating custom modular number types.
+///
+/// This macro creates a new type for numbers modulo a given value,
+/// implementing various arithmetic operations and algebraic traits.
+///
+/// # Examples
+///
+/// ```
+/// use algebra::{modular, Group, Ring};
+///
+/// // Create a type for numbers modulo 7
+/// modular!(Mod7, u32, 7);
+///
+/// let a = Mod7::new(3);
+/// let b = Mod7::new(5);
+///
+/// // Addition: 3 + 5 = 8 ≡ 1 (mod 7)
+/// let sum = a + b;
+/// assert_eq!(sum.value(), 1);
+///
+/// // Multiplication: 3 * 5 = 15 ≡ 1 (mod 7)
+/// let product = a * b;
+/// assert_eq!(product.value(), 1);
+/// ```
 #[macro_export]
 macro_rules! modular {
   ($name:ident, $inner:ty, $modulus:expr) => {
@@ -5,10 +46,15 @@ macro_rules! modular {
     pub struct $name($inner);
 
     impl $name {
+      /// The modulus for this modular number type.
       pub const MODULUS: $inner = $modulus;
 
+      /// Creates a new modular number from a value.
+      ///
+      /// The value is automatically reduced modulo `MODULUS`.
       pub fn new(value: $inner) -> Self { Self(value % Self::MODULUS) }
 
+      /// Returns the value of this modular number.
       pub fn value(&self) -> $inner { self.0 }
     }
 

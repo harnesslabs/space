@@ -2,6 +2,10 @@
 
 A Rust library providing algebraic structures and operations, with a focus on modular arithmetic and abstract algebra concepts.
 
+[![Crates.io](https://img.shields.io/crates/v/algebra)](https://crates.io/crates/algebra)
+[![Documentation](https://docs.rs/algebra/badge.svg)](https://docs.rs/algebra)
+[![License](https://img.shields.io/crates/l/algebra)](LICENSE)
+
 ## Features
 
 - **Modular Arithmetic**: Create custom modular number types with the `modular!` macro
@@ -9,34 +13,83 @@ A Rust library providing algebraic structures and operations, with a focus on mo
   - Groups (both Abelian and Non-Abelian)
   - Rings
   - Fields
+  - Modules
+  - Vector Spaces
 
 ## Usage
+
+Add this to your `Cargo.toml`:
+
+```toml
+[dependencies]
+algebra = "0.1.0"
+```
 
 ### Modular Arithmetic
 
 Create a new modular number type using the `modular!` macro:
 
 ```rust
-modular!(Mod7, u32, 7);  // Creates a type for numbers modulo 7
+use algebra::modular;
+use algebra::{Group, Ring};
+
+// Create a type for numbers modulo 7
+modular!(Mod7, u32, 7);
 
 let a = Mod7::new(3);
 let b = Mod7::new(5);
-let sum = a + b;  // 8 ≡ 1 (mod 7)
+
+// Addition: 3 + 5 = 8 ≡ 1 (mod 7)
+let sum = a + b;
+assert_eq!(sum.value(), 1);
+
+// Multiplication: 3 * 5 = 15 ≡ 1 (mod 7)
+let product = a * b;
+assert_eq!(product.value(), 1);
 ```
 
-### Algebraic Structures
+### Vector Spaces
 
-The crate provides traits for various algebraic structures:
+Create and manipulate vectors over any field:
 
-- `Group`: Basic group operations with identity and inverse
-- `AbelianGroup`: Commutative groups with addition operations
-- `NonAbelianGroup`: Non-commutative groups with multiplication operations
-- `Ring`: Structures with both addition and multiplication
-- `Field`: Rings with multiplicative inverses
+```rust
+use algebra::vector::{Vector, VectorSpace};
+use algebra::ring::Field;
 
-## Dependencies
+#[derive(Copy, Clone, PartialEq, Eq)]
+struct MyField(f64);
 
-- `num`: For numeric traits and operations
+impl Field for MyField {
+    fn multiplicative_inverse(&self) -> Self {
+        MyField(1.0 / self.0)
+    }
+}
+
+let v1 = Vector::<3, MyField>([MyField(1.0), MyField(2.0), MyField(3.0)]);
+let v2 = Vector::<3, MyField>([MyField(4.0), MyField(5.0), MyField(6.0)]);
+let sum = v1 + v2;
+```
+
+## Documentation
+
+The complete API documentation is available on [docs.rs](https://docs.rs/algebra).
+
+### Modules
+
+- [`arithmetic`](https://docs.rs/algebra/latest/algebra/arithmetic/index.html): Basic arithmetic traits and operations
+- [`group`](https://docs.rs/algebra/latest/algebra/group/index.html): Group theory abstractions and implementations
+- [`ring`](https://docs.rs/algebra/latest/algebra/ring/index.html): Ring theory abstractions and implementations
+- [`module`](https://docs.rs/algebra/latest/algebra/module/index.html): Module theory abstractions and implementations
+- [`vector`](https://docs.rs/algebra/latest/algebra/vector/index.html): Vector space abstractions and implementations
+- [`modular`](https://docs.rs/algebra/latest/algebra/modular/index.html): Modular arithmetic abstractions and implementations
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
 ## Examples
 
