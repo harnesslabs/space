@@ -2,9 +2,9 @@
 
 A Rust library providing algebraic structures and operations, with a focus on modular arithmetic and abstract algebra concepts.
 
-[![Crates.io](https://img.shields.io/crates/v/algebra)](https://crates.io/crates/algebra)
-[![Documentation](https://docs.rs/algebra/badge.svg)](https://docs.rs/algebra)
-[![License](https://img.shields.io/crates/l/algebra)](LICENSE)
+[![Crates.io](https://img.shields.io/crates/v/harness-algebra)](https://crates.io/crates/harness-algebra)
+[![Documentation](https://docs.rs/harness-algebra/badge.svg)](https://docs.rs/harness-algebra)
+[![License](https://img.shields.io/crates/l/harness-algebra)](LICENSE)
 
 ## Features
 
@@ -22,7 +22,7 @@ Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-algebra = "0.1.0"
+harness-algebra = "*"
 ```
 
 ### Modular Arithmetic
