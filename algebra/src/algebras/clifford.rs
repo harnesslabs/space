@@ -212,14 +212,37 @@ where [(); 2_usize.pow(N as u32)]:
     let write_basis = |f: &mut Formatter<'_>, idx: usize| -> std::fmt::Result {
       let mut bits = idx;
       let mut first_e = true;
+      let mut first_index = true;
 
       for i in 0..N {
         if bits & 1 == 1 {
           if !first_e {
-            write!(f, " ")?;
+            if !first_index {
+              write!(f, "‚")?;
+            }
+          } else {
+            write!(f, "e")?;
           }
-          write!(f, "e_{}", i + 1)?;
+          // Convert number to Unicode subscript by converting each digit
+          let num = i + 1;
+          for digit in num.to_string().chars() {
+            let subscript = match digit {
+              '0' => "₀",
+              '1' => "₁",
+              '2' => "₂",
+              '3' => "₃",
+              '4' => "₄",
+              '5' => "₅",
+              '6' => "₆",
+              '7' => "₇",
+              '8' => "₈",
+              '9' => "₉",
+              _ => panic!("Invalid digit"),
+            };
+            write!(f, "{}", subscript)?;
+          }
           first_e = false;
+          first_index = false;
         }
         bits >>= 1;
       }
@@ -236,7 +259,6 @@ where [(); 2_usize.pow(N as u32)]:
           }
           write!(f, "{}", self.value.0[idx])?;
           if grade > 0 {
-            write!(f, " ")?;
             write_basis(f, idx)?;
           }
           first = false;
