@@ -6,14 +6,19 @@
 //! # Examples
 //!
 //! ```
-//! use harness_algebra::{group::Group, modular, ring::Ring};
+//! use harness_algebra::{modular, prime_field};
 //!
 //! // Create a type for numbers modulo 7 (a prime number)
 //! modular!(Mod7, u32, 7);
+//! prime_field!(Mod7);
 //!
 //! let a = Mod7::new(3);
 //! let b = Mod7::new(5);
 //! let sum = a + b; // 8 ≡ 1 (mod 7)
+//!
+//! let product = a * b; // 15 ≡ 1 (mod 7)
+//!
+//! let inverse = a.multiplicative_inverse(); // 3 * 5 ≡ 1 (mod 7)
 //! ```
 
 /// A const function to check if a number is prime at compile time.
