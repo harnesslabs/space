@@ -290,8 +290,7 @@ where [(); 2_usize.pow(N as u32)]:
     let mut first = true;
 
     // Helper function to write basis element
-    let write_basis = |f: &mut Formatter<'_>, idx: usize| -> std::fmt::Result {
-      let indices = CliffordAlgebra::<F, N>::bit_to_blade_indices(idx);
+    let write_basis = |f: &mut Formatter<'_>, indices: &[usize]| -> std::fmt::Result {
       if indices.is_empty() {
         return Ok(());
       }
@@ -326,15 +325,24 @@ where [(); 2_usize.pow(N as u32)]:
 
     // Print each grade in order
     for grade in 0..=N {
-      // For each possible combination of 'grade' basis vectors
-      for idx in 0..2usize.pow(N as u32) {
-        if idx.count_ones() as usize == grade && !self.value.0[idx].is_zero() {
+      // Generate all possible combinations of indices for this grade
+      let mut indices = Vec::with_capacity(grade);
+      let mut combinations = Vec::new();
+      generate_combinations(0, N, grade, &mut indices, &mut combinations);
+
+      // Sort combinations by their bit position
+      combinations.sort_by_key(|indices| CliffordAlgebra::<F, N>::blade_indices_to_bit(indices));
+
+      // Print each combination in order
+      for indices in combinations {
+        let bit_position = CliffordAlgebra::<F, N>::blade_indices_to_bit(&indices);
+        if !self.value.0[bit_position].is_zero() {
           if !first {
             write!(f, " + ")?;
           }
-          write!(f, "{}", self.value.0[idx])?;
+          write!(f, "{}", self.value.0[bit_position])?;
           if grade > 0 {
-            write_basis(f, idx)?;
+            write_basis(f, &indices)?;
           }
           first = false;
         }
@@ -345,6 +353,26 @@ where [(); 2_usize.pow(N as u32)]:
       write!(f, "0")?;
     }
     Ok(())
+  }
+}
+
+/// Helper function to generate all combinations of indices for a given grade
+fn generate_combinations(
+  start: usize,
+  n: usize,
+  k: usize,
+  current: &mut Vec<usize>,
+  result: &mut Vec<Vec<usize>>,
+) {
+  if k == 0 {
+    result.push(current.clone());
+    return;
+  }
+
+  for i in start..n {
+    current.push(i);
+    generate_combinations(i + 1, n, k - 1, current, result);
+    current.pop();
   }
 }
 
@@ -374,43 +402,19 @@ mod tests {
   }
 
   #[test]
-  fn test_operations() {
+  fn test_display_order() {
     let algebra = clifford_algebra();
-
     let one = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    println!("{one}");
-
     let e0 = algebra.element(Vector::<8, f64>([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    println!("{e0}");
-
     let e1 = algebra.element(Vector::<8, f64>([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    println!("{e1}");
-
     let e2 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
-    println!("{e2}");
-
     let e01 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
-    println!("{e01}");
-
     let e02 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
-    println!("{e02}");
-
     let e12 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
-    println!("{e12}");
-
     let e012 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
-    println!("{e012}");
 
-    let sum = one + 2.0 * e0 + e1 * 3.0 + e2 * 4.0 + e01 * 5.0 + e02 * 6.0 + e12 * 7.0 + e012 * 8.0;
-    println!("{sum}");
-  }
-
-  #[test]
-  fn test_blade() {
-    let algebra = clifford_algebra();
-
-    let e1 = algebra.blade([1]);
-    println!("{e1}");
+    let sum = one + 2.0 * e0 + 3.0 * e1 + 4.0 * e2 + 5.0 * e01 + 6.0 * e02 + 7.0 * e12 + 8.0 * e012;
+    assert_eq!(format!("{sum}"), "1 + 2e₀ + 3e₁ + 4e₂ + 5e₀‚₁ + 6e₀‚₂ + 7e₁‚₂ + 8e₀‚₁‚₂");
   }
 
   #[test]
@@ -430,5 +434,31 @@ mod tests {
 
     // Test trivector
     assert_eq!(CliffordAlgebra::<f64, 3>::blade_indices_to_bit(&[0, 1, 2]), 7);
+  }
+
+  #[test]
+  fn test_blade() {
+    let algebra = clifford_algebra();
+
+    let e1 = algebra.blade([1]);
+    assert_eq!(format!("{e1}"), "1e₁");
+  }
+
+  #[test]
+  fn test_add() {
+    let algebra = clifford_algebra();
+    let e1 = algebra.blade([1]);
+    let e2 = algebra.blade([2]);
+    let sum = e1 + e2;
+    assert_eq!(format!("{sum}"), "1e₁ + 1e₂");
+  }
+
+  #[test]
+  fn test_mul() {
+    let algebra = clifford_algebra();
+    let e1 = algebra.blade([1]);
+    let e2 = algebra.blade([2]);
+    let sum = e1 * e2;
+    assert_eq!(format!("{sum}"), "1e₁‚₂");
   }
 }
