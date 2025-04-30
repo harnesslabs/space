@@ -20,7 +20,7 @@
 ///
 /// This is used by the `modular!` macro to determine if a field implementation
 /// should be generated.
-const fn is_prime(n: u32) -> bool {
+pub const fn is_prime(n: u32) -> bool {
   if n <= 1 {
     return false;
   }
@@ -49,7 +49,7 @@ const fn is_prime(n: u32) -> bool {
 /// # Examples
 ///
 /// ```
-/// use harness_algebra::{group::Group, modular, ring::Ring};
+/// use harness_algebra::modular;
 ///
 /// // Create a type for numbers modulo 7 (a prime number)
 /// modular!(Mod7, u32, 7);
@@ -64,10 +64,6 @@ const fn is_prime(n: u32) -> bool {
 /// // Multiplication: 3 * 5 = 15 ≡ 1 (mod 7)
 /// let product = a * b;
 /// assert_eq!(product.value(), 1);
-///
-/// // Division (only works for prime moduli)
-/// let inverse = a.multiplicative_inverse();
-/// assert_eq!(inverse.value(), 5); // 3 * 5 ≡ 1 (mod 7)
 /// ```
 #[macro_export]
 macro_rules! modular {
@@ -86,33 +82,6 @@ macro_rules! modular {
 
       /// Returns the value of this modular number.
       pub fn value(&self) -> $inner { self.0 }
-
-      /// Computes the modular multiplicative inverse using Fermat's Little Theorem.
-      ///
-      /// This is only available when the modulus is prime.
-      /// Returns the inverse of this number modulo `MODULUS`.
-      ///
-      /// # Panics
-      ///
-      /// This function will panic if called on zero.
-      pub fn multiplicative_inverse(&self) -> Self {
-        if self.0 == 0 {
-          panic!("Cannot compute inverse of zero");
-        }
-        // Fermat's Little Theorem: a^(p-1) ≡ 1 (mod p)
-        // Therefore, a^(p-2) ≡ a^(-1) (mod p)
-        let mut result = Self(1);
-        let mut base = *self;
-        let mut exponent = Self::MODULUS - 2;
-        while exponent > 0 {
-          if exponent % 2 == 1 {
-            result *= base;
-          }
-          base = base * base;
-          exponent /= 2;
-        }
-        result
-      }
     }
 
     impl num_traits::Zero for $name {
@@ -191,8 +160,52 @@ macro_rules! modular {
   };
 }
 
+/// A macro for creating prime field types.
+///
+/// This macro extends the given type with a method for computing the modular
+/// multiplicative inverse using Fermat's Little Theorem.
+///
+/// # Examples
+///
+/// ```
+/// use harness_algebra::{modular, prime_field};
+///
+/// modular!(Mod7, u32, 7);
+/// prime_field!(Mod7);
+///
+/// let a = Mod7::new(3);
+/// let inverse = a.multiplicative_inverse();
+/// assert_eq!(inverse.value(), 5); // 3 * 5 ≡ 1 (mod 7)
+/// ```
+#[macro_export]
 macro_rules! prime_field {
   ($inner:ty) => {
+    impl $inner {
+      /// Computes the modular multiplicative inverse using Fermat's Little Theorem.
+      ///
+      /// # Panics
+      ///
+      /// This function will panic if called on zero.
+      fn multiplicative_inverse(&self) -> Self {
+        if self.0 == 0 {
+          panic!("Cannot compute inverse of zero");
+        }
+        // Fermat's Little Theorem: a^(p-1) ≡ 1 (mod p)
+        // Therefore, a^(p-2) ≡ a^(-1) (mod p)
+        let mut result = Self(1);
+        let mut base = *self;
+        let mut exponent = Self::MODULUS - 2;
+        while exponent > 0 {
+          if exponent % 2 == 1 {
+            result *= base;
+          }
+          base = base * base;
+          exponent /= 2;
+        }
+        result
+      }
+    }
+
     impl std::ops::Div for $inner
     where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
     {
