@@ -55,7 +55,7 @@ Create and manipulate vectors over any field, such as the finite field of intege
 use harness_algebra::{vector::{Vector, VectorSpace}, ring::Field, modular};
 
 modular!(Mod7, u32, 7);
-
+prime_field!(Mod7);
 impl Field for Mod7 {
     fn multiplicative_inverse(&self) -> Self {
         todo!("Implement multiplicative inverse for Mod7")

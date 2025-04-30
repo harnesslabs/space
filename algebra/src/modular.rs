@@ -72,13 +72,6 @@ const fn is_prime(n: u32) -> bool {
 #[macro_export]
 macro_rules! modular {
   ($name:ident, $inner:ty, $modulus:expr) => {
-    // Compile-time check for prime modulus
-    const _: () = {
-      if !$crate::modular::is_prime($modulus) {
-        panic!("Modulus must be prime for field implementation");
-      }
-    };
-
     #[derive(Copy, Clone, PartialEq, Eq, Debug)]
     pub struct $name($inner);
 
@@ -113,7 +106,7 @@ macro_rules! modular {
         let mut exponent = Self::MODULUS - 2;
         while exponent > 0 {
           if exponent % 2 == 1 {
-            result = result * base;
+            result *= base;
           }
           base = base * base;
           exponent /= 2;
@@ -195,9 +188,29 @@ macro_rules! modular {
 
       fn zero() -> Self { Self(0) }
     }
+  };
+}
+
+macro_rules! prime_field {
+  ($inner:ty) => {
+    impl std::ops::Div for $inner
+    where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
+    {
+      type Output = Self;
+
+      fn div(self, rhs: Self) -> Self { self * rhs.multiplicative_inverse() }
+    }
+
+    impl std::ops::DivAssign for $inner
+    where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
+    {
+      fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
+    }
 
     // Only implement Field if the modulus is prime
-    impl $crate::ring::Field for $name {
+    impl $crate::ring::Field for $inner
+    where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
+    {
       fn multiplicative_inverse(&self) -> Self { self.multiplicative_inverse() }
     }
   };
@@ -208,6 +221,7 @@ mod tests {
   use crate::{group::Group, ring::Ring};
 
   modular!(Mod7, u32, 7);
+  prime_field!(Mod7);
 
   #[test]
   fn test_modular_group() {
