@@ -13,33 +13,33 @@ use crate::{
 
 // TODO: We are assuming this is in the diagonal basis.
 #[derive(Debug, PartialEq, Eq)]
-pub struct BilinearSpace<F: Field, const N: usize> {
+pub struct QuadraticForm<F: Field, const N: usize> {
   coefficients: Vector<N, F>,
 }
 
-impl<F: Field + Copy, const N: usize> BilinearSpace<F, N> {
+impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   pub const fn new(coefficients: Vector<N, F>) -> Self { Self { coefficients } }
 
-  pub fn evaluate(&self, v: &Vector<N, F>, w: &Vector<N, F>) -> F {
+  pub fn evaluate(&self, v: &Vector<N, F>) -> F {
     let mut result = <F as Ring>::zero();
     for i in 0..N {
-      result += self.coefficients.0[i] * v.0[i] * w.0[i];
+      result += self.coefficients.0[i] * v.0[i] * v.0[i];
     }
     result
   }
 }
 
 pub struct CliffordAlgebra<F: Field, const N: usize> {
-  bilinear_space: BilinearSpace<F, N>,
+  quadratic_form: QuadraticForm<F, N>,
 }
 
 impl<F: Field + Copy, const N: usize> CliffordAlgebra<F, N>
 where [(); 1 << N]:
 {
-  pub const fn new(bilinear_space: BilinearSpace<F, N>) -> Self { Self { bilinear_space } }
+  pub const fn new(quadratic_form: QuadraticForm<F, N>) -> Self { Self { quadratic_form } }
 
   pub const fn element(&self, value: Vector<{ 1 << N }, F>) -> CliffordAlgebraElement<'_, F, N> {
-    CliffordAlgebraElement { value, bilinear_space: Some(&self.bilinear_space) }
+    CliffordAlgebraElement { value, quadratic_form: Some(&self.quadratic_form) }
   }
 
   pub fn blade<const I: usize>(&self, indices: [usize; I]) -> CliffordAlgebraElement<'_, F, N> {
@@ -58,7 +58,7 @@ where [(); 1 << N]:
     let mut value = Vector::<{ 1 << N }, F>::zero();
     value.0[bit_position] = F::one();
 
-    CliffordAlgebraElement { value, bilinear_space: Some(&self.bilinear_space) }
+    CliffordAlgebraElement { value, quadratic_form: Some(&self.quadratic_form) }
   }
 
   /// Maps a set of basis blade indices back to a bit position.
@@ -106,7 +106,7 @@ fn binomial(n: usize, k: usize) -> usize {
 pub struct CliffordAlgebraElement<'a, F: Field, const N: usize>
 where [(); 1 << N]: {
   value:          Vector<{ 1 << N }, F>,
-  bilinear_space: Option<&'a BilinearSpace<F, N>>,
+  quadratic_form: Option<&'a QuadraticForm<F, N>>,
 }
 
 // TODO: All of these impls should check the same bilinear space. This should probably be a compile
@@ -118,8 +118,8 @@ where [(); 1 << N]:
   type Output = Self;
 
   fn add(self, other: Self) -> Self::Output {
-    assert_eq!(self.bilinear_space, other.bilinear_space);
-    Self { value: self.value + other.value, bilinear_space: self.bilinear_space }
+    assert_eq!(self.quadratic_form, other.quadratic_form);
+    Self { value: self.value + other.value, quadratic_form: self.quadratic_form }
   }
 }
 
@@ -134,7 +134,7 @@ where [(); 1 << N]:
 {
   type Output = Self;
 
-  fn neg(self) -> Self::Output { Self { value: -self.value, bilinear_space: self.bilinear_space } }
+  fn neg(self) -> Self::Output { Self { value: -self.value, quadratic_form: self.quadratic_form } }
 }
 
 impl<F: Field + Copy + Debug, const N: usize> Sub for CliffordAlgebraElement<'_, F, N>
@@ -151,15 +151,14 @@ where [(); 1 << N]:
   fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
 }
 
-// TODO: We need to make sure that the bilinear space is the same for both elements.
 impl<F: Field + Copy + Debug, const N: usize> Mul for CliffordAlgebraElement<'_, F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
 
   fn mul(self, other: Self) -> Self::Output {
-    assert_eq!(self.bilinear_space, other.bilinear_space);
-    let bilinear_space = self.bilinear_space.expect("Both elements must have a bilinear space");
+    assert_eq!(self.quadratic_form, other.quadratic_form);
+    let quadratic_form = self.quadratic_form.expect("Both elements must have a bilinear space");
 
     let mut result = Vector::<{ 1 << N }, F>::zero();
 
@@ -180,14 +179,37 @@ where [(); 1 << N]:
         let right_indices = Self::bit_to_blade_indices(j);
 
         // Calculate the sign and product indices
-        let (sign, product_indices) =
-          multiply_blades(&left_indices, &right_indices, bilinear_space);
+        let (sign, product_indices) = multiply_blades::<F, N>(&left_indices, &right_indices);
 
         // Calculate the coefficient
-        let coefficient = match sign {
-          Sign::Positive => self.value.0[i] * other.value.0[j],
-          Sign::Negative => (self.value.0[i] * other.value.0[j]).inverse(),
+        let mut coefficient = self.value.0[i] * other.value.0[j];
+
+        // Apply sign
+        coefficient = match sign {
+          Sign::Positive => coefficient,
+          Sign::Negative => -coefficient,
         };
+
+        // Apply quadratic form for any repeated indices
+        let mut repeated_indices = Vec::new();
+        let mut i = 0;
+        let mut j = 0;
+        while i < left_indices.len() && j < right_indices.len() {
+          if left_indices[i] == right_indices[j] {
+            repeated_indices.push(left_indices[i]);
+            i += 1;
+            j += 1;
+          } else if left_indices[i] < right_indices[j] {
+            i += 1;
+          } else {
+            j += 1;
+          }
+        }
+
+        // Multiply by quadratic form coefficients for each repeated index
+        for &idx in &repeated_indices {
+          coefficient = coefficient * quadratic_form.coefficients.0[idx];
+        }
 
         // Add to the result
         let product_bit = Self::blade_indices_to_bit(&product_indices);
@@ -195,7 +217,7 @@ where [(); 1 << N]:
       }
     }
 
-    Self { value: result, bilinear_space: self.bilinear_space }
+    Self { value: result, quadratic_form: self.quadratic_form }
   }
 }
 
@@ -211,7 +233,7 @@ where [(); 1 << N]:
   type Output = Self;
 
   fn mul(self, rhs: F) -> Self::Output {
-    Self { value: self.value * rhs, bilinear_space: self.bilinear_space }
+    Self { value: self.value * rhs, quadratic_form: self.quadratic_form }
   }
 }
 
@@ -221,7 +243,7 @@ impl<F: Field + Copy + Debug, const N: usize> Multiplicative for CliffordAlgebra
 impl<F: Field + Copy + Debug, const N: usize> Zero for CliffordAlgebraElement<'_, F, N>
 where [(); 1 << N]:
 {
-  fn zero() -> Self { Self { value: Vector::<{ 1 << N }, F>::zero(), bilinear_space: None } }
+  fn zero() -> Self { Self { value: Vector::<{ 1 << N }, F>::zero(), quadratic_form: None } }
 
   fn is_zero(&self) -> bool { self.value.is_zero() }
 }
@@ -231,10 +253,10 @@ impl<F: Field + Copy + Debug, const N: usize> Group for CliffordAlgebraElement<'
 where [(); 1 << N]:
 {
   fn identity() -> Self {
-    CliffordAlgebraElement { value: Vector::<{ 1 << N }, F>::zero(), bilinear_space: None }
+    CliffordAlgebraElement { value: Vector::<{ 1 << N }, F>::zero(), quadratic_form: None }
   }
 
-  fn inverse(&self) -> Self { Self { value: -self.value, bilinear_space: self.bilinear_space } }
+  fn inverse(&self) -> Self { Self { value: -self.value, quadratic_form: self.quadratic_form } }
 }
 impl<F: Field + Copy + Debug, const N: usize> AbelianGroup for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
 impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> LeftModule
@@ -384,7 +406,6 @@ pub enum Sign {
 fn multiply_blades<F: Field + Copy, const N: usize>(
   left: &[usize],
   right: &[usize],
-  bilinear_space: &BilinearSpace<F, N>,
 ) -> (Sign, Vec<usize>) {
   let mut result_indices = Vec::new();
   let mut sign = Sign::Positive;
@@ -404,9 +425,8 @@ fn multiply_blades<F: Field + Copy, const N: usize>(
   while i < left.len() && j < right.len() {
     if left[i] == right[j] {
       // Same index: apply quadratic form
-      let mut v = Vector::<N, F>::zero();
-      v.0[left[i]] = F::one();
-      let q = bilinear_space.evaluate(&v, &v);
+      // The quadratic form coefficient will be applied in the multiplication
+      // We just need to remove both indices
       i += 1;
       j += 1;
     } else if left[i] < right[j] {
@@ -416,6 +436,14 @@ fn multiply_blades<F: Field + Copy, const N: usize>(
     } else {
       // Right index comes first: count swaps for sign
       result_indices.push(right[j]);
+      // Each time we move a right index past a left index, we need to count the number
+      // of left indices remaining to determine the sign change
+      if (left.len() - i) % 2 == 1 {
+        sign = match sign {
+          Sign::Positive => Sign::Negative,
+          Sign::Negative => Sign::Positive,
+        };
+      }
       j += 1;
     }
   }
@@ -494,7 +522,7 @@ mod tests {
   use super::*;
 
   fn clifford_algebra() -> CliffordAlgebra<f64, 3> {
-    let bilinear_space = BilinearSpace::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+    let bilinear_space = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
     CliffordAlgebra::new(bilinear_space)
   }
 
