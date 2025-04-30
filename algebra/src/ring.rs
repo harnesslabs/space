@@ -35,7 +35,6 @@ pub trait Field: Ring + Div + DivAssign {
   fn multiplicative_inverse(&self) -> Self;
 }
 
-#[macro_export]
 macro_rules! impl_field {
   ($inner:ty) => {
     impl $crate::group::Group for $inner {

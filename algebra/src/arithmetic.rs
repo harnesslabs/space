@@ -81,11 +81,13 @@ impl Add for Boolean {
   /// Implements addition as XOR operation.
   ///
   /// This corresponds to the addition operation in the field GF(2).
+  #[allow(clippy::suspicious_arithmetic_impl)]
   fn add(self, rhs: Self) -> Self::Output { Self(self.0 ^ rhs.0) }
 }
 
 impl AddAssign for Boolean {
   /// Implements addition assignment as XOR operation.
+  #[allow(clippy::suspicious_op_assign_impl)]
   fn add_assign(&mut self, rhs: Self) { self.0 ^= rhs.0; }
 }
 
@@ -100,6 +102,7 @@ impl Mul for Boolean {
 
 impl MulAssign for Boolean {
   /// Implements multiplication assignment as AND operation.
+  #[allow(clippy::suspicious_op_assign_impl)]
   fn mul_assign(&mut self, rhs: Self) { self.0 &= rhs.0; }
 }
 

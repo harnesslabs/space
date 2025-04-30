@@ -98,26 +98,14 @@ impl<R> Group for TrivialModule<R> {
 }
 
 impl<R: Ring> AbelianGroup for TrivialModule<R> {}
-impl<R: Ring + Mul<TrivialModule<R>>> LeftModule for TrivialModule<R> {
+impl<R: Ring + Mul<Self>> LeftModule for TrivialModule<R> {
   type Ring = R;
 }
 
-impl<R: Ring + Mul<TrivialModule<R>>> RightModule for TrivialModule<R> {
+impl<R: Ring + Mul<Self>> RightModule for TrivialModule<R> {
   type Ring = R;
 }
 
-impl<R: Ring + Mul<TrivialModule<R>>> TwoSidedModule for TrivialModule<R> {
+impl<R: Ring + Mul<Self>> TwoSidedModule for TrivialModule<R> {
   type Ring = R;
-}
-
-#[macro_export]
-macro_rules! impl_mul_scalar_module {
-  ($($ring:ty, $module:ty)*) => ($(
-    impl Mul<$ring> for $module
-    {
-      type Output = $module;
-
-      fn mul(self, rhs: $module) -> Self::Output { rhs * self }
-    }
-  )*)
 }

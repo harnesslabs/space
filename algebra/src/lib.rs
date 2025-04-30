@@ -51,6 +51,7 @@
 //! - [`modular`]: Modular arithmetic abstractions and implementations
 
 #![warn(missing_docs)]
+#![allow(incomplete_features)]
 #![feature(generic_const_exprs)]
 
 pub mod algebras;
