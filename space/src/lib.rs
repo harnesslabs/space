@@ -4,3 +4,4 @@
 pub mod definitions;
 pub mod graph;
 pub mod simplicial;
+pub mod cell;
