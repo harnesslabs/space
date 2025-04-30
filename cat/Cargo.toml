@@ -12,5 +12,5 @@ version     = "0.1.0"
 
 [dependencies]
 candle-core    = { workspace = true }
-harness-space  = { workspace = true }
 harness-common = { workspace = true }
+harness-space  = { workspace = true }
