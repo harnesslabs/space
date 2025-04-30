@@ -7,7 +7,7 @@
 use crate::{
   arithmetic::{Add, AddAssign, Additive, Mul, Neg, Sub, SubAssign, Zero},
   group::{AbelianGroup, Group},
-  module::Module,
+  module::{LeftModule, RightModule, TwoSidedModule},
   ring::{Field, Ring},
 };
 
@@ -15,8 +15,8 @@ use crate::{
 ///
 /// A vector space is a module over a field, meaning it has both addition and
 /// scalar multiplication operations, with the scalars coming from a field.
-pub trait VectorSpace: Module
-where Self::Ring: Field {
+pub trait VectorSpace: TwoSidedModule
+where <Self as TwoSidedModule>::Ring: Field {
 }
 
 /// A fixed-size vector over a field.
@@ -104,8 +104,16 @@ impl<const M: usize, F: Field + Copy> Zero for Vector<M, F> {
 
 impl<const M: usize, F: Field + Copy> AbelianGroup for Vector<M, F> {}
 
-impl<const M: usize, F: Field + Copy> Module for Vector<M, F> {
+impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> LeftModule for Vector<M, F> {
   type Ring = F;
 }
 
-impl<const M: usize, F: Field + Copy> VectorSpace for Vector<M, F> {}
+impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> RightModule for Vector<M, F> {
+  type Ring = F;
+}
+
+impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> TwoSidedModule for Vector<M, F> {
+  type Ring = F;
+}
+
+impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> VectorSpace for Vector<M, F> {}

@@ -11,16 +11,37 @@ use crate::{
   ring::Ring,
 };
 
-/// A trait representing a module over a ring.
+/// A trait representing a two-sided module over a ring.
 ///
-/// A module is a generalization of a vector space, where the scalars lie in a ring
+/// A two-sided module is a generalization of a vector space, where the scalars lie in a ring
 /// rather than a field. This trait combines the requirements for an Abelian group
-/// with scalar multiplication by elements of the ring.
-pub trait Module: AbelianGroup + Mul<Self::Ring, Output = Self> {
+/// with scalar multiplication by elements of the ring on both the left and right.
+pub trait TwoSidedModule: LeftModule + RightModule {
   /// The ring over which this module is defined.
   type Ring: Ring;
 }
 
+/// A trait representing a left module over a ring.
+///
+/// A left module is a generalization of a vector space, where the scalars lie in a ring
+/// rather than a field. This trait combines the requirements for an Abelian group
+/// with scalar multiplication by elements of the ring on the left.
+pub trait LeftModule: AbelianGroup
+where Self::Ring: Mul<Self> {
+  /// The ring over which this module is defined.
+  type Ring: Ring;
+}
+
+/// A trait representing a right module over a ring.
+///
+/// A right module is a generalization of a vector space, where the scalars lie in a ring
+/// rather than a field. This trait combines the requirements for an Abelian group
+/// with scalar multiplication by elements of the ring on the right.
+pub trait RightModule: AbelianGroup
+where Self::Ring: Mul<Self> {
+  /// The ring over which this module is defined.
+  type Ring: Ring;
+}
 /// A trivial module over a ring.
 ///
 /// This is a simple implementation of a module that has only one element.
@@ -28,10 +49,6 @@ pub trait Module: AbelianGroup + Mul<Self::Ring, Output = Self> {
 #[derive(Clone, Copy, Default, Eq, PartialEq)]
 pub struct TrivialModule<R> {
   pub(crate) _r: PhantomData<R>,
-}
-
-impl<R: Ring> Module for TrivialModule<R> {
-  type Ring = R;
 }
 
 impl<R> Add for TrivialModule<R> {
@@ -81,3 +98,27 @@ impl<R> Group for TrivialModule<R> {
 }
 
 impl<R: Ring> AbelianGroup for TrivialModule<R> {}
+impl<R: Ring + Mul<TrivialModule<R>>> LeftModule for TrivialModule<R> {
+  type Ring = R;
+}
+
+impl<R: Ring + Mul<TrivialModule<R>>> RightModule for TrivialModule<R> {
+  type Ring = R;
+}
+
+impl<R: Ring + Mul<TrivialModule<R>>> TwoSidedModule for TrivialModule<R> {
+  type Ring = R;
+}
+
+#[macro_export]
+macro_rules! impl_mul_scalar_generic {
+  ($($ring:ty, $module:ty)*) => ($(
+    impl<'a, const N: usize> Mul<$ring> for $module
+    where [(); 2_usize.pow(N as u32)]:
+    {
+      type Output = $module;
+
+      fn mul(self, rhs: $module) -> Self::Output { rhs * self }
+    }
+  )*)
+}
