@@ -47,16 +47,24 @@ pub struct CliffordAlgebra<F: Field, const N: usize> {
   bilinear_space: BilinearSpace<F, N>,
 }
 
-impl<F: Field, const N: usize> CliffordAlgebra<F, N>
+impl<F: Field + Copy, const N: usize> CliffordAlgebra<F, N>
 where [(); 2_usize.pow(N as u32)]:
 {
   pub const fn new(bilinear_space: BilinearSpace<F, N>) -> Self { Self { bilinear_space } }
 
-  pub fn new_element(
+  pub fn element(
     &self,
     value: Vector<{ 2_usize.pow(N as u32) }, F>,
   ) -> CliffordAlgebraElement<'_, F, N> {
     CliffordAlgebraElement { value, bilinear_space: Some(&self.bilinear_space) }
+  }
+
+  pub fn basic_element<const I: usize>(
+    &self,
+    indices: [usize; I],
+  ) -> CliffordAlgebraElement<'_, F, N> {
+    let mut value = Vector::<{ 2_usize.pow(N as u32) }, F>::zero();
+    todo!()
   }
 }
 
@@ -172,3 +180,16 @@ where [(); 2_usize.pow(N as u32)]:
 }
 impl<'a, F: Field + Copy + Debug, const N: usize> VectorSpace for CliffordAlgebraElement<'a, F, N> where [(); 2_usize.pow(N as u32)]: {}
 impl<'a, F: Field + Copy + Debug, const N: usize> Algebra for CliffordAlgebraElement<'a, F, N> where [(); 2_usize.pow(N as u32)]: {}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  fn clifford_algebra() -> CliffordAlgebra<f64, 3> {
+    let bilinear_space = BilinearSpace::new_standard_basis(Vector::<3, f64>([1.0, 1.0, -1.0]));
+    CliffordAlgebra::new(bilinear_space)
+  }
+
+  #[test]
+  fn test_clifford_algebra() { let algebra = clifford_algebra(); }
+}
