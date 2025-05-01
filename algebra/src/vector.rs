@@ -15,7 +15,7 @@ use crate::{
 ///
 /// A vector space is a module over a field, meaning it has both addition and
 /// scalar multiplication operations, with the scalars coming from a field.
-pub trait VectorSpace: TwoSidedModule
+pub trait VectorSpace: TwoSidedModule + Sized
 where <Self as TwoSidedModule>::Ring: Field {
 }
 
