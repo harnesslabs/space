@@ -226,7 +226,6 @@ macro_rules! prime_field {
       fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
     }
 
-    // Only implement Field if the modulus is prime
     impl $crate::ring::Field for $inner
     where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
     {

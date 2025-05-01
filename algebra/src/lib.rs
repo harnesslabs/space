@@ -1,4 +1,4 @@
-//! A Rust library for abstract algebra and number theory.
+//! A Rust library for abstract algebra.
 //!
 //! This crate provides implementations of various algebraic structures and operations,
 //! with a focus on modular arithmetic and abstract algebra concepts.
