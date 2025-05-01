@@ -1,7 +1,6 @@
 # .toml file formatting settings for `taplo`
 # https://taplo.tamasfe.dev/configuration/formatter-options.html
 
-include = ["Cargo.toml", "space/Cargo.toml", "cat/Cargo.toml", "algebra/Cargo.toml"]
 
 
 [formatting]
