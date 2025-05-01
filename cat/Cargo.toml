@@ -11,4 +11,3 @@ repository  = "https://github.com/harness-labs/cat"
 version     = "0.1.0"
 
 [dependencies]
-harness-space = { workspace = true }

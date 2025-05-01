@@ -24,9 +24,6 @@ dependencies = [
 [[package]]
 name = "harness-cat"
 version = "0.1.0"
-dependencies = [
- "harness-space",
-]
 
 [[package]]
 name = "harness-space"
