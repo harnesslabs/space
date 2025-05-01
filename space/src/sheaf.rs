@@ -36,5 +36,5 @@ pub trait Section<T: TopologicalSpace> {
   ) -> Option<<Self::Stalk as Stalk>::Element>;
 
   /// Gets the open set over which this section is defined
-  fn base(&self) -> <T as TopologicalSpace>::Point;
+  fn domain(&self) -> <T as TopologicalSpace>::OpenSet;
 }
