@@ -11,6 +11,4 @@ repository  = "https://github.com/harness-labs/cat"
 version     = "0.1.0"
 
 [dependencies]
-candle-core    = { workspace = true }
 harness-space  = { workspace = true }
-harness-common = { workspace = true }

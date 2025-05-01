@@ -13,4 +13,4 @@ version        = "0.1.1"
 [dependencies]
 itertools      = { workspace = true }
 num-traits     = { workspace = true }
-harness-common = { workspace = true }
+thiserror      = { workspace = true }

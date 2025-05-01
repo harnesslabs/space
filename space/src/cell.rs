@@ -2,7 +2,7 @@
 
 use std::{collections::HashSet, hash::Hash};
 
-use harness_common::error::MathError;
+use super::error::SpacesError;
 
 /// `Point` wrapper of a generic type `T`
 #[derive(PartialEq, Eq, Hash, Clone)]
@@ -76,13 +76,13 @@ impl<T: Eq + Hash + Clone, O: OpenSet> Skeleton<T, O> {
   pub fn init() -> Self { Self { dimension: 0, cells: Vec::new() } }
 
   /// Attach a cell to the existing cell complex
-  pub fn attach(&mut self, cell: Box<dyn KCell<T, O>>) -> Result<(), MathError> {
+  pub fn attach(&mut self, cell: Box<dyn KCell<T, O>>) -> Result<(), SpacesError> {
     let incoming_dim = cell.dimension() as i64;
     if incoming_dim - self.dimension as i64 > 1 {
-      return Err(MathError::DimensionMismatch);
+      return Err(SpacesError::DimensionMismatch);
     }
     if self.dimension == 0 && incoming_dim == 1 && self.cells.is_empty() {
-      return Err(MathError::CWUninitialized);
+      return Err(SpacesError::CWUninitialized);
     }
     let mut cell = Cell::new(cell);
     let mut boundary = cell.cell.boundary();
@@ -118,19 +118,19 @@ impl<T: Eq + Hash + Clone, O: OpenSet> Skeleton<T, O> {
   }
 
   /// Fetches the cell information containing a particular `Point`
-  pub fn fetch_cell_by_point(&self, point: O::Point) -> Result<(&Cell<T, O>, usize), MathError> {
+  pub fn fetch_cell_by_point(&self, point: O::Point) -> Result<(&Cell<T, O>, usize), SpacesError> {
     for i in 0..self.cells.len() {
       if self.cells[i].cell.points().contains(&point) {
         return Ok((&self.cells[i], i));
       };
     }
-    Err(MathError::NoPointFound)
+    Err(SpacesError::NoPointFound)
   }
 
   /// Returns the collection of all incident cells to `cell_idx`
-  pub fn incident_cells(&self, cell_idx: usize) -> Result<&Vec<usize>, MathError> {
+  pub fn incident_cells(&self, cell_idx: usize) -> Result<&Vec<usize>, SpacesError> {
     if cell_idx >= self.cells.len() {
-      return Err(MathError::InvalidCellIdx);
+      return Err(SpacesError::InvalidCellIdx);
     }
     Ok(&self.cells[cell_idx].incidents)
   }
@@ -139,9 +139,9 @@ impl<T: Eq + Hash + Clone, O: OpenSet> Skeleton<T, O> {
   pub fn filter_incident_by_dim(
     &self,
     cell_idx: usize,
-  ) -> Result<(Vec<usize>, Vec<usize>), MathError> {
+  ) -> Result<(Vec<usize>, Vec<usize>), SpacesError> {
     if cell_idx >= self.cells.len() {
-      return Err(MathError::InvalidCellIdx);
+      return Err(SpacesError::InvalidCellIdx);
     }
     let incidents = &self.cells[cell_idx].incidents;
     let dim = self.cells[cell_idx].cell.dimension();
@@ -159,7 +159,7 @@ impl<T: Eq + Hash + Clone, O: OpenSet> Skeleton<T, O> {
 }
 
 #[cfg(test)]
-mod cw_tests {
+mod tests {
   use std::{collections::HashSet, hash::Hash};
 
   use super::*;
@@ -372,7 +372,7 @@ mod cw_tests {
     };
 
     let result = skeleton.attach(Box::new(face));
-    assert!(matches!(result, Err(MathError::DimensionMismatch)));
+    assert!(matches!(result, Err(SpacesError::DimensionMismatch)));
   }
 
   #[test]
@@ -386,7 +386,7 @@ mod cw_tests {
     };
 
     let result = skeleton.attach(Box::new(edge));
-    assert!(matches!(result, Err(MathError::CWUninitialized)));
+    assert!(matches!(result, Err(SpacesError::CWUninitialized)));
   }
 
   #[test]
@@ -398,7 +398,7 @@ mod cw_tests {
     let result = skeleton.fetch_cell_by_point(TestPoint("A".to_string()));
     assert!(result.is_ok());
     let result = skeleton.fetch_cell_by_point(TestPoint("Z".to_string()));
-    assert!(matches!(result, Err(MathError::NoPointFound)));
+    assert!(matches!(result, Err(SpacesError::NoPointFound)));
   }
 
   #[test]
@@ -427,7 +427,7 @@ mod cw_tests {
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 2);
     let result = skeleton.incident_cells(99);
-    assert!(matches!(result, Err(MathError::InvalidCellIdx)));
+    assert!(matches!(result, Err(SpacesError::InvalidCellIdx)));
   }
 
   #[test]
