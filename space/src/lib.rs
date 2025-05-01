@@ -3,4 +3,5 @@
 
 pub mod definitions;
 pub mod graph;
+pub mod sheaf;
 pub mod simplicial;
