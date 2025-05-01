@@ -1,14 +1,62 @@
 //! Categories over generic objects with power object management.
 //!
-//! The modules provides the traits and data structures required for basic categorical
-//! constructions, supporting generic objects and morphisms, as well as support for power object
-//! generation and tracking, and various different build paradigms (supporting both lazy
-//! constructions and a builder pattern)
+//! This module provides traits and data structures for categorical constructions in mathematics.
+//! A category consists of objects and morphisms (maps between objects) that satisfy certain
+//! properties:
+//! - Every object has an identity morphism
+//! - Morphisms can be composed when their domain/codomain match
+//! - Composition is associative
+//!
+//! The implementation supports:
+//! - Generic objects and morphisms with type safety
+//! - Power object management (products, coproducts, exponentials)
+//! - Both lazy construction and builder pattern approaches
+//!
+//! # Mathematical Background
+//!
+//! ## Core Categorical Concepts
+//!
+//! - **Objects**: Abstract entities in a category (can represent sets, groups, topological spaces,
+//!   etc.)
+//! - **Morphisms**: Maps between objects (generalizations of functions between sets)
+//! - **HomSet**: Collection of all morphisms between two specific objects A and B, denoted Hom(A,B)
+//!
+//! ## Power Objects
+//!
+//! Power objects represent constructions between objects:
+//!
+//! - **Product**: A × B with projections π₁: A×B → A and π₂: A×B → B satisfying the universal
+//!   property
+//! - **Coproduct**: A + B with injections i₁: A → A+B and i₂: B → A+B satisfying the universal
+//!   property
+//! - **Exponential**: Bᴬ representing "all morphisms from A to B" with evaluation map ev: Bᴬ×A → B
+//!
+//! ## Special Morphisms
+//!
+//! - **Monic**: A morphism f is monic if it's left-cancellable: f∘g₁ = f∘g₂ implies g₁ = g₂
+//! - **Terminal Object**: An object T where for every object A, there exists exactly one morphism A
+//!   → T
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
+/// An object in a category.
+///
+/// In category theory, objects are abstract entities. They could represent anything from
+/// sets to groups, topological spaces, or even other categories.
+///
+/// Objects must be clonable, comparable, and debuggable to support categorical operations.
 pub trait Object: Clone + PartialEq + Debug {}
 
+/// A morphism between objects in a category.
+///
+/// In category theory, morphisms are maps between objects that generalize the notion
+/// of functions between sets. Each morphism has:
+/// - A domain (source object)
+/// - A codomain (target object)
+/// - A mapping operation that transforms elements from domain to codomain
+///
+/// Morphisms must preserve the category's structure and are composable when
+/// the domain of one matches the codomain of another.
 pub trait Morphism {
   type Domain: Object;
   type Codomain: Object;
@@ -17,6 +65,12 @@ pub trait Morphism {
   fn map(&self, domain: &Self::Domain) -> Self::Codomain;
 }
 
+/// Compares two morphisms for equality by checking domain, codomain, and behavior.
+///
+/// Two morphisms are considered equal if:
+/// 1. They have the same domain
+/// 2. They have the same codomain
+/// 3. They transform their domain to the same result
 pub fn check_eq_morphisms<A: Object, B: Object>(
   first: &dyn Morphism<Domain = A, Codomain = B>,
   second: &dyn Morphism<Domain = A, Codomain = B>,
@@ -30,6 +84,11 @@ pub fn check_eq_morphisms<A: Object, B: Object>(
   false
 }
 
+/// Composes two morphisms f: A → B and g: B → C to produce g∘f: A → C.
+///
+/// In category theory, composition is a fundamental operation that combines
+/// two compatible morphisms (where the codomain of the first equals the domain of the second)
+/// to create a new morphism.
 pub fn compose<A: Object, B: Object, C: Object>(
   domain: &A,
   first: &dyn Morphism<Domain = A, Codomain = B>,
@@ -38,15 +97,33 @@ pub fn compose<A: Object, B: Object, C: Object>(
   second.map(&first.map(domain))
 }
 
+/// A collection of morphisms between two specific objects.
+///
+/// In category theory, Hom(A,B) represents all possible morphisms from object A to object B.
 type HomSet<A, B> = Vec<Box<dyn Morphism<Domain = A, Codomain = B>>>;
 
+/// Types of power objects that can be generated in a category.
+///
+/// Power objects represent different ways to construct new objects from existing ones:
+/// - Product: Combines two objects with projections (like cartesian product for sets)
+/// - Coproduct: Represents disjoint union with injections (like disjoint union for sets)
+/// - Exponential: Represents "morphism objects" (like function spaces for sets)
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub enum PowerObjectType {
+  /// Product of objects at indices i and j (A×B with projections)
   Product(usize, usize),
+  /// Coproduct of objects at indices i and j (A+B with injections)
   Coproduct(usize, usize),
+  /// Exponential object representing "all morphisms from i to j" (Bᴬ)
   Exponential(usize, usize),
 }
 
+/// Generates power objects of a specific type for a category.
+///
+/// This trait allows categories to construct the standard categorical power objects:
+/// - Products (A×B) with their projection morphisms
+/// - Coproducts (A+B) with their injection morphisms
+/// - Exponentials (Bᴬ) with their evaluation morphisms
 pub trait PowerObjectGenerator<O: Object> {
   fn generate_power_object(
     &self,
@@ -55,8 +132,20 @@ pub trait PowerObjectGenerator<O: Object> {
   ) -> (O, Vec<Box<dyn Morphism<Domain = O, Codomain = O>>>);
 }
 
-/// A `Category` of a single class of object
-/// e.g. Vect_k, Hilb_k
+/// A `Category` of a single class of object.
+///
+/// Represents a mathematical category with:
+/// - A collection of objects
+/// - HomSets of morphisms between objects
+/// - Optional tracking of power objects (products, coproducts, exponentials)
+/// - Optional generator for creating new power objects
+///
+/// Examples of mathematical categories include:
+/// - Set (sets and functions)
+/// - Grp (groups and group homomorphisms)
+/// - Top (topological spaces and continuous maps)
+/// - Vect_k (vector spaces over field k and linear maps)
+/// - Hilb_k (Hilbert spaces over field k and bounded linear maps)
 pub struct Category<O: Object, P: PowerObjectGenerator<O>> {
   objects:       Vec<O>,
   morphisms:     HashMap<(usize, usize), HomSet<O, O>>,
@@ -98,6 +187,8 @@ impl<O: Object, P: PowerObjectGenerator<O>> Category<O, P> {
 
   /// Add a morphism to the current category. Meant for lazy implementations with as needed
   /// constructions.
+  ///
+  /// Returns an error if the domain/codomain indices don't match the actual morphism's objects.
   pub fn add_morphism(
     &mut self,
     domain: usize,
@@ -132,7 +223,10 @@ impl<O: Object, P: PowerObjectGenerator<O>> Category<O, P> {
     Ok(())
   }
 
-  /// Fetch a power object's ID from the type and constituents
+  /// Fetch a power object's ID from the type and constituents.
+  ///
+  /// If the power object doesn't exist yet, it will be generated using the category's
+  /// power object generator. This implements a form of "memoization" for power objects.
   pub fn fetch_power_object_id(&mut self, power_type: PowerObjectType) -> Result<usize, String> {
     if self.generator.is_none() || self.power_objects.is_none() {
       return Err("Uninitialized power object generator!".to_string());
@@ -169,7 +263,10 @@ impl<O: Object, P: PowerObjectGenerator<O>> Category<O, P> {
     Ok(new_idx)
   }
 
-  /// Checks whether a morphism is monic or not
+  /// Checks whether a morphism is monic (left-cancellable) or not.
+  ///
+  /// A morphism f: A → B is monic if for all g,h: C → A, f∘g = f∘h implies g = h.
+  /// Intuitively, a monic morphism is injective - it doesn't "collapse" distinct inputs.
   pub fn is_monic(&self, domain: usize, codomain: usize, fn_idx: usize) -> Result<bool, String> {
     let base = &self.morphisms.get(&(domain, codomain)).unwrap()[fn_idx];
     for i in 0..self.objects.len() {
@@ -194,6 +291,9 @@ impl<O: Object, P: PowerObjectGenerator<O>> Category<O, P> {
   }
 
   /// Fetches all the subobject IDs of an object via its monomorphisms.
+  ///
+  /// In category theory, subobjects are represented by equivalence classes of monomorphisms
+  /// into an object. This method finds all monomorphisms and groups them by their codomain.
   pub fn fetch_subobjects(&self) -> Result<HashMap<usize, Vec<(usize, usize)>>, String> {
     let mut subobjects: HashMap<usize, Vec<(usize, usize)>> = HashMap::new();
     for morphs in &self.morphisms {
@@ -206,7 +306,11 @@ impl<O: Object, P: PowerObjectGenerator<O>> Category<O, P> {
     Ok(subobjects)
   }
 
-  /// Fetched the object ID for the terminal object
+  /// Fetches the object ID for the terminal object.
+  ///
+  /// In category theory, a terminal object is an object T such that for every object A,
+  /// there exists exactly one morphism from A to T. In Set, the terminal object
+  /// is any singleton set.
   pub fn terminal(&self) -> Result<usize, String> {
     let mut options = Vec::new();
     'outer: for (idx, _) in self.objects.iter().enumerate() {
@@ -229,6 +333,9 @@ impl<O: Object, P: PowerObjectGenerator<O>> Category<O, P> {
 }
 
 /// Builder struct for generating a category with a full first order set of power objects.
+///
+/// This implements the Builder pattern for constructing complex categories with
+/// all power objects (products, coproducts, exponentials) between base objects.
 pub struct CategoryBuilder<O: Object, P: PowerObjectGenerator<O>> {
   objects:           Vec<O>,
   morphisms:         HashMap<(usize, usize), HomSet<O, O>>,
@@ -236,18 +343,23 @@ pub struct CategoryBuilder<O: Object, P: PowerObjectGenerator<O>> {
 }
 
 impl<O: Object, P: PowerObjectGenerator<O>> CategoryBuilder<O, P> {
-  /// Spawns a new builder
+  /// Spawns a new builder with initial objects and morphisms.
   pub fn new(objects: Vec<O>, morphisms: HashMap<(usize, usize), HomSet<O, O>>) -> Self {
     Self { objects, morphisms, pobject_generator: None }
   }
 
   /// Set the generator for power objects.
+  ///
   /// If you aim to generate the full set of power objects upon build this must be set.
+  /// The generator creates products, coproducts, and exponentials.
   pub fn set_generator(&mut self, pobj_generator: P) {
     self.pobject_generator = Some(pobj_generator);
   }
 
-  /// Construct the category
+  /// Construct the category with all first-order power objects.
+  ///
+  /// If a power object generator is set, this will create all products,
+  /// coproducts, and exponentials between all pairs of base objects.
   pub fn build(self) -> Category<O, P> {
     let mut pobjects = HashMap::new();
     let mut objects = self.objects.clone();
@@ -281,7 +393,6 @@ impl<O: Object, P: PowerObjectGenerator<O>> CategoryBuilder<O, P> {
         }
       }
     }
-
     Category::from_builder(objects, morphs, Some(pobjects), self.pobject_generator)
   }
 }
