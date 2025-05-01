@@ -18,8 +18,8 @@ pub trait Morphism {
 }
 
 pub fn check_eq_morphisms<A: Object, B: Object>(
-  first: &Box<dyn Morphism<Domain = A, Codomain = B>>,
-  second: &Box<dyn Morphism<Domain = A, Codomain = B>>,
+  first: &dyn Morphism<Domain = A, Codomain = B>,
+  second: &dyn Morphism<Domain = A, Codomain = B>,
 ) -> bool {
   if first.domain() == second.domain()
     && first.codomain() == second.codomain()
@@ -32,8 +32,8 @@ pub fn check_eq_morphisms<A: Object, B: Object>(
 
 pub fn compose<A: Object, B: Object, C: Object>(
   domain: &A,
-  first: &Box<dyn Morphism<Domain = A, Codomain = B>>,
-  second: &Box<dyn Morphism<Domain = B, Codomain = C>>,
+  first: &dyn Morphism<Domain = A, Codomain = B>,
+  second: &dyn Morphism<Domain = B, Codomain = C>,
 ) -> C {
   second.map(&first.map(domain))
 }
@@ -108,17 +108,17 @@ impl<O: Object, P: PowerObjectGenerator<O>> Category<O, P> {
     let actual_codomain = map.codomain();
 
     if self.objects.get(domain) != Some(actual_domain) {
-      return Err(format!("Domain index {} does not match morphism's domain object", domain));
+      return Err(format!("Domain index {domain} does not match morphism's domain object"));
     }
     if self.objects.get(codomain) != Some(actual_codomain) {
-      return Err(format!("Codomain index {} does not match morphism's codomain object", codomain));
+      return Err(format!("Codomain index {codomain} does not match morphism's codomain object"));
     }
 
     let key = (domain, codomain);
     if let Some(homset) = self.morphisms.get_mut(&key) {
       let mut insert = true;
       for m in homset.iter() {
-        if check_eq_morphisms(m, &map) {
+        if check_eq_morphisms(m.as_ref(), map.as_ref()) {
           insert = false;
           break;
         }
@@ -345,7 +345,7 @@ mod tests {
     let id1: Box<dyn Morphism<Domain = _, Codomain = _>> = Box::new(IdMorphism { obj: a.clone() });
     let id2: Box<dyn Morphism<Domain = _, Codomain = _>> = Box::new(IdMorphism { obj: a.clone() });
 
-    assert!(check_eq_morphisms(&id1, &id2));
+    assert!(check_eq_morphisms(id1.as_ref(), id2.as_ref()));
   }
 
   // Composition f ; g should yield the expected result
@@ -360,7 +360,7 @@ mod tests {
     let g: Box<dyn Morphism<Domain = _, Codomain = _>> =
       Box::new(ConstMorphism { domain: b.clone(), codomain: c.clone() });
 
-    let result = compose(&a, &f, &g);
+    let result = compose(&a, f.as_ref(), g.as_ref());
     assert_eq!(result, c);
   }
 
