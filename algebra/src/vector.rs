@@ -15,7 +15,7 @@ use crate::{
 ///
 /// A vector space is a module over a field, meaning it has both addition and
 /// scalar multiplication operations, with the scalars coming from a field.
-pub trait VectorSpace: TwoSidedModule + Sized
+pub trait VectorSpace: TwoSidedModule
 where <Self as TwoSidedModule>::Ring: Field {
 }
 
@@ -104,16 +104,124 @@ impl<const M: usize, F: Field + Copy> Zero for Vector<M, F> {
 
 impl<const M: usize, F: Field + Copy> AbelianGroup for Vector<M, F> {}
 
-impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> LeftModule for Vector<M, F> {
+impl<const M: usize, F: Field + Copy + Mul<Self>> LeftModule for Vector<M, F> {
   type Ring = F;
 }
 
-impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> RightModule for Vector<M, F> {
+impl<const M: usize, F: Field + Copy + Mul<Self>> RightModule for Vector<M, F> {
   type Ring = F;
 }
 
-impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> TwoSidedModule for Vector<M, F> {
+impl<const M: usize, F: Field + Copy + Mul<Self>> TwoSidedModule for Vector<M, F> {
   type Ring = F;
 }
 
-impl<const M: usize, F: Field + Copy + Mul<Vector<M, F>>> VectorSpace for Vector<M, F> {}
+impl<const M: usize, F: Field + Copy + Mul<Self>> VectorSpace for Vector<M, F> {}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DynVector<F: Field> {
+  components: Vec<F>,
+  dimension:  usize,
+}
+
+impl<F: Field> From<Vec<F>> for DynVector<F> {
+  fn from(components: Vec<F>) -> Self {
+    let dimension = components.len();
+    Self { components, dimension }
+  }
+}
+
+impl<const M: usize, F: Field + Copy> From<[F; M]> for DynVector<F> {
+  fn from(components: [F; M]) -> Self {
+    let dimension = M;
+    Self { components: components.to_vec(), dimension }
+  }
+}
+
+impl<F: Field + Clone> From<&[F]> for DynVector<F> {
+  fn from(components: &[F]) -> Self {
+    let dimension = components.len();
+    Self { components: components.to_vec(), dimension }
+  }
+}
+
+impl<F: Field + Copy> Add for DynVector<F> {
+  type Output = Self;
+
+  fn add(self, other: Self) -> Self::Output {
+    let mut sum = Self::zero();
+    for i in 0..self.dimension {
+      sum.components[i] = self.components[i] + other.components[i];
+    }
+    sum
+  }
+}
+
+impl<F: Field + Copy> AddAssign for DynVector<F> {
+  fn add_assign(&mut self, rhs: Self) { *self = self.clone() + rhs }
+}
+
+impl<F: Field + Copy> Neg for DynVector<F> {
+  type Output = Self;
+
+  fn neg(self) -> Self::Output {
+    let mut neg = Self::zero();
+    for i in 0..self.dimension {
+      neg.components[i] = -self.components[i];
+    }
+    neg
+  }
+}
+
+impl<F: Field + Copy> Mul<F> for DynVector<F> {
+  type Output = Self;
+
+  fn mul(self, scalar: F) -> Self::Output {
+    let mut scalar_multiple = Self::zero();
+    for i in 0..self.dimension {
+      scalar_multiple.components[i] = scalar * self.components[i];
+    }
+    scalar_multiple
+  }
+}
+
+impl<F: Field + Copy> Sub for DynVector<F> {
+  type Output = Self;
+
+  fn sub(self, other: Self) -> Self::Output { self + -other }
+}
+
+impl<F: Field + Copy> SubAssign for DynVector<F> {
+  fn sub_assign(&mut self, rhs: Self) { *self = self.clone() - rhs }
+}
+
+impl<F: Field + Copy> Additive for DynVector<F> {}
+
+impl<F: Field + Copy> Group for DynVector<F> {
+  fn identity() -> Self { Self::zero() }
+
+  fn inverse(&self) -> Self { -self.clone() }
+}
+
+// TODO: This is a bit odd
+impl<F: Field + Copy> Zero for DynVector<F> {
+  fn zero() -> Self { Self { components: vec![<F as Ring>::zero(); 0], dimension: 0 } }
+
+  fn is_zero(&self) -> bool { self.components.iter().all(|x| *x == <F as Ring>::zero()) }
+}
+
+impl<F: Field + Copy> AbelianGroup for DynVector<F> {}
+
+impl<F: Field + Copy + Mul<Self>> LeftModule for DynVector<F> {
+  type Ring = F;
+}
+
+impl<F: Field + Copy + Mul<Self>> RightModule for DynVector<F> {
+  type Ring = F;
+}
+
+impl<F: Field + Copy + Mul<Self>> TwoSidedModule for DynVector<F> {
+  type Ring = F;
+}
+
+impl<F: Field + Copy + Mul<Self>> VectorSpace for DynVector<F> {}
