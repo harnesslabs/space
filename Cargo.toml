@@ -5,11 +5,11 @@ resolver = "2"
 
 [workspace.dependencies]
 # Local dependencies
-harness-space   = { version = "*", path = "space" }
 harness-algebra = { version = "*", path = "algebra" }
 harness-cat     = { version = "*", path = "cat" }
+harness-space   = { version = "*", path = "space" }
 
 # External dependencies
-itertools   = "0.14"
-num-traits  = "0.2"
-thiserror   = "2.0.12"
+itertools  = "0.14"
+num-traits = "0.2"
+thiserror  = "2.0.12"
