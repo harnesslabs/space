@@ -6,7 +6,6 @@ resolver = "2"
 [workspace.dependencies]
 # Local dependencies
 harness-algebra = { version = "*", path = "algebra" }
-harness-space   = { version = "*", path = "space" }
 harness-cat     = { version = "*", path = "cat" }
 
 # External dependencies
