@@ -2,7 +2,6 @@
 # https://taplo.tamasfe.dev/configuration/formatter-options.html
 
 
-
 [formatting]
 # align entries vertically
 align_entries = true
