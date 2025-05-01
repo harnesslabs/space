@@ -40,6 +40,7 @@ pub trait Section<T: TopologicalSpace> {
   fn domain(&self) -> <T as TopologicalSpace>::OpenSet;
 }
 
+// TODO: I think we really want matrices on the edges, so we should go full tensor now.
 impl<F: Field + Copy> Section<Graph<Undirected>> for HashMap<GraphPoint, DynVector<F>> {
   type Stalk = DynVector<F>;
 
@@ -48,14 +49,19 @@ impl<F: Field + Copy> Section<Graph<Undirected>> for HashMap<GraphPoint, DynVect
   fn domain(&self) -> HashSet<GraphPoint> { self.keys().cloned().collect() }
 }
 
-impl Section<Graph<Undirected>> for HashMap<GraphPoint, Vector<3, f64>> {
-  type Stalk = Vector<3, f64>;
+impl<F: Field + Copy> Presheaf<Graph<Undirected>> for GraphSheaf<F> {
+  type Data = DynVector<F>;
+  type Section = HashMap<GraphPoint, DynVector<F>>;
 
-  fn evaluate(&self, point: &GraphPoint) -> Option<Vector<3, f64>> { self.get(point).copied() }
-
-  fn domain(&self) -> HashSet<GraphPoint> { self.keys().cloned().collect() }
+  fn restrict(
+    &self,
+    section: &Self::Section,
+    from: &HashSet<GraphPoint>,
+    to: &HashSet<GraphPoint>,
+  ) -> Self::Section {
+    todo!()
+  }
 }
-
 /// A cellular sheaf on a graph where vertices and edges can have different dimensional stalks
 #[derive(Debug, Clone)]
 pub struct GraphSheaf<V> {
