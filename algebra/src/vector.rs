@@ -145,14 +145,24 @@ impl<F: Field + Clone> From<&[F]> for DynVector<F> {
   }
 }
 
+// TODO: This does handle the zero case but this is clunky as fuck and I hate it.
 impl<F: Field + Copy> Add for DynVector<F> {
   type Output = Self;
 
   fn add(self, other: Self) -> Self::Output {
+    assert!((self.dimension == other.dimension) | (self.dimension == 0) | (other.dimension == 0));
+    if self.dimension == 0 {
+      return other;
+    }
+    if other.dimension == 0 {
+      return self;
+    }
+
     let mut sum = Self::zero();
     for i in 0..self.dimension {
       sum.components[i] = self.components[i] + other.components[i];
     }
+    sum.dimension = self.dimension;
     sum
   }
 }
