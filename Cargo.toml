@@ -1,12 +1,15 @@
 [workspace]
-members  = ["space", "algebra"]
+edition  = "2021"
+members  = ["space", "algebra", "cat"]
 resolver = "2"
 
 [workspace.dependencies]
 # Local dependencies
 harness-algebra = { version = "*", path = "algebra" }
+harness-cat     = { version = "*", path = "cat" }
 harness-space   = { version = "*", path = "space" }
 
 # External dependencies
 itertools  = "0.14"
 num-traits = "0.2"
+thiserror  = "2.0.12"
