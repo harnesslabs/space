@@ -37,9 +37,9 @@ use crate::arithmetic::{Additive, Multiplicative, One, Zero};
 /// `Multiplicative` traits. Implementors must ensure that their implementations satisfy these
 /// properties. Semirings are not groups because they do not have additive inverses.
 ///
-/// If you want a structure with an additive inverse, use the [`ring::Ring`] trait instead, since it
+/// If you want a structure with an additive inverse, use the Ring trait instead, since it
 /// has the abelian group trait bound. If you only need addition to be associative and commutative
-/// (but without an additive identity), use the [`semigroup::Semigroup`] trait instead.
+/// (but without an additive identity), use the semiring trait.
 pub trait Semiring: Additive + Multiplicative + Zero + One {
   /// Returns the additive identity element of the semiring.
   fn zero() -> Self;
