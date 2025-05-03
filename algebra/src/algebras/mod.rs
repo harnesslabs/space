@@ -1,8 +1,10 @@
-//! Implementation of various algebraic structures.
+//! Implementation of algebra structures.
 //!
 //! This module provides implementations of different types of algebras, which are algebraic
 //! structures that combine the properties of vector spaces with multiplication operations. An
 //! algebra is a vector space equipped with a bilinear product that satisfies certain properties.
+//!
+//! A Algebra informally is a vector space over a ring.
 //!
 //! # Key Concepts
 //!
@@ -13,9 +15,6 @@
 //! - **Clifford Algebra**: A type of algebra that generalizes the real numbers, complex numbers,
 //!   and quaternions. It is particularly useful in geometry and physics for representing rotations,
 //!   reflections, and other transformations.
-//!
-//! - **Tropical Algebra**: A semiring where addition is replaced by minimum (or maximum) and
-//!   multiplication is replaced by addition. Useful in optimization, scheduling, and path finding.
 //!
 //! # Implementations
 //!
@@ -29,7 +28,6 @@
 use crate::{arithmetic::Multiplicative, module::TwoSidedModule, ring::Field, vector::VectorSpace};
 
 pub mod clifford;
-pub mod tropical;
 
 /// Trait defining the requirements for an algebra.
 ///
