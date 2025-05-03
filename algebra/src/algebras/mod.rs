@@ -28,7 +28,6 @@
 use crate::{arithmetic::Multiplicative, module::TwoSidedModule, ring::Field, vector::VectorSpace};
 
 pub mod clifford;
-
 /// Trait defining the requirements for an algebra.
 ///
 /// An algebra is a vector space equipped with a bilinear product that satisfies:

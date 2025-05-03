@@ -8,7 +8,7 @@ use core::marker::PhantomData;
 use crate::{
   arithmetic::{Add, AddAssign, Additive, Mul, Neg, Sub, SubAssign, Zero},
   group::{AbelianGroup, Group},
-  ring::Ring,
+  ring::{Ring, Semiring},
 };
 
 /// A trait representing a two-sided module over a ring.
@@ -108,4 +108,42 @@ impl<R: Ring + Mul<Self>> RightModule for TrivialModule<R> {
 
 impl<R: Ring + Mul<Self>> TwoSidedModule for TrivialModule<R> {
   type Ring = R;
+}
+
+/// A two-sided semimodule over a semiring.
+///
+/// - **Semimodule**: A vector space generalization where scalars are elements of a semiring
+/// - **Left/Right Semimodule**: Defines scalar multiplication from left/right respectively
+/// - **Two-Sided Semimodule**: Both left and right semimodule over the same semiring
+///
+/// Combines left and right semimodule properties over the same semiring.
+/// Note: For commutative semirings, left and right actions typically coincide.
+pub trait TwoSidedSemimodule: LeftSemimodule + RightSemimodule {}
+
+/// A left semimodule over a semiring.
+///
+/// A set with commutative addition and left scalar multiplication satisfying:
+/// - Distributivity: s * (x + y) = s * x + s * y
+/// - Compatibility: (s + t) * x = s * x + t * x
+/// - Associativity: (s * t) * x = s * (t * x)
+/// - Identity: 1 * x = x
+/// - Zero: 0 * x = 0
+pub trait LeftSemimodule
+where Self: Mul<Self::Semiring> {
+  /// The Semiring that this semimodule is defined over.
+  type Semiring: Semiring;
+}
+
+/// A right semimodule over a semiring.
+///
+/// A set with commutative addition and right scalar multiplication satisfying:
+/// - Distributivity: (x + y) * s = x * s + y * s
+/// - Compatibility: x * (s + t) = x * s + x * t
+/// - Associativity: x * (s * t) = (x * s) * t
+/// - Identity: x * 1 = x
+/// - Zero: x * 0 = 0
+pub trait RightSemimodule
+where Self: Mul<Self::Semiring> {
+  /// The Semiring that this semimodule is defined over.
+  type Semiring: Semiring;
 }
