@@ -14,16 +14,22 @@
 //!   and quaternions. It is particularly useful in geometry and physics for representing rotations,
 //!   reflections, and other transformations.
 //!
+//! - **Tropical Algebra**: A semiring where addition is replaced by minimum (or maximum) and
+//!   multiplication is replaced by addition. Useful in optimization, scheduling, and path finding.
+//!
 //! # Implementations
 //!
 //! Currently, this module provides:
 //!
 //! - [`clifford`]: Implementation of Clifford algebras, which are useful for geometric computations
 //!   and transformations in n-dimensional spaces.
+//! - [`tropical`]: Implementation of tropical algebras, which are useful for optimization and
+//!   scheduling problems.
 
 use crate::{arithmetic::Multiplicative, module::TwoSidedModule, ring::Field, vector::VectorSpace};
 
 pub mod clifford;
+pub mod tropical;
 
 /// Trait defining the requirements for an algebra.
 ///
