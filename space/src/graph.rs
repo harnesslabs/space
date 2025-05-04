@@ -10,32 +10,49 @@ use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 use crate::definitions::Set;
 
 /// Private module to implement the sealed trait pattern.
-/// This prevents other crates from implementing DirectedType.
+/// This prevents other crates from implementing DirecType.
 mod sealed {
   pub trait Sealed {}
 }
 
-/// A trait to distinguish between directed and undirected graphs.
+/// Enum used by DirecType to distinguish graph directedness in an extensible way
+pub enum Directedness{
+  /// This is undirected
+  UNDIRECTED,
+  /// This is directed
+  DIRECTED,
+  /// This is mixed
+  MIXED
+}
+
+/// A trait to distinguish graphs directedness
 ///
-/// This trait is sealed and can only be implemented by the `Directed` and
-/// `Undirected` types provided in this module.
-pub trait DirectedType: sealed::Sealed {
+/// This trait is sealed and can only be implemented by the
+/// types provided in this module.
+pub trait DirecType: sealed::Sealed {
   /// Whether the graph is directed (`true`) or undirected (`false`).
-  const DIRECTED: bool;
+  const DIRECTEDNESS: Directedness;
 }
 
 /// Type marker for undirected graphs.
 pub struct Undirected;
 impl sealed::Sealed for Undirected {}
-impl DirectedType for Undirected {
-  const DIRECTED: bool = false;
+impl DirecType for Undirected {
+  const DIRECTEDNESS: Directedness = Directedness::UNDIRECTED;
 }
 
 /// Type marker for directed graphs.
 pub struct Directed;
 impl sealed::Sealed for Directed {}
-impl DirectedType for Directed {
-  const DIRECTED: bool = true;
+impl DirecType for Directed {
+  const DIRECTEDNESS: Directedness = Directedness::DIRECTED;
+}
+
+/// Type marker for mixed graphs.
+pub struct Mixed;
+impl sealed::Sealed for Mixed {}
+impl DirecType for Mixed {
+  const DIRECTEDNESS: Directedness = Directedness::MIXED;
 }
 
 /// Represents a point in a graph, which can be either a vertex or a point on an edge.
@@ -71,7 +88,7 @@ pub enum GraphPoint<V> {
 /// let graph: Graph<_, Undirected> = Graph::new(vertices, edges);
 /// ```
 #[derive(Debug, Clone)]
-pub struct Graph<V, D: DirectedType> {
+pub struct Graph<V, D: DirecType> {
   /// The set of vertices in the graph
   vertices: HashSet<V>,
   /// The set of edges in the graph
@@ -80,7 +97,7 @@ pub struct Graph<V, D: DirectedType> {
   d:        PhantomData<D>,
 }
 
-impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
+impl<V: PartialOrd + Eq + Hash, D: DirecType> Graph<V, D> {
   /// Creates a new graph with the given vertices and edges.
   ///
   /// For undirected graphs, edges are normalized so that the smaller vertex
@@ -93,11 +110,11 @@ impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
   /// # Panics
   /// * If any edge references a vertex not in the vertex set
   pub fn new(vertices: HashSet<V>, edges: HashSet<(V, V)>) -> Self {
-    let edges = if D::DIRECTED {
-      edges
-    } else {
-      edges.into_iter().map(|(a, b)| if a <= b { (a, b) } else { (b, a) }).collect::<HashSet<_>>()
-    };
+    let edges = match D::DIRECTEDNESS {
+      Directedness::DIRECTED => edges,
+      Directedness::UNDIRECTED => edges, // edges.into_iter().map(|(a, b)| if a <= b { (a, b) } else { (b, a) }).collect::<HashSet<_>>()
+      Directedness::MIXED => edges,
+   };
 
     assert!(
       edges.iter().all(|(a, b)| vertices.contains(a) && vertices.contains(b)),
@@ -107,7 +124,7 @@ impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
   }
 }
 
-impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
+impl<V: PartialOrd + Eq + Hash + Clone, D: DirecType> Set for Graph<V, D> {
   type Point = GraphPoint<V>;
 
   /// Tests if a point is contained in the graph.
