@@ -1,0 +1,35 @@
+name: MDBook Build
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+
+jobs:
+  build:
+    name: Build Documentation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@nightly
+
+      - name: Install mdbook
+        uses: taiki-e/install-action@cargo-binstall
+        with:
+          tool: mdbook
+
+      - name: Install mdbook-katex
+        uses: taiki-e/install-action@cargo-binstall
+        with:
+          tool: mdbook-katex
+
+      - name: Install mdbook-linkcheck
+        uses: taiki-e/install-action@cargo-binstall
+        with:
+          tool: mdbook-linkcheck
+
+      - name: Build mdBook
+        run: mdbook build 
