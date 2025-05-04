@@ -48,7 +48,7 @@
 //! - [`ring`]: Ring theory abstractions and implementations
 //! - [`module`]: Module theory abstractions and implementations
 //! - [`vector`]: Vector space abstractions and implementations
-//! - [`modular`]: Modular arithmetic abstractions and implementations
+//! - [`mod@modular`]: Modular arithmetic abstractions and implementations
 
 #![warn(missing_docs)]
 #![allow(incomplete_features)]

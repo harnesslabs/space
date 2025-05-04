@@ -39,13 +39,35 @@ install-cargo-tools:
         printf "{{success}}✓ taplo already installed{{reset}}\n"; \
     fi
 
+# Install mdbook and plugins
+install-mdbook-tools:
+    @just header "Installing mdbook and plugins"
+    if ! command -v mdbook > /dev/null; then \
+        printf "{{info}}Installing mdbook...{{reset}}\n" && \
+        cargo install mdbook; \
+    else \
+        printf "{{success}}✓ mdbook already installed{{reset}}\n"; \
+    fi
+    if ! command -v mdbook-linkcheck > /dev/null; then \
+        printf "{{info}}Installing mdbook-linkcheck...{{reset}}\n" && \
+        cargo install mdbook-linkcheck; \
+    else \
+        printf "{{success}}✓ mdbook-linkcheck already installed{{reset}}\n"; \
+    fi
+    if ! command -v mdbook-katex > /dev/null; then \
+        printf "{{info}}Installing mdbook-katex...{{reset}}\n" && \
+        cargo install mdbook-katex; \
+    else \
+        printf "{{success}}✓ mdbook-katex already installed{{reset}}\n"; \
+    fi
+
 # Install nightly rust
 install-rust-nightly:
     @just header "Installing Rust nightly"
     rustup install nightly
 
 # Setup complete development environment
-setup: install-cargo-tools install-rust-nightly
+setup: install-cargo-tools install-rust-nightly install-mdbook-tools
     @printf "{{success}}{{bold}}Development environment setup complete!{{reset}}\n"
 
 # Check the with local OS target
@@ -105,6 +127,16 @@ udeps:
 clean:
     @just header "Cleaning build artifacts"
     cargo clean
+
+# Serve the mdbook documentation (with live reload)
+book:
+    @just header "Serving mdbook documentation"
+    mdbook serve
+
+# Open cargo docs in browser
+docs:
+    @just header "Building and opening cargo docs"
+    cargo doc --workspace --no-deps --open
 
 # Show your relevant environment information
 info:

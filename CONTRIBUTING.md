@@ -6,11 +6,11 @@ Thank you for your interest in contributing to Harness! This document provides g
 - [Code of Conduct](#code-of-conduct)
 - [Getting Started](#getting-started)
 - [Development Workflow](#development-workflow)
+- [Documentation](#documentation)
 - [Issue Guidelines](#issue-guidelines)
 - [Pull Request Guidelines](#pull-request-guidelines)
 - [Code Style](#code-style)
 - [Testing](#testing)
-- [Documentation](#documentation)
 
 ## Code of Conduct
 
@@ -53,6 +53,30 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 4. Commit your changes following the [Commit Message Format](#commit-message-format)
 
 5. Push your branch and create a Pull Request
+
+## Documentation
+
+Harness provides two types of documentation that you should be familiar with:
+
+### API Documentation
+The Rust API documentation for all crates can be viewed using:
+```bash
+just docs
+```
+This will build and open the Rust API documentation in your browser. This documentation is automatically generated from your code comments and should be kept up to date.
+
+### Book Documentation
+The comprehensive book documentation can be viewed using:
+```bash
+just book
+```
+This will serve the book documentation locally and open it in your browser. The book includes detailed explanations of mathematical concepts, examples, and usage guides.
+
+When contributing, please:
+1. Keep API documentation up to date with your code changes
+2. Update the book documentation if you add new features or change existing behavior
+3. Add examples to both API docs and the book where appropriate
+4. Ensure mathematical definitions and references are accurate
 
 ## Issue Guidelines
 
@@ -97,13 +121,6 @@ Please use appropriate labels to categorize your issue:
 - Include examples in documentation
 - Run all tests before submitting PRs
 - Consider edge cases and error conditions
-
-## Documentation
-
-- Document all public APIs
-- Include mathematical definitions and references
-- Provide usage examples
-- Keep documentation up to date with code changes
 
 ## Commit Message Format
 
