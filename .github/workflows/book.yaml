@@ -16,20 +16,16 @@ jobs:
       - name: Install Rust
         uses: dtolnay/rust-toolchain@nightly
 
-      - name: Install mdbook
+      - name: Install cargo-binstall
         uses: taiki-e/install-action@cargo-binstall
         with:
-          tool: mdbook
+          tool: cargo-binstall
 
-      - name: Install mdbook-katex
-        uses: taiki-e/install-action@cargo-binstall
-        with:
-          tool: mdbook-katex
-
-      - name: Install mdbook-linkcheck
-        uses: taiki-e/install-action@cargo-binstall
-        with:
-          tool: mdbook-linkcheck
+      - name: Install mdbook and plugins
+        run: |
+          cargo binstall --no-confirm mdbook
+          cargo binstall --no-confirm mdbook-katex
+          cargo binstall --no-confirm mdbook-linkcheck
 
       - name: Build mdBook
         run: mdbook build
