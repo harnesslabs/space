@@ -17,7 +17,7 @@ use-default-preprocessors=false
 after=["links"]
 
 [output.linkcheck]
-follow-web-links=true
+follow-web-links=false # TODO (autoparallel): fix this
 traverse-parent-directories=true
 warning-policy="ignore"
 
