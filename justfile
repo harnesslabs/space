@@ -48,10 +48,25 @@ install-rust-nightly:
 setup: install-cargo-tools install-rust-nightly
     @printf "{{success}}{{bold}}Development environment setup complete!{{reset}}\n"
 
+# Check the with local OS target
+check:
+    @just header "Building workspace"
+    cargo build --workspace --all-targets
+
+# Build with local OS target
+check-wasm:
+    @just header "Building workspace"
+    cargo build --workspace --all-targets --target wasm32-unknown-unknown
+
 # Build with local OS target
 build:
     @just header "Building workspace"
     cargo build --workspace --all-targets
+
+# Build with local OS target
+build-wasm:
+    @just header "Building workspace"
+    cargo build --workspace --all-targets --target wasm32-unknown-unknown
 
 # Run the tests on your local OS
 test:
@@ -64,6 +79,11 @@ test:
 lint:
     @just header "Running clippy"
     cargo clippy --workspace --all-targets --all-features
+
+# Run clippy for the workspace on WASM
+lint-wasm:
+    @just header "Running clippy"
+    cargo clippy --workspace --all-targets --all-features --target wasm32-unknown-unknown
 
 # Check for semantic versioning for workspace crates
 semver:
@@ -102,7 +122,9 @@ ci:
     just run-single-check "Rust formatting" "cargo fmt --all -- --check" || ERROR=1; \
     just run-single-check "TOML formatting" "taplo fmt --check" || ERROR=1; \
     just run-single-check "Check" "cargo check --workspace" || ERROR=1; \
+    just run-single-check "Check WASM" "cargo check --workspace --target wasm32-unknown-unknown" || ERROR=1; \
     just run-single-check "Clippy" "cargo clippy --workspace --all-targets --all-features -- --deny warnings" || ERROR=1; \
+    just run-single-check "Clippy WASM" "cargo clippy --workspace --target wasm32-unknown-unknown --all-features -- --deny warnings" || ERROR=1; \
     just run-single-check "Test suite" "cargo test --verbose --workspace" || ERROR=1; \
     just run-single-check "Unused dependencies" "cargo +nightly udeps --workspace" || ERROR=1; \
     just run-single-check "Semver compatibility" "cargo semver-checks check-release --workspace" || ERROR=1; \
