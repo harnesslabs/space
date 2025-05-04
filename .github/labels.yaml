@@ -81,3 +81,8 @@
 - name: "dependencies"
   color: "cb7eed"
   description: "Dependency updates and maintenance"
+
+# CI/CD (Bright Green)
+- name: "ci/cd"
+  color: "44cc11"
+  description: "Continuous integration and deployment pipeline changes"
