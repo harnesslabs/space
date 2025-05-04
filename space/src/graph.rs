@@ -15,6 +15,22 @@ mod sealed {
   pub trait Sealed {}
 }
 
+pub trait WeightedType {
+  type Weight;
+}
+
+pub struct Unweighted;
+impl WeightedType for Unweighted {
+  type Weight = ();
+}
+
+pub struct Weighted<W> {
+  phantom: PhantomData<W>,
+}
+impl<W> WeightedType for Weighted<W> {
+  type Weight = W;
+}
+
 /// A trait to distinguish between directed and undirected graphs.
 ///
 /// This trait is sealed and can only be implemented by the `Directed` and
@@ -71,16 +87,16 @@ pub enum GraphPoint<V> {
 /// let graph: Graph<_, Undirected> = Graph::new(vertices, edges);
 /// ```
 #[derive(Debug, Clone)]
-pub struct Graph<V, D: DirectedType> {
+pub struct Graph<V, W: WeightedType, D: DirectedType> {
   /// The set of vertices in the graph
-  vertices: HashSet<V>,
+  vertices: HashSet<(V, W::Weight)>,
   /// The set of edges in the graph
-  edges:    HashSet<(V, V)>,
+  edges:    HashSet<(V, V, W::Weight)>,
   /// Phantom data to carry the directedness type
   d:        PhantomData<D>,
 }
 
-impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
+impl<V: PartialOrd + Eq + Hash, W: WeightedType, D: DirectedType> Graph<V, W, D> {
   /// Creates a new graph with the given vertices and edges.
   ///
   /// For undirected graphs, edges are normalized so that the smaller vertex
@@ -92,7 +108,7 @@ impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
   ///
   /// # Panics
   /// * If any edge references a vertex not in the vertex set
-  pub fn new(vertices: HashSet<V>, edges: HashSet<(V, V)>) -> Self {
+  pub fn new(vertices: HashSet<(V, W::Weight)>, edges: HashSet<(V, V, W::Weight)>) -> Self {
     let edges = if D::DIRECTED {
       edges
     } else {
