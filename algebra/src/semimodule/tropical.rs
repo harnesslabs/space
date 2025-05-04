@@ -39,7 +39,7 @@ use std::fmt::{Debug, Display, Formatter};
 
 use crate::{
   arithmetic::{Add, AddAssign, Additive, Mul, MulAssign, Multiplicative, One, Zero},
-  semiring::Semiring,
+  ring::Semiring,
 };
 
 /// A tropical algebra element.

@@ -118,7 +118,10 @@ impl<R: Ring + Mul<Self>> TwoSidedModule for TrivialModule<R> {
 ///
 /// Combines left and right semimodule properties over the same semiring.
 /// Note: For commutative semirings, left and right actions typically coincide.
-pub trait TwoSidedSemimodule: LeftSemimodule + RightSemimodule {}
+pub trait TwoSidedSemimodule: LeftSemimodule + RightSemimodule {
+  /// The semiring over which this semimodule is defined.
+  type Semiring: Semiring;
+}
 
 /// A left semimodule over a semiring.
 ///
