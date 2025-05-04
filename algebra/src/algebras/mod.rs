@@ -22,8 +22,6 @@
 //!
 //! - [`clifford`]: Implementation of Clifford algebras, which are useful for geometric computations
 //!   and transformations in n-dimensional spaces.
-//! - [`tropical`]: Implementation of tropical algebras, which are useful for optimization and
-//!   scheduling problems.
 
 use crate::{arithmetic::Multiplicative, module::TwoSidedModule, ring::Field, vector::VectorSpace};
 
