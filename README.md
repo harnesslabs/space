@@ -72,6 +72,22 @@ harness-algebra = "*"
    just test
    ```
 
+### Viewing Documentation
+
+The project provides two types of documentation:
+
+1. **API Documentation**: View the Rust API documentation for all crates:
+   ```bash
+   just docs
+   ```
+   This will build and open the Rust API documentation in your browser.
+
+2. **Book Documentation**: View the comprehensive book documentation:
+   ```bash
+   just book
+   ```
+   This will serve the book documentation locally and open it in your browser. The book includes detailed explanations of mathematical concepts, examples, and usage guides.
+
 For more development commands, run `just --list`.
 
 ## Documentation
