@@ -1,3 +1,7 @@
+[![Crates.io - harness-space](https://img.shields.io/crates/v/harness-space?label=harness-space)](https://crates.io/crates/harness-space)
+[![docs.rs - harness-space](https://img.shields.io/docsrs/harness-space?label=docs.rs%20harness-space)](https://docs.rs/harness-space)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+
 # Space Crate
 
 A Rust library providing mathematical structures and operations for topological spaces, simplicial complexes, and graphs. This crate is designed to support computational topology and geometry applications.

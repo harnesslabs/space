@@ -1,3 +1,4 @@
 - [Introduction](README.md)
 - [Algebra](algebra/README.md)
 - [Space](space/README.md)
+- [Contributing](CONTRIBUTING.md)

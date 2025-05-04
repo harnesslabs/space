@@ -2,9 +2,9 @@
 
 A Rust library providing algebraic structures and operations, with a focus on modular arithmetic and abstract algebra concepts.
 
-[![Crates.io](https://img.shields.io/crates/v/harness-algebra)](https://crates.io/crates/harness-algebra)
-[![Documentation](https://docs.rs/harness-algebra/badge.svg)](https://docs.rs/harness-algebra)
-[![License](https://img.shields.io/crates/l/harness-algebra)](LICENSE)
+[![Crates.io - harness-algebra](https://img.shields.io/crates/v/harness-algebra?label=harness-algebra)](https://crates.io/crates/harness-algebra)
+[![docs.rs - harness-algebra](https://img.shields.io/docsrs/harness-algebra?label=docs.rs%20harness-algebra)](https://docs.rs/harness-algebra)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
 ## Features
 
@@ -73,12 +73,12 @@ The complete API documentation is available on [docs.rs](https://docs.rs/algebra
 
 ### Modules
 
-- [`arithmetic`](https://docs.rs/algebra/latest/algebra/arithmetic/index.html): Basic arithmetic traits and operations
-- [`group`](https://docs.rs/algebra/latest/algebra/group/index.html): Group theory abstractions and implementations
-- [`ring`](https://docs.rs/algebra/latest/algebra/ring/index.html): Ring theory abstractions and implementations
-- [`module`](https://docs.rs/algebra/latest/algebra/module/index.html): Module theory abstractions and implementations
-- [`vector`](https://docs.rs/algebra/latest/algebra/vector/index.html): Vector space abstractions and implementations
-- [`modular`](https://docs.rs/algebra/latest/algebra/modular/index.html): Modular arithmetic abstractions and implementations
+- [`arithmetic`](https://docs.rs/harness-algebra/latest/harness_algebra/arithmetic/index.html): Basic arithmetic traits and operations
+- [`group`](https://docs.rs/harness-algebra/latest/harness_algebra/group/index.html): Group theory abstractions and implementations
+- [`ring`](https://docs.rs/harness-algebra/latest/harness_algebra/ring/index.html): Ring theory abstractions and implementations
+- [`module`](https://docs.rs/harness-algebra/latest/harness_algebra/module/index.html): Module theory abstractions and implementations
+- [`vector`](https://docs.rs/harness-algebra/latest/harness_algebra/vector/index.html): Vector space abstractions and implementations
+- [`modular`](https://docs.rs/harness-algebra/latest/harness_algebra/modular/index.html): Modular arithmetic abstractions and implementations
 
 ## Contributing
 
