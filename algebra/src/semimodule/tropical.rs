@@ -42,211 +42,90 @@ use crate::{
   ring::Semiring,
 };
 
-/// A tropical algebra element.
-///
-/// This represents a value in the tropical semiring (ℝ ∪ {-∞}, max, +).
-/// The value is stored as an `f64`, with `f64::NEG_INFINITY` representing -∞.
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]
-pub struct TropicalElement {
-  value: f64,
+/// Symmetric bilinear form:  a_ij = a_ji
+#[derive(Debug, PartialEq, Eq)]
+pub struct BilinearForm<F: Semiring, const N: usize> {
+  matrix: [[F; N]; N], 
 }
 
-impl TropicalElement {
-  /// Creates a new tropical element with the given value.
-  pub fn new(value: f64) -> Self { Self { value } }
+impl<F: Semiring + Copy, const N: usize> BilinearForm<F, N> {
+  /// Creates a new quadratic form with the given coefficients.
+  ///
+  /// # Arguments
+  ///
+  /// * `coefficients` - A vector of coefficients for the quadratic form
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_algebra::{semimodule::tropical::BilinearForm, vector::Vector};
+  ///
+  /// let q = BilinearForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+  /// ```
+  pub const fn new(coefficients: [[F; N]; N]) -> Self { Self { matrix } }
 
-  /// Returns the value of this tropical element.
-  pub fn value(&self) -> f64 { self.value }
+  //
+  pub fn evaluate(&self, v: &Vector<N, F>) -> F {
+    let mut result = <F as Semiring>::zero();
+    for i in 0..N {
+      result += self.coefficients.0[i] * v.0[i] * v.0[i];
+    }
+    result
+  }
 }
 
-impl Display for TropicalElement {
-  fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result { write!(f, "{}", self.value) }
-}
-
-impl Add for TropicalElement {
-  type Output = Self;
-
-  fn add(self, rhs: Self) -> Self::Output { Self { value: self.value.max(rhs.value) } }
-}
-
-impl AddAssign for TropicalElement {
-  fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
-}
-
-impl Mul for TropicalElement {
-  type Output = Self;
-
-  #[allow(clippy::suspicious_arithmetic_impl)]
-  fn mul(self, rhs: Self) -> Self::Output { Self { value: self.value + rhs.value } }
-}
-
-impl MulAssign for TropicalElement {
-  fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
-}
-
-impl Additive for TropicalElement {}
-impl Multiplicative for TropicalElement {}
-
-impl Zero for TropicalElement {
-  fn zero() -> Self { Self { value: f64::NEG_INFINITY } }
-
-  fn is_zero(&self) -> bool { self.value == f64::NEG_INFINITY }
-}
-
-impl One for TropicalElement {
-  fn one() -> Self { Self { value: 0.0 } }
-}
-
-impl Semiring for TropicalElement {
-  fn zero() -> Self { <Self as Zero>::zero() }
-
-  fn one() -> Self { <Self as One>::one() }
-}
 
 /// A tropical algebra.
 ///
-/// This struct provides a way to create tropical elements.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct TropicalAlgebra;
-
-impl TropicalAlgebra {
-  /// Creates a new tropical algebra.
-  pub fn new() -> Self { Self }
-
-  /// Creates a new tropical element with the given value.
-  pub fn element(&self, value: f64) -> TropicalElement { TropicalElement::new(value) }
-
-  /// Returns the zero element of the tropical algebra (-∞).
-  pub fn zero_element(&self) -> TropicalElement { <TropicalElement as Zero>::zero() }
-
-  /// Returns the one element of the tropical algebra (0).
-  pub fn one_element(&self) -> TropicalElement { <TropicalElement as One>::one() }
+pub struct TropicalAlgebra<F: Semiring, const N: usize> {
+  bilinear_form: BilinearForm<F, N>,
 }
 
-#[cfg(test)]
-mod tests {
-  use super::*;
+impl<F: Semiring + Copy, const N: usize> TropicalAlgebra<F, N>
+where [(); 1 << N]:
+{
+  /// Creates a new tropical algebra with the given quadratic form.
+  ///
+  /// # Arguments
+  ///
+  /// * `quadratic_form` - The quadratic form defining the algebra
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// #![feature(generic_const_exprs)]
+  /// use harness_algebra::{
+  ///   semimodule::tropical::{TropicalAlgebra, QuadraticForm},
+  ///   vector::Vector,
+  /// };
+  ///
+  /// let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+  /// let algebra = TropicalAlgebra::new(quadratic_form);
+  /// ```
+  pub const fn new(quadratic_form: QuadraticForm<F, N>) -> Self { Self { quadratic_form } }
 
-  #[test]
-  fn test_addition() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(3.0);
-    let b = algebra.element(5.0);
-    let sum = a + b;
-    // In max-plus tropical algebra, addition is max
-    assert_eq!(sum.value(), 5.0);
-  }
-
-  #[test]
-  fn test_multiplication() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(3.0);
-    let b = algebra.element(5.0);
-    let product = a * b;
-    // In tropical algebra, multiplication is addition
-    assert_eq!(product.value(), 8.0);
-  }
-
-  #[test]
-  fn test_zero() {
-    let algebra = TropicalAlgebra::new();
-    let zero = algebra.zero_element();
-    let a = algebra.element(3.0);
-    let sum = a + zero;
-    // Adding zero (-∞) should return the other element
-    assert_eq!(sum.value(), 3.0);
-  }
-
-  #[test]
-  fn test_one() {
-    let algebra = TropicalAlgebra::new();
-    let one = algebra.one_element();
-    let a = algebra.element(3.0);
-    let product = a * one;
-    // Multiplying by one (0) should return the other element
-    assert_eq!(product.value(), 3.0);
-  }
-
-  #[test]
-  fn test_associativity() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(2.0);
-    let b = algebra.element(3.0);
-    let c = algebra.element(4.0);
-
-    // Test addition associativity: (a + b) + c = a + (b + c)
-    assert_eq!((a + b) + c, a + (b + c));
-
-    // Test multiplication associativity: (a * b) * c = a * (b * c)
-    assert_eq!((a * b) * c, a * (b * c));
-  }
-
-  #[test]
-  fn test_commutativity() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(2.0);
-    let b = algebra.element(3.0);
-
-    // Test addition commutativity: a + b = b + a
-    assert_eq!(a + b, b + a);
-  }
-
-  #[test]
-  fn test_distributivity() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(2.0);
-    let b = algebra.element(3.0);
-    let c = algebra.element(4.0);
-
-    // Test left distributivity: a * (b + c) = (a * b) + (a * c)
-    assert_eq!(a * (b + c), (a * b) + (a * c));
-
-    // Test right distributivity: (a + b) * c = (a * c) + (b * c)
-    assert_eq!((a + b) * c, (a * c) + (b * c));
-  }
-
-  #[test]
-  fn test_infinity_operations() {
-    let algebra = TropicalAlgebra::new();
-    let inf = algebra.zero_element(); // -∞
-    let a = algebra.element(5.0);
-
-    // Adding -∞ to any number should return the number
-    assert_eq!(a + inf, a);
-    assert_eq!(inf + a, a);
-
-    // Multiplying by -∞ should return -∞
-    assert_eq!(a * inf, inf);
-    assert_eq!(inf * a, inf);
-  }
-
-  #[test]
-  fn test_identity_properties() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(7.0);
-    let zero = algebra.zero_element();
-    let one = algebra.one_element();
-
-    // Test additive identity: a + zero = a (max)
-    assert_eq!(a + zero, a);
-
-    // Test multiplicative identity: a * one = a (plus)
-    assert_eq!(a * one, a);
-  }
-
-  #[test]
-  fn test_additive_identity() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(3.0);
-    let zero = algebra.zero_element();
-    assert_eq!(a + zero, a);
-  }
-
-  #[test]
-  fn test_multiplicative_identity_left() {
-    let algebra = TropicalAlgebra::new();
-    let a = algebra.element(3.0);
-    let one = algebra.one_element();
-    assert_eq!(one * a, a);
+  /// Creates a new element in the algebra from a vector of coefficients.
+  ///
+  /// # Arguments
+  ///
+  /// * `value` - A vector of coefficients for each basis blade
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// #![feature(generic_const_exprs)]
+  /// use harness_algebra::{
+  ///   semimodule::tropical::{TropicalAlgebra, QuadraticForm},
+  ///   vector::Vector,
+  /// };
+  ///
+  /// let algebra = TropicalAlgebra::new(QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0])));
+  /// let element = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+  /// ```
+  pub const fn element(&self, value: Vector<{ 1 << N }, F>) -> TropicalElement {
+    TropicalElement { value, quadratic_form: Some(&self.quadratic_form) }
   }
 }
+
+
+
