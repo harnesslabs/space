@@ -45,7 +45,7 @@ use crate::{
 /// Symmetric bilinear form:  a_ij = a_ji
 #[derive(Debug, PartialEq, Eq)]
 pub struct BilinearForm<F: Semiring, const N: usize> {
-  matrix: [[F; N]; N], 
+  matrix: [[F; N]; N],
 }
 
 impl<F: Semiring + Copy, const N: usize> BilinearForm<F, N> {
@@ -62,21 +62,19 @@ impl<F: Semiring + Copy, const N: usize> BilinearForm<F, N> {
   ///
   /// let q = BilinearForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
   /// ```
-  pub const fn new(coefficients: [[F; N]; N]) -> Self { Self { matrix } }
+  pub const fn new(matrix: [[F; N]; N]) -> Self { Self { matrix } }
 
   //
   pub fn evaluate(&self, v: &Vector<N, F>) -> F {
     let mut result = <F as Semiring>::zero();
     for i in 0..N {
-      result += self.coefficients.0[i] * v.0[i] * v.0[i];
+      result += self.matrix[i][i] * v.0[i] * v.0[i];
     }
     result
   }
 }
 
-
 /// A tropical algebra.
-///
 pub struct TropicalAlgebra<F: Semiring, const N: usize> {
   bilinear_form: BilinearForm<F, N>,
 }
@@ -84,25 +82,25 @@ pub struct TropicalAlgebra<F: Semiring, const N: usize> {
 impl<F: Semiring + Copy, const N: usize> TropicalAlgebra<F, N>
 where [(); 1 << N]:
 {
-  /// Creates a new tropical algebra with the given quadratic form.
+  /// Creates a new tropical algebra with the given bilinear form.
   ///
   /// # Arguments
   ///
-  /// * `quadratic_form` - The quadratic form defining the algebra
+  /// * `bilinear_form` - The bilinear form defining the algebra
   ///
   /// # Examples
   ///
   /// ```
   /// #![feature(generic_const_exprs)]
   /// use harness_algebra::{
-  ///   semimodule::tropical::{TropicalAlgebra, QuadraticForm},
+  ///   semimodule::tropical::{BilinearForm, TropicalAlgebra},
   ///   vector::Vector,
   /// };
   ///
-  /// let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
-  /// let algebra = TropicalAlgebra::new(quadratic_form);
+  /// let bilinear_form = BilinearForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+  /// let algebra = TropicalAlgebra::new(bilinear_form);
   /// ```
-  pub const fn new(quadratic_form: QuadraticForm<F, N>) -> Self { Self { quadratic_form } }
+  pub const fn new(bilinear_form: BilinearForm<F, N>) -> Self { Self { bilinear_form } }
 
   /// Creates a new element in the algebra from a vector of coefficients.
   ///
@@ -115,7 +113,7 @@ where [(); 1 << N]:
   /// ```
   /// #![feature(generic_const_exprs)]
   /// use harness_algebra::{
-  ///   semimodule::tropical::{TropicalAlgebra, QuadraticForm},
+  ///   semimodule::tropical::{QuadraticForm, TropicalAlgebra},
   ///   vector::Vector,
   /// };
   ///
@@ -123,9 +121,6 @@ where [(); 1 << N]:
   /// let element = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
   /// ```
   pub const fn element(&self, value: Vector<{ 1 << N }, F>) -> TropicalElement {
-    TropicalElement { value, quadratic_form: Some(&self.quadratic_form) }
+    TropicalElement { value, bilinear_form: Some(&self.bilinear_form) }
   }
 }
-
-
-
