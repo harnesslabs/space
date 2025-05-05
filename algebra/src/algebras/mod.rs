@@ -1,4 +1,4 @@
-//! Implementation of algebra structures.
+//! Implementation of an [`Algebra`] interface and various algebras
 //!
 //! This module provides implementations of different types of algebras, which are algebraic
 //! structures that combine the properties of vector spaces with multiplication operations. An
