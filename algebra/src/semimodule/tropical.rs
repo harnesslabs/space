@@ -70,6 +70,46 @@ impl NegInfinity for f32 {
   fn neg_infinity() -> Self { f32::NEG_INFINITY }
 }
 
+impl NegInfinity for i32 {
+  fn neg_infinity() -> Self { i32::MIN }
+}
+
+impl NegInfinity for i64 {
+  fn neg_infinity() -> Self { i64::MIN }
+}
+
+impl NegInfinity for i128 {
+  fn neg_infinity() -> Self { i128::MIN }
+}
+
+impl NegInfinity for i8 {
+  fn neg_infinity() -> Self { i8::MIN }
+}
+
+impl NegInfinity for i16 {
+  fn neg_infinity() -> Self { i16::MIN }
+}
+
+impl NegInfinity for u8 {
+  fn neg_infinity() -> Self { u8::MIN }
+}
+
+impl NegInfinity for u16 {
+  fn neg_infinity() -> Self { u16::MIN }
+}
+
+impl NegInfinity for u32 {
+  fn neg_infinity() -> Self { u32::MIN }
+}
+
+impl NegInfinity for u64 {
+  fn neg_infinity() -> Self { u64::MIN }
+}
+
+impl NegInfinity for u128 {
+  fn neg_infinity() -> Self { u128::MIN }
+}
+
 /// An element of the tropical algebra.
 ///
 /// In tropical algebra:
