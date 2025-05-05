@@ -118,6 +118,13 @@ impl<const M: usize, F: Field + Copy + Mul<Self>> TwoSidedModule for Vector<M, F
 
 impl<const M: usize, F: Field + Copy + Mul<Self>> VectorSpace for Vector<M, F> {}
 
+/// A dynamically-sized vector over a field `F`.
+///
+/// This structure represents a mathematical vector with components from a field `F`.
+/// The dimension can be determined at runtime, making it flexible for various applications.
+///
+/// # Type Parameters
+/// * `F` - A field type that implements the `Field` trait
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynVector<F: Field> {
   components: Vec<F>,

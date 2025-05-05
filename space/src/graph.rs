@@ -40,6 +40,23 @@ impl DirectedType for Directed {
   const DIRECTED: bool = true;
 }
 
+/// Represents a point in a graph, which can be either a vertex or a point on an edge.
+///
+/// This enum is used to represent different types of points within a graph structure,
+/// allowing for precise specification of locations within the graph topology.
+///
+/// # Variants
+/// * `Vertex` - A single vertex in the graph, identified by a unique index
+/// * `EdgePoint` - A point that lies on an edge between two vertices, identified by the indices of
+///   the two connected vertices
+///
+/// # Examples
+/// ```
+/// use harness_space::graph::GraphPoint;
+///
+/// let vertex_point = GraphPoint::Vertex(1);
+/// let edge_point = GraphPoint::EdgePoint(1, 2);
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum GraphPoint {
   /// A vertex in the graph
@@ -184,7 +201,7 @@ impl TopologicalSpace for Graph<Undirected> {
     match point {
       GraphPoint::Vertex(v) => {
         neighborhood.insert(GraphPoint::Vertex(v));
-        for (u, w) in self.edges.clone().into_iter().filter(|(u, w)| *u == v) {
+        for (u, w) in self.edges.clone().into_iter().filter(|(u, _)| *u == v) {
           neighborhood.insert(GraphPoint::EdgePoint(u, w));
         }
       },
