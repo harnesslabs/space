@@ -136,7 +136,7 @@ impl Set for Graph<Undirected> {
     match point {
       GraphPoint::Vertex(v) => self.vertices.contains(v),
       GraphPoint::EdgePoint(u, v) =>
-        self.edges.contains(&(u.clone(), v.clone())) | self.edges.contains(&(v.clone(), u.clone())),
+        self.edges.contains(&(*u, *v)) | self.edges.contains(&(*v, *u)),
     }
   }
 
@@ -153,7 +153,7 @@ impl Set for Graph<Undirected> {
       .filter(|(u, v)| {
         self.vertices.contains(u)
           && self.vertices.contains(v)
-          && !other.edges.contains(&(u.clone(), v.clone()))
+          && !other.edges.contains(&(*u, *v))
       })
       .cloned()
       .collect();

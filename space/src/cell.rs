@@ -26,17 +26,10 @@
 //! - 2-cells: disks
 //! - 3-cells: solid balls, etc.
 
-use std::{collections::HashSet, hash::Hash};
+use std::collections::HashSet;
 
 use super::error::SpacesError;
 use crate::definitions::{Set, TopologicalSpace};
-
-/// `Point` wrapper of a generic type `T`.
-///
-/// Represents a 0-dimensional point in the topological space.
-/// These form the building blocks of higher dimensional structures.
-#[derive(PartialEq, Eq, Hash, Clone)]
-pub struct Point<T: Eq + std::hash::Hash + Clone + Sized>(T);
 
 /// `OpenSet` is a collection of `Point` equipped with `union` and `intersection` operations.
 ///
@@ -162,7 +155,7 @@ impl<O: OpenSet> Skeleton<O> {
       return Err(SpacesError::DimensionMismatch);
     }
     cell.attach(self);
-    if cell.dimension + 1 <= self.cells.len() {
+    if cell.dimension < self.cells.len() {
       self.cells[cell.dimension].push(cell);
     }
     Ok(())
@@ -210,7 +203,7 @@ impl<O: OpenSet> Skeleton<O> {
     &self,
     cell_idx: usize,
     cell_dimension: usize,
-  ) -> Result<(HashSet<(usize, usize)>, HashSet<(usize, usize)>), SpacesError> {
+  ) -> Result<HashSet<(usize, usize)>, SpacesError> {
     if cell_dimension >= self.cells.len() {
       return Err(SpacesError::DimensionMismatch);
     }
@@ -219,15 +212,12 @@ impl<O: OpenSet> Skeleton<O> {
     }
     let incidents = &self.cells[cell_dimension][cell_idx].incidents;
     let mut lower = HashSet::new();
-    let mut upper = HashSet::new();
     for (i, j) in incidents {
-      if cell_dimension as i64 - self.cells[*i][*j].dimension as i64 == 1 {
+      if (cell_dimension as i64 - self.cells[*i][*j].dimension as i64).abs() == 1 {
         lower.insert((*i, *j));
-      } else if self.cells[*i][*j].dimension as i64 - cell_dimension as i64 == 1 {
-        upper.insert((*i, *j));
       }
     }
-    Ok((lower, upper))
+    Ok(lower)
   }
 }
 

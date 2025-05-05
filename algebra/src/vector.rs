@@ -222,7 +222,7 @@ impl<F: Field + Copy> Group for DynVector<F> {
 
 // TODO: This is a bit odd
 impl<F: Field + Copy> Zero for DynVector<F> {
-  fn zero() -> Self { Self { components: vec![<F as Ring>::zero(); 0], dimension: 0 } }
+  fn zero() -> Self { Self { components: { <F as Ring>::zero(); vec![] as std::vec::Vec<F>}, dimension: 0 } }
 
   fn is_zero(&self) -> bool { self.components.iter().all(|x| *x == <F as Ring>::zero()) }
 }
