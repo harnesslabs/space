@@ -8,7 +8,7 @@ use core::marker::PhantomData;
 use crate::{
   arithmetic::{Add, AddAssign, Additive, Mul, Neg, Sub, SubAssign, Zero},
   group::{AbelianGroup, Group},
-  ring::{Ring, Semiring},
+  ring::Ring,
 };
 
 /// A trait representing a two-sided module over a ring.

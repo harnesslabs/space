@@ -217,8 +217,8 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
         // If result is NegInfinity, we should always take the term
         // Otherwise, take the maximum of term and result
         result = match (term.inner, result.inner) {
-          (InnerTropicalElement::Element(t), InnerTropicalElement::NegInfinity) => term,
-          (InnerTropicalElement::NegInfinity, InnerTropicalElement::Element(r)) => result,
+          (InnerTropicalElement::Element(_), InnerTropicalElement::NegInfinity) => term,
+          (InnerTropicalElement::NegInfinity, InnerTropicalElement::Element(_)) => result,
           (InnerTropicalElement::Element(t), InnerTropicalElement::Element(r)) =>
             if t > r {
               term
