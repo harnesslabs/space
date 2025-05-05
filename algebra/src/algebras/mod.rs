@@ -4,7 +4,6 @@
 //! structures that combine the properties of vector spaces with multiplication operations. An
 //! algebra is a vector space equipped with a bilinear product that satisfies certain properties.
 //!
-//! A Algebra informally is a vector space over a ring.
 //!
 //! # Key Concepts
 //!

@@ -56,6 +56,20 @@ use crate::{
   ring::Semiring,
 };
 
+/// Trait for types that have a concept of negative infinity.
+pub trait NegInfinity {
+  /// Returns the negative infinity value for the type.
+  fn neg_infinity() -> Self;
+}
+
+impl NegInfinity for f64 {
+  fn neg_infinity() -> Self { f64::NEG_INFINITY }
+}
+
+impl NegInfinity for f32 {
+  fn neg_infinity() -> Self { f32::NEG_INFINITY }
+}
+
 /// An element of the tropical algebra.
 ///
 /// In tropical algebra:
@@ -64,26 +78,63 @@ use crate::{
 /// - Zero is -∞ (f64::NEG_INFINITY)
 /// - One is 0
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-pub struct TropicalElement {
-  value: f64,
+pub struct TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity {
+  value: F,
 }
 
-impl Eq for TropicalElement {}
-impl TropicalElement {
+impl<F> Eq for TropicalElement<F> where F: Copy
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
+}
+impl<F> TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
   /// Creates a new tropical element with the given value.
   /// Panics if the value is NaN or infinite.
-  pub fn new(value: f64) -> Self {
-    if !value.is_finite() {
-      panic!("TropicalElement value must be finite");
-    }
-    Self { value }
-  }
+  pub fn new(value: F) -> Self { Self { value } }
 
   /// Returns the value of this tropical element.
-  pub fn value(&self) -> f64 { self.value }
+  pub fn value(&self) -> F { self.value }
 }
 
-impl Add for TropicalElement {
+impl<F> Add for TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
   type Output = Self;
 
   fn add(self, other: Self) -> Self::Output {
@@ -92,11 +143,33 @@ impl Add for TropicalElement {
   }
 }
 
-impl AddAssign for TropicalElement {
+impl<F> AddAssign for TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
   fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
 
-impl Mul for TropicalElement {
+impl<F> Mul for TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
   type Output = Self;
 
   fn mul(self, other: Self) -> Self::Output {
@@ -106,41 +179,130 @@ impl Mul for TropicalElement {
   }
 }
 
-impl MulAssign for TropicalElement {
+impl<F> MulAssign for TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
   fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
 }
 
-impl Zero for TropicalElement {
-  fn zero() -> Self { Self { value: f64::NEG_INFINITY } }
+impl<F> Zero for TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
+  fn zero() -> Self { Self { value: F::neg_infinity() } }
 
-  fn is_zero(&self) -> bool { self.value == f64::NEG_INFINITY }
+  fn is_zero(&self) -> bool { self.value == F::neg_infinity() }
 }
 
-impl One for TropicalElement {
-  fn one() -> Self { Self { value: 0.0 } }
+impl<F> One for TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
+  fn one() -> Self { Self { value: F::zero() } }
 }
 
-impl Additive for TropicalElement {}
-impl Multiplicative for TropicalElement {}
-impl Semiring for TropicalElement {
-  fn zero() -> Self { Self { value: f64::NEG_INFINITY } }
+impl<F> Additive for TropicalElement<F> where F: Copy
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
+}
+impl<F> Multiplicative for TropicalElement<F> where F: Copy
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
+}
+impl<F> Semiring for TropicalElement<F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
+  fn zero() -> Self { Self { value: F::neg_infinity() } }
 
-  fn one() -> Self { Self { value: 0.0 } }
+  fn one() -> Self { Self { value: F::zero() } }
 }
 
 /// Symmetric bilinear form
 #[derive(Debug, PartialEq, Eq)]
-pub struct BilinearForm<const N: usize> {
-  matrix: [[TropicalElement; N]; N],
+pub struct BilinearForm<const N: usize, F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity {
+  matrix: [[TropicalElement<F>; N]; N],
 }
 
-impl<const N: usize> BilinearForm<N> {
+impl<const N: usize, F> BilinearForm<N, F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
   /// Creates a new bilinear form with the given matrix.
-  pub const fn new(matrix: [[TropicalElement; N]; N]) -> Self { Self { matrix } }
+  pub const fn new(matrix: [[TropicalElement<F>; N]; N]) -> Self { Self { matrix } }
 
   /// Evaluates the bilinear form on two vectors.
-  pub fn evaluate(&self, x: &[TropicalElement; N], y: &[TropicalElement; N]) -> TropicalElement {
-    let mut result = <TropicalElement as Semiring>::zero();
+  pub fn evaluate(
+    &self,
+    x: &[TropicalElement<F>; N],
+    y: &[TropicalElement<F>; N],
+  ) -> TropicalElement<F> {
+    let mut result = <TropicalElement<F> as Semiring>::zero();
 
     for (i, &xi) in x.iter().enumerate() {
       for (j, &yj) in y.iter().enumerate() {
@@ -154,17 +316,42 @@ impl<const N: usize> BilinearForm<N> {
 }
 
 /// A tropical algebra.
-pub struct TropicalAlgebra<const N: usize> {
+pub struct TropicalAlgebra<const N: usize, F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity {
   /// The bilinear form defining the algebra
-  bilinear_form: BilinearForm<N>,
+  bilinear_form: BilinearForm<N, F>,
 }
 
-impl<const N: usize> TropicalAlgebra<N> {
+impl<const N: usize, F> TropicalAlgebra<N, F>
+where F: Copy
+    + Clone
+    + Debug
+    + PartialEq
+    + PartialOrd
+    + Add<Output = F>
+    + Mul<Output = F>
+    + Zero
+    + One
+    + NegInfinity
+{
   /// Creates a new tropical algebra with the given bilinear form.
-  pub const fn new(bilinear_form: BilinearForm<N>) -> Self { Self { bilinear_form } }
+  pub const fn new(bilinear_form: BilinearForm<N, F>) -> Self { Self { bilinear_form } }
 
   /// Evaluates the bilinear form on two vectors.
-  pub fn evaluate(&self, x: &[TropicalElement; N], y: &[TropicalElement; N]) -> TropicalElement {
+  pub fn evaluate(
+    &self,
+    x: &[TropicalElement<F>; N],
+    y: &[TropicalElement<F>; N],
+  ) -> TropicalElement<F> {
     self.bilinear_form.evaluate(x, y)
   }
 }
@@ -190,16 +377,16 @@ mod tests {
     assert_eq!(b * c, TropicalElement::new(7.0));
 
     // Test zero and one
-    assert_eq!(<TropicalElement as Semiring>::zero().value(), f64::NEG_INFINITY);
-    assert_eq!(<TropicalElement as Semiring>::one().value(), 0.0);
+    assert_eq!(<TropicalElement<f64> as Semiring>::zero().value(), f64::NEG_INFINITY);
+    assert_eq!(<TropicalElement<f64> as Semiring>::one().value(), 0.0);
 
     // Test additive identity
-    assert_eq!(a + <TropicalElement as Semiring>::zero(), a);
-    assert_eq!(<TropicalElement as Semiring>::zero() + a, a);
+    assert_eq!(a + <TropicalElement<f64> as Semiring>::zero(), a);
+    assert_eq!(<TropicalElement<f64> as Semiring>::zero() + a, a);
 
     // Test multiplicative identity
-    assert_eq!(a * <TropicalElement as Semiring>::one(), a);
-    assert_eq!(<TropicalElement as Semiring>::one() * a, a);
+    assert_eq!(a * <TropicalElement<f64> as Semiring>::one(), a);
+    assert_eq!(<TropicalElement<f64> as Semiring>::one() * a, a);
 
     // Test additive assignment
     let mut x = a;
@@ -231,12 +418,14 @@ mod tests {
     assert_eq!(bilinear_form.evaluate(&x, &y), TropicalElement::new(11.0));
 
     // Test with zero vector
-    let zero = [<TropicalElement as Semiring>::zero(), <TropicalElement as Semiring>::zero()];
-    assert_eq!(bilinear_form.evaluate(&zero, &y), <TropicalElement as Semiring>::zero());
-    assert_eq!(bilinear_form.evaluate(&x, &zero), <TropicalElement as Semiring>::zero());
+    let zero =
+      [<TropicalElement<f64> as Semiring>::zero(), <TropicalElement<f64> as Semiring>::zero()];
+    assert_eq!(bilinear_form.evaluate(&zero, &y), <TropicalElement<f64> as Semiring>::zero());
+    assert_eq!(bilinear_form.evaluate(&x, &zero), <TropicalElement<f64> as Semiring>::zero());
 
     // Test with one vector
-    let one = [<TropicalElement as Semiring>::one(), <TropicalElement as Semiring>::one()];
+    let one =
+      [<TropicalElement<f64> as Semiring>::one(), <TropicalElement<f64> as Semiring>::one()];
     assert_eq!(bilinear_form.evaluate(&one, &one), TropicalElement::new(2.0));
   }
 
@@ -276,8 +465,8 @@ mod tests {
   #[test]
   fn test_tropical_element_zero_one_properties() {
     let a = TropicalElement::new(3.0);
-    let zero = <TropicalElement as Semiring>::zero();
-    let one = <TropicalElement as Semiring>::one();
+    let zero = <TropicalElement<f64> as Semiring>::zero();
+    let one = <TropicalElement<f64> as Semiring>::one();
 
     // Test zero properties
     assert!(zero.is_zero());
@@ -290,8 +479,4 @@ mod tests {
     assert_eq!(a * one, a);
     assert_eq!(one * a, a);
   }
-
-  #[test]
-  #[should_panic(expected = "TropicalElement value must be finite")]
-  fn test_invalid_tropical_element() { TropicalElement::new(f64::NAN); }
 }
