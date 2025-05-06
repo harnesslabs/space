@@ -20,9 +20,7 @@
 //! # Examples
 //!
 //! ```
-//! use harness_algebra::semimodule::tropical::{
-//!   BilinearForm, InnerTropicalElement, TropicalAlgebra, TropicalElement,
-//! };
+//! use harness_algebra::semimodule::tropical::{BilinearForm, TropicalAlgebra, TropicalElement};
 //!
 //! // Create tropical elements
 //! let a = TropicalElement::new(3.0);
@@ -30,11 +28,11 @@
 //!
 //! // Addition is max: 3 ⊕ 5 = 5
 //! let sum = a + b;
-//! assert_eq!(sum.value(), InnerTropicalElement::Element(5.0));
+//! assert_eq!(sum.value(), TropicalElement::Element(5.0));
 //!
 //! // Multiplication is +: 3 ⊗ 5 = 8
 //! let product = a * b;
-//! assert_eq!(product.value(), InnerTropicalElement::Element(8.0));
+//! assert_eq!(product.value(), TropicalElement::Element(8.0));
 //!
 //! // Create a tropical algebra with a bilinear form
 //! let matrix = [[TropicalElement::new(1.0), TropicalElement::new(2.0)], [
@@ -48,7 +46,7 @@
 //! let x = [TropicalElement::new(3.0), TropicalElement::new(4.0)];
 //! let y = [TropicalElement::new(5.0), TropicalElement::new(6.0)];
 //! let result = algebra.evaluate(&x, &y);
-//! assert_eq!(result.value(), InnerTropicalElement::Element(11.0));
+//! assert_eq!(result.value(), TropicalElement::Element(11.0));
 //! ```
 
 use std::fmt::Debug;
@@ -58,22 +56,6 @@ use crate::{
   ring::Semiring,
 };
 
-/// Represents the inner value of a tropical element.
-///
-/// In the context of tropical algebra, an `InnerTropicalElement` can either be a finite element
-/// or negative infinity, which serves as the additive identity (zero) in tropical algebra.
-///
-/// # Variants
-///
-/// - `Element(F)`: Represents a finite element of type `F`.
-/// - `NegInfinity`: Represents negative infinity, which is the zero element in tropical algebra.
-#[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-pub enum InnerTropicalElement<F> {
-  /// A finite element of the tropical algebra.
-  Element(F),
-  /// Represents negative infinity, the zero element in tropical algebra.
-  NegInfinity,
-}
 /// An element of the tropical algebra.
 ///
 /// In tropical algebra:
@@ -82,10 +64,13 @@ pub enum InnerTropicalElement<F> {
 /// - Zero is -∞ (f64::NEG_INFINITY)
 /// - One is 0
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-pub struct TropicalElement<F>
+pub enum TropicalElement<F>
 where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
 {
-  inner: InnerTropicalElement<F>,
+  /// A finite element of the tropical algebra.
+  Element(F),
+  /// Represents negative infinity, the zero element in tropical algebra.
+  NegInfinity,
 }
 
 impl<F> Eq for TropicalElement<F> where F: Copy + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
@@ -94,10 +79,10 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
 {
   /// Creates a new tropical element with the given value.
   /// Panics if the value is NaN or infinite.
-  pub fn new(value: F) -> Self { Self { inner: InnerTropicalElement::Element(value) } }
+  pub fn new(value: F) -> Self { TropicalElement::Element(value) }
 
   /// Returns the value of this tropical element.
-  pub fn value(&self) -> InnerTropicalElement<F> { self.inner }
+  pub fn value(&self) -> TropicalElement<F> { *self }
 }
 
 impl<F> Add for TropicalElement<F>
@@ -106,25 +91,19 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
   type Output = Self;
 
   fn add(self, other: Self) -> Self::Output {
-    match self.inner {
-      InnerTropicalElement::Element(a) => {
-        match other.inner {
-          InnerTropicalElement::Element(b) => {
+    match self {
+      TropicalElement::Element(a) => {
+        match other {
+          TropicalElement::Element(b) => {
             // In tropical algebra, addition is maximum
-            Self {
-              inner: if a > b {
-                InnerTropicalElement::Element(a)
-              } else {
-                InnerTropicalElement::Element(b)
-              },
-            }
+            Self::Element(if a > b { a } else { b })
           },
-          InnerTropicalElement::NegInfinity => Self { inner: InnerTropicalElement::Element(a) },
+          TropicalElement::NegInfinity => Self::Element(a),
         }
       },
-      InnerTropicalElement::NegInfinity => match other.inner {
-        InnerTropicalElement::Element(b) => Self { inner: InnerTropicalElement::Element(b) },
-        InnerTropicalElement::NegInfinity => Self { inner: InnerTropicalElement::NegInfinity },
+      TropicalElement::NegInfinity => match other {
+        TropicalElement::Element(b) => Self::Element(b),
+        TropicalElement::NegInfinity => Self::NegInfinity,
       },
     }
   }
@@ -142,18 +121,18 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
   type Output = Self;
 
   fn mul(self, other: Self) -> Self::Output {
-    match self.inner {
-      InnerTropicalElement::Element(a) => {
-        match other.inner {
-          InnerTropicalElement::Element(b) => {
+    match self {
+      TropicalElement::Element(a) => {
+        match other {
+          TropicalElement::Element(b) => {
             // In tropical algebra, multiplication is addition
             #[allow(clippy::suspicious_arithmetic_impl)]
-            Self { inner: InnerTropicalElement::Element(a + b) }
+            Self::Element(a + b)
           },
-          InnerTropicalElement::NegInfinity => Self { inner: InnerTropicalElement::NegInfinity },
+          TropicalElement::NegInfinity => Self::NegInfinity,
         }
       },
-      InnerTropicalElement::NegInfinity => Self { inner: InnerTropicalElement::NegInfinity },
+      TropicalElement::NegInfinity => Self::NegInfinity,
     }
   }
 }
@@ -167,15 +146,15 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
 impl<F> Zero for TropicalElement<F>
 where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
 {
-  fn zero() -> Self { Self { inner: InnerTropicalElement::NegInfinity } }
+  fn zero() -> Self { TropicalElement::NegInfinity }
 
-  fn is_zero(&self) -> bool { self.inner == InnerTropicalElement::NegInfinity }
+  fn is_zero(&self) -> bool { *self == TropicalElement::NegInfinity }
 }
 
 impl<F> One for TropicalElement<F>
 where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
 {
-  fn one() -> Self { Self { inner: InnerTropicalElement::Element(F::zero()) } }
+  fn one() -> Self { TropicalElement::Element(F::zero()) }
 }
 
 impl<F> Additive for TropicalElement<F> where F: Copy + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
@@ -183,9 +162,9 @@ impl<F> Multiplicative for TropicalElement<F> where F: Copy + Debug + PartialEq 
 impl<F> Semiring for TropicalElement<F>
 where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
 {
-  fn zero() -> Self { Self { inner: InnerTropicalElement::NegInfinity } }
+  fn zero() -> Self { TropicalElement::NegInfinity }
 
-  fn one() -> Self { Self { inner: InnerTropicalElement::Element(F::zero()) } }
+  fn one() -> Self { TropicalElement::Element(F::zero()) }
 }
 
 /// Symmetric bilinear form
@@ -216,16 +195,16 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
         // In tropical algebra, we want to take the maximum
         // If result is NegInfinity, we should always take the term
         // Otherwise, take the maximum of term and result
-        result = match (term.inner, result.inner) {
-          (InnerTropicalElement::Element(_), InnerTropicalElement::NegInfinity) => term,
-          (InnerTropicalElement::NegInfinity, InnerTropicalElement::Element(_)) => result,
-          (InnerTropicalElement::Element(t), InnerTropicalElement::Element(r)) =>
+        result = match (term, result) {
+          (TropicalElement::Element(_), TropicalElement::NegInfinity) => term,
+          (TropicalElement::NegInfinity, TropicalElement::Element(_)) => result,
+          (TropicalElement::Element(t), TropicalElement::Element(r)) =>
             if t > r {
               term
             } else {
               result
             },
-          (InnerTropicalElement::NegInfinity, InnerTropicalElement::NegInfinity) => result,
+          (TropicalElement::NegInfinity, TropicalElement::NegInfinity) => result,
         };
       }
     }
@@ -279,14 +258,8 @@ mod tests {
     assert_eq!(b * c, TropicalElement::new(7.0));
 
     // Test zero and one
-    assert_eq!(
-      <TropicalElement<f64> as Semiring>::zero().value(),
-      InnerTropicalElement::NegInfinity
-    );
-    assert_eq!(
-      <TropicalElement<f64> as Semiring>::one().value(),
-      InnerTropicalElement::Element(0.0)
-    );
+    assert_eq!(<TropicalElement<f64> as Semiring>::zero().value(), TropicalElement::NegInfinity);
+    assert_eq!(<TropicalElement<f64> as Semiring>::one().value(), TropicalElement::Element(0.0));
 
     // Test additive identity
     assert_eq!(a + <TropicalElement<f64> as Semiring>::zero(), a);
