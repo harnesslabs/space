@@ -61,7 +61,7 @@ use crate::{
 /// In tropical algebra:
 /// - Addition (⊕) is defined as maximum: a ⊕ b = max(a, b)
 /// - Multiplication (⊗) is defined as addition: a ⊗ b = a + b
-/// - Zero is -∞ (f64::NEG_INFINITY)
+/// - Zero is -∞ 
 /// - One is 0
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum TropicalElement<F>
@@ -78,7 +78,6 @@ impl<F> TropicalElement<F>
 where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
 {
   /// Creates a new tropical element with the given value.
-  /// Panics if the value is NaN or infinite.
   pub fn new(value: F) -> Self { TropicalElement::Element(value) }
 
   /// Returns the value of this tropical element.
