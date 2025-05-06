@@ -4,7 +4,7 @@
 //! including both general rings and fields (which are special types of rings).
 
 use crate::{
-  arithmetic::{Div, DivAssign, Multiplicative},
+  arithmetic::{Additive, Div, DivAssign, Multiplicative, One, Zero},
   group::AbelianGroup,
 };
 
@@ -57,3 +57,44 @@ macro_rules! impl_field {
 
 impl_field!(f32);
 impl_field!(f64);
+
+/// A trait representing a mathematical semiring.
+///
+/// A semiring is a set equipped with two binary operations (addition and multiplication)
+/// satisfying properties of distributivity and associativity analogous to those of addition and
+/// multiplication of integers. This trait combines the requirements for an Abelian monoid with
+/// multiplicative properties.
+///
+/// # Requirements
+///
+/// A semiring (R, +, ·) must satisfy:
+/// 1. (R, +) is a commutative monoid with identity element 0
+/// 2. (R, ·) is a monoid with identity element 1
+/// 3. Multiplication distributes over addition:
+///    - Left distributivity: a·(b + c) = a·b + a·c
+///    - Right distributivity: (a + b)·c = a·c + b·c
+/// 4. Multiplication by 0 annihilates R: 0·a = a·0 = 0
+///
+/// # Implementation Notes
+///
+/// The distributive properties are enforced by the combination of the `Additive` and
+/// `Multiplicative` traits. Implementors must ensure that their implementations satisfy these
+/// properties. Semirings are not groups because they do not have additive inverses.
+///
+/// If you want a structure with an additive inverse, use the Ring trait instead, since it
+/// has the abelian group trait bound. If you only need addition to be associative and commutative
+/// (but without an additive identity), use the semiring trait.
+///
+/// # Examples
+///
+/// Common examples of semirings include:
+/// - Natural numbers (ℕ, +, ×)
+/// - Tropical semiring (ℝ ∪ {∞}, min, +)
+/// - Probability semiring (ℝ₊, +, ×)
+pub trait Semiring: Additive + Multiplicative + Zero + One {
+  /// Returns the additive identity element of the semiring.
+  fn zero() -> Self;
+
+  /// Returns the multiplicative identity element of the semiring.
+  fn one() -> Self;
+}

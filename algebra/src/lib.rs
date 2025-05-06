@@ -60,4 +60,5 @@ pub mod group;
 pub mod modular;
 pub mod module;
 pub mod ring;
+pub mod semimodule;
 pub mod vector;
