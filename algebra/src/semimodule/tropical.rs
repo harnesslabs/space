@@ -171,7 +171,7 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
 pub struct BilinearForm<const N: usize, F>
 where
   F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
-  [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time {
+  [(); N * (N + 1) / 2]:, {
   // Store only the upper triangular part of the matrix
   // The elements are stored in row-major order, only including elements where i <= j
   matrix: [TropicalElement<F>; N * (N + 1) / 2],
@@ -252,7 +252,7 @@ where
 pub struct TropicalAlgebra<const N: usize, F>
 where
   F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
-  [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time {
+  [(); N * (N + 1) / 2]:, {
   /// The bilinear form defining the algebra
   bilinear_form: BilinearForm<N, F>,
 }
@@ -260,7 +260,7 @@ where
 impl<const N: usize, F> TropicalAlgebra<N, F>
 where
   F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
-  [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time
+  [(); N * (N + 1) / 2]:,
 {
   /// Creates a new tropical algebra with the given bilinear form.
   pub fn new(bilinear_form: BilinearForm<N, F>) -> Self { Self { bilinear_form } }
