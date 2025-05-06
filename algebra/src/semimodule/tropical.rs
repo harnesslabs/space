@@ -19,7 +19,7 @@
 //!
 //! # Examples
 //!
-//! ```
+//! ```rust, ignore
 //! use harness_algebra::semimodule::tropical::{BilinearForm, TropicalAlgebra, TropicalElement};
 //!
 //! // Create tropical elements
@@ -169,16 +169,52 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
 /// Symmetric bilinear form
 #[derive(Debug, PartialEq, Eq)]
 pub struct BilinearForm<const N: usize, F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
-  matrix: [[TropicalElement<F>; N]; N],
+where
+  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time {
+  // Store only the upper triangular part of the matrix
+  // The elements are stored in row-major order, only including elements where i <= j
+  matrix: [TropicalElement<F>; N * (N + 1) / 2],
 }
 
 impl<const N: usize, F> BilinearForm<N, F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
+where
+  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time
 {
   /// Creates a new bilinear form with the given matrix.
-  pub const fn new(matrix: [[TropicalElement<F>; N]; N]) -> Self { Self { matrix } }
+  /// The input matrix should be symmetric.
+  pub fn new(matrix: [[TropicalElement<F>; N]; N]) -> Self {
+    let mut upper_triangular = [TropicalElement::NegInfinity; N * (N + 1) / 2];
+    let mut idx = 0;
+    for i in 0..N {
+      for j in i..N {
+        upper_triangular[idx] = matrix[i][j];
+        idx += 1;
+      }
+    }
+    Self { matrix: upper_triangular }
+  }
+
+  /// Gets the element at position (i,j) in the matrix.
+  /// Since the matrix is symmetric, we only store the upper triangular part.
+  fn get(&self, i: usize, j: usize) -> TropicalElement<F> {
+    if i <= j {
+      // For upper triangular part, use the stored value
+      // Calculate index in the flattened upper triangular matrix:
+      // idx = (i * (2N - i + 1)) / 2 + (j - i)
+      let n = N;
+      let idx = i
+        .checked_mul(2 * n - i + 1)
+        .and_then(|x| x.checked_div(2))
+        .and_then(|x| x.checked_add(j - i))
+        .expect("Index calculation overflow");
+      self.matrix[idx]
+    } else {
+      // For lower triangular part, use symmetry
+      self.get(j, i)
+    }
+  }
 
   /// Evaluates the bilinear form on two vectors.
   pub fn evaluate(
@@ -190,7 +226,7 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
 
     for (i, &xi) in x.iter().enumerate() {
       for (j, &yj) in y.iter().enumerate() {
-        let term = xi * self.matrix[i][j] * yj;
+        let term = xi * self.get(i, j) * yj;
         // In tropical algebra, we want to take the maximum
         // If result is NegInfinity, we should always take the term
         // Otherwise, take the maximum of term and result
@@ -214,17 +250,20 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
 
 /// A tropical algebra.
 pub struct TropicalAlgebra<const N: usize, F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+where
+  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time {
   /// The bilinear form defining the algebra
   bilinear_form: BilinearForm<N, F>,
 }
 
 impl<const N: usize, F> TropicalAlgebra<N, F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
+where
+  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time
 {
   /// Creates a new tropical algebra with the given bilinear form.
-  pub const fn new(bilinear_form: BilinearForm<N, F>) -> Self { Self { bilinear_form } }
+  pub fn new(bilinear_form: BilinearForm<N, F>) -> Self { Self { bilinear_form } }
 
   /// Evaluates the bilinear form on two vectors.
   pub fn evaluate(

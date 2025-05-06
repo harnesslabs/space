@@ -106,6 +106,20 @@ impl MulAssign for Boolean {
   fn mul_assign(&mut self, rhs: Self) { self.0 &= rhs.0; }
 }
 
+/// Trait for types that have a concept of positive infinity.
+pub trait Infinity {
+  /// Returns the positive infinity value for the type.
+  fn infinity() -> Self;
+}
+
+impl Infinity for f32 {
+  fn infinity() -> Self { f32::INFINITY }
+}
+
+impl Infinity for f64 {
+  fn infinity() -> Self { f64::INFINITY }
+}
+
 impl Additive for Boolean {}
 impl Multiplicative for Boolean {}
 
