@@ -187,9 +187,9 @@ where
   pub fn new(matrix: [[TropicalElement<F>; N]; N]) -> Self {
     let mut upper_triangular = [TropicalElement::NegInfinity; N * (N + 1) / 2];
     let mut idx = 0;
-    for i in 0..N {
-      for j in i..N {
-        upper_triangular[idx] = matrix[i][j];
+    for (i, row) in matrix.iter().enumerate() {
+      for (_j, &element) in row.iter().enumerate().skip(i) {
+        upper_triangular[idx] = element;
         idx += 1;
       }
     }
