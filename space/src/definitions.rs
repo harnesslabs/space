@@ -38,6 +38,9 @@ pub trait Set {
   /// # Arguments
   /// * `other` - The set to union with this set
   fn union(&self, other: &Self) -> Self;
+
+  /// Checks if the set is empty
+  fn is_empty(&self) -> bool;
 }
 
 /// A trait for topological spaces.
@@ -53,7 +56,7 @@ pub trait TopologicalSpace {
   /// The type of points in the space
   type Point;
   /// The type representing open sets in the space
-  type OpenSet: Set<Point = Self::Point>;
+  type OpenSet: Set<Point = Self::Point> + Clone;
 
   /// Returns a neighborhood of a given point.
   ///

@@ -151,9 +151,7 @@ impl Set for Graph<Undirected> {
       .edges
       .iter()
       .filter(|(u, v)| {
-        self.vertices.contains(u)
-          && self.vertices.contains(v)
-          && !other.edges.contains(&(*u, *v))
+        self.vertices.contains(u) && self.vertices.contains(v) && !other.edges.contains(&(*u, *v))
       })
       .cloned()
       .collect();
@@ -178,6 +176,8 @@ impl Set for Graph<Undirected> {
     let edges: HashSet<(usize, usize)> = self.edges.union(&other.edges).cloned().collect();
     Self::new(vertices, edges)
   }
+
+  fn is_empty(&self) -> bool { self.vertices.is_empty() }
 }
 
 impl Set for HashSet<GraphPoint> {
@@ -190,6 +190,8 @@ impl Set for HashSet<GraphPoint> {
   fn intersect(&self, other: &Self) -> Self { self.intersection(other).cloned().collect() }
 
   fn union(&self, other: &Self) -> Self { self.union(other).cloned().collect() }
+
+  fn is_empty(&self) -> bool { self.is_empty() }
 }
 
 impl TopologicalSpace for Graph<Undirected> {

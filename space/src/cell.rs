@@ -264,6 +264,8 @@ mod tests {
       let pts = self.points.difference(&other.points).cloned().collect();
       Self { points: pts }
     }
+
+    fn is_empty(&self) -> bool { self.points.is_empty() }
   }
 
   impl IntoIterator for TestOpenSet {
