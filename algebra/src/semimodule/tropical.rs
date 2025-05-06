@@ -61,7 +61,7 @@ use crate::{
 /// In tropical algebra:
 /// - Addition (⊕) is defined as maximum: a ⊕ b = max(a, b)
 /// - Multiplication (⊗) is defined as addition: a ⊗ b = a + b
-/// - Zero is -∞ 
+/// - Zero is -∞
 /// - One is 0
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
 pub enum TropicalElement<F>
