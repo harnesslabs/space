@@ -4,41 +4,7 @@
 //! used in topology and geometry. The traits form a hierarchy from basic set operations
 //! up through inner product spaces.
 
-/// A trait for sets that support basic set operations.
-///
-/// This trait defines the fundamental operations that can be performed on sets:
-/// containment testing, set difference, intersection, and union.
-///
-/// # Type Parameters
-/// * `Point` - The type of elements contained in the set
-pub trait Set {
-  /// The type of elements contained in the set
-  type Point;
-
-  /// Tests if a point is contained in the set.
-  ///
-  /// # Arguments
-  /// * `point` - The point to test for containment
-  fn contains(&self, point: &Self::Point) -> bool;
-
-  /// Computes the set difference (self - other).
-  ///
-  /// # Arguments
-  /// * `other` - The set to subtract from this set
-  fn difference(&self, other: &Self) -> Self;
-
-  /// Computes the intersection of two sets.
-  ///
-  /// # Arguments
-  /// * `other` - The set to intersect with this set
-  fn intersect(&self, other: &Self) -> Self;
-
-  /// Computes the union of two sets.
-  ///
-  /// # Arguments
-  /// * `other` - The set to union with this set
-  fn union(&self, other: &Self) -> Self;
-}
+use crate::set::Set;
 
 /// A trait for topological spaces.
 ///

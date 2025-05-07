@@ -7,7 +7,7 @@
 
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
-use crate::definitions::Set;
+use crate::{definitions::TopologicalSpace, set::Set};
 
 /// Private module to implement the sealed trait pattern.
 /// This prevents other crates from implementing DirectedType.
@@ -25,6 +25,7 @@ pub trait DirectedType: sealed::Sealed {
 }
 
 /// Type marker for undirected graphs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Undirected;
 impl sealed::Sealed for Undirected {}
 impl DirectedType for Undirected {
@@ -32,6 +33,7 @@ impl DirectedType for Undirected {
 }
 
 /// Type marker for directed graphs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Directed;
 impl sealed::Sealed for Directed {}
 impl DirectedType for Directed {
@@ -130,7 +132,7 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
   ///
   /// The resulting graph contains vertices and edges that are in `self` but not in `other`.
   /// Note that edges are only included if both their vertices are in the result.
-  fn difference(&self, other: &Self) -> Self {
+  fn minus(&self, other: &Self) -> Self {
     let vertices: HashSet<V> = self.vertices.difference(&other.vertices).cloned().collect();
 
     let edges: HashSet<(V, V)> = self
@@ -150,7 +152,7 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
   /// Computes the intersection of two graphs.
   ///
   /// The resulting graph contains vertices and edges that are in both graphs.
-  fn intersect(&self, other: &Self) -> Self {
+  fn meet(&self, other: &Self) -> Self {
     let vertices: HashSet<V> = self.vertices.intersection(&other.vertices).cloned().collect();
     let edges: HashSet<(V, V)> = self.edges.intersection(&other.edges).cloned().collect();
     Self::new(vertices, edges)
@@ -159,15 +161,41 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
   /// Computes the union of two graphs.
   ///
   /// The resulting graph contains all vertices and edges from both graphs.
-  fn union(&self, other: &Self) -> Self {
+  fn join(&self, other: &Self) -> Self {
     let vertices: HashSet<V> = self.vertices.union(&other.vertices).cloned().collect();
     let edges: HashSet<(V, V)> = self.edges.union(&other.edges).cloned().collect();
     Self::new(vertices, edges)
   }
+
+  fn is_empty(&self) -> bool { self.vertices.is_empty() }
 }
 
-// TODO: Implement TopologicalSpace and MetricSpace traits
-// Commented implementations left for reference
+impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> TopologicalSpace for Graph<V, D> {
+  type OpenSet = HashSet<GraphPoint<V>>;
+  type Point = GraphPoint<V>;
+
+  fn neighborhood(&self, point: Self::Point) -> Self::OpenSet {
+    let mut neighborhood = HashSet::new();
+    match point {
+      GraphPoint::Vertex(v) => {
+        neighborhood.insert(GraphPoint::Vertex(v.clone()));
+        for (u, w) in self.edges.clone().into_iter().filter(|(u, _)| *u == v) {
+          neighborhood.insert(GraphPoint::EdgePoint(u, w));
+        }
+      },
+      GraphPoint::EdgePoint(u, v) => {
+        neighborhood.insert(GraphPoint::EdgePoint(u.clone(), v.clone()));
+        neighborhood.insert(GraphPoint::Vertex(v));
+        neighborhood.insert(GraphPoint::Vertex(u));
+      },
+    }
+    neighborhood
+  }
+
+  fn is_open(&self, open_set: Self::OpenSet) -> bool {
+    open_set.iter().all(|point| self.contains(point))
+  }
+}
 
 #[cfg(test)]
 mod tests {
