@@ -7,7 +7,7 @@
 
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
-use crate::definitions::{Set, TopologicalSpace};
+use crate::{definitions::TopologicalSpace, set::Set};
 
 /// Private module to implement the sealed trait pattern.
 /// This prevents other crates from implementing DirectedType.
@@ -25,6 +25,7 @@ pub trait DirectedType: sealed::Sealed {
 }
 
 /// Type marker for undirected graphs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Undirected;
 impl sealed::Sealed for Undirected {}
 impl DirectedType for Undirected {
@@ -32,6 +33,7 @@ impl DirectedType for Undirected {
 }
 
 /// Type marker for directed graphs.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct Directed;
 impl sealed::Sealed for Directed {}
 impl DirectedType for Directed {
@@ -166,20 +168,6 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
   }
 
   fn is_empty(&self) -> bool { self.vertices.is_empty() }
-}
-
-impl<V: PartialOrd + Eq + Hash + Clone> Set for HashSet<GraphPoint<V>> {
-  type Point = GraphPoint<V>;
-
-  fn contains(&self, point: &Self::Point) -> bool { self.contains(point) }
-
-  fn difference(&self, other: &Self) -> Self { self.difference(other).cloned().collect() }
-
-  fn intersect(&self, other: &Self) -> Self { self.intersection(other).cloned().collect() }
-
-  fn union(&self, other: &Self) -> Self { self.union(other).cloned().collect() }
-
-  fn is_empty(&self) -> bool { self.is_empty() }
 }
 
 impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> TopologicalSpace for Graph<V, D> {

@@ -42,8 +42,9 @@ use std::{
 use harness_algebra::{ring::Field, vector::DynVector};
 
 use crate::{
-  definitions::{Set, TopologicalSpace},
+  definitions::TopologicalSpace,
   graph::{Graph, GraphPoint, Undirected},
+  set::Set,
 };
 
 /// A trait representing a cellular sheaf over a topological space.
@@ -69,7 +70,8 @@ pub trait Presheaf<T: TopologicalSpace> {
 ///
 /// A sheaf satisfies the gluing axiom: locally compatible sections can be uniquely glued
 /// to a global section over the union of their domains.
-pub trait Sheaf<T: TopologicalSpace>: Presheaf<T> {
+pub trait Sheaf<T: TopologicalSpace>: Presheaf<T>
+where <T as TopologicalSpace>::OpenSet: Clone {
   /// Attempts to glue a list of local sections into a single global section.
   ///
   /// Returns `Some(section)` if all sections agree on overlaps, giving a section over
@@ -137,18 +139,18 @@ pub trait Section<T: TopologicalSpace>: PartialEq {
 }
 
 // TODO: I think we really want matrices on the edges, so we should go full tensor now.
-impl<F: Field + Copy, V: Set> Section<Graph<V, Undirected>>
+impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Section<Graph<V, Undirected>>
   for HashMap<GraphPoint<V>, DynVector<F>>
 {
   type Stalk = DynVector<F>;
 
-  fn evaluate(&self, point: &GraphPoint) -> Option<Self::Stalk> { self.get(point).cloned() }
+  fn evaluate(&self, point: &GraphPoint<V>) -> Option<Self::Stalk> { self.get(point).cloned() }
 
-  fn domain(&self) -> HashSet<GraphPoint> { self.keys().cloned().collect() }
+  fn domain(&self) -> HashSet<GraphPoint<V>> { self.keys().cloned().collect() }
 
   /// Construct a section by giving its domain and a pointwise evaluation function
-  fn from_closure<G>(domain: HashSet<GraphPoint>, f: G) -> Self
-  where G: Fn(&GraphPoint) -> Option<Self::Stalk> + 'static {
+  fn from_closure<G>(domain: HashSet<GraphPoint<V>>, f: G) -> Self
+  where G: Fn(&GraphPoint<V>) -> Option<Self::Stalk> + 'static {
     let mut section = HashMap::with_capacity(domain.len());
     for pt in domain {
       if let Some(val) = f(&pt) {
@@ -161,9 +163,9 @@ impl<F: Field + Copy, V: Set> Section<Graph<V, Undirected>>
 
 /// A cellular sheaf on a graph where vertices and edges can have different dimensional stalks
 #[derive(Debug, Clone)]
-pub struct GraphSheaf<V> {
+pub struct GraphSheaf<F, V> {
   /// Undirected Graph
-  _graph:                Graph<Undirected>,
+  _graph:                Graph<V, Undirected>,
   /// Dimension of the vertex sections
   _vertex_dimension:     usize,
   /// Dimension of edge sections
@@ -172,12 +174,16 @@ pub struct GraphSheaf<V> {
   _restriction_matrices: HashMap<(usize, usize), Vec<Vec<f64>>>, /* Maps edges to restriction
                                                                   * matrices */
   /// field type
-  _type:                 PhantomData<V>,
+  _type:                 PhantomData<F>,
 }
 
-impl<V> GraphSheaf<V> {
+impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> GraphSheaf<F, V> {
   /// builds a new sheaf over a graph
-  pub fn new(_graph: Graph<Undirected>, _vertex_dimension: usize, _edge_dimension: usize) -> Self {
+  pub fn new(
+    _graph: Graph<V, Undirected>,
+    _vertex_dimension: usize,
+    _edge_dimension: usize,
+  ) -> Self {
     Self {
       _graph,
       _vertex_dimension,
@@ -188,15 +194,17 @@ impl<V> GraphSheaf<V> {
   }
 }
 
-impl<F: Field + Copy> Presheaf<Graph<Undirected>> for GraphSheaf<F> {
+impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Presheaf<Graph<V, Undirected>>
+  for GraphSheaf<F, V>
+{
   type Data = DynVector<F>;
-  type Section = HashMap<GraphPoint, DynVector<F>>;
+  type Section = HashMap<GraphPoint<V>, DynVector<F>>;
 
   fn restrict(
     &self,
     section: &Self::Section,
-    _from: &HashSet<GraphPoint>,
-    to: &HashSet<GraphPoint>,
+    _from: &HashSet<GraphPoint<V>>,
+    to: &HashSet<GraphPoint<V>>,
   ) -> Self::Section {
     // Simply drop any points not in `to`
     section
@@ -206,7 +214,10 @@ impl<F: Field + Copy> Presheaf<Graph<Undirected>> for GraphSheaf<F> {
   }
 }
 
-impl<F: Field + Copy> Sheaf<Graph<Undirected>> for GraphSheaf<F> {}
+impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Sheaf<Graph<V, Undirected>>
+  for GraphSheaf<F, V>
+{
+}
 
 #[cfg(test)]
 mod tests {
@@ -214,7 +225,7 @@ mod tests {
 
   use super::*;
 
-  fn create_test_graph() -> Graph<Undirected> {
+  fn create_test_graph() -> Graph<usize, Undirected> {
     let mut vertices = HashSet::new();
     vertices.insert(1);
     vertices.insert(2);
@@ -228,7 +239,7 @@ mod tests {
   }
 
   // Helper to create a test GraphSheaf with restriction matrices
-  fn create_test_sheaf() -> GraphSheaf<f64> {
+  fn create_test_sheaf() -> GraphSheaf<f64, usize> {
     let graph = create_test_graph();
     let vertex_dim = 2;
     let edge_dim = 1;
@@ -474,7 +485,7 @@ mod tests {
     let sheaf = create_test_sheaf();
 
     // Attempt to glue an empty list of sections
-    let sections: Vec<HashMap<GraphPoint, DynVector<f64>>> = vec![];
+    let sections: Vec<HashMap<GraphPoint<usize>, DynVector<f64>>> = vec![];
     let glued = sheaf.glue(&sections);
 
     // The gluing should fail (can't glue nothing)
