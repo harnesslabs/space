@@ -85,7 +85,7 @@ where <T as TopologicalSpace>::OpenSet: Clone {
     // union them all up
     let mut big_union = domains.first().cloned()?;
     for dom in domains.iter().skip(1) {
-      big_union = big_union.union(dom);
+      big_union = big_union.join(dom);
     }
 
     // check pairwise compatibility
@@ -93,7 +93,7 @@ where <T as TopologicalSpace>::OpenSet: Clone {
       let ui = si.domain();
       for sj in sections.iter().skip(i + 1) {
         let uj = sj.domain();
-        let overlap = ui.intersect(&uj);
+        let overlap = ui.meet(&uj);
         if !overlap.is_empty() {
           let ri = self.restrict(si, &ui, &overlap);
           let rj = self.restrict(sj, &uj, &overlap);
@@ -139,7 +139,7 @@ pub trait Section<T: TopologicalSpace>: PartialEq {
   where F: Fn(&<T as TopologicalSpace>::Point) -> Option<Self::Stalk>;
 }
 
-impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone, S: BuildHasher + Default>
+impl<F: Field + Copy, V: PartialOrd + Eq + Hash + Clone, S: BuildHasher + Default>
   Section<Graph<V, Undirected>> for HashMap<GraphPoint<V>, DynVector<F>, S>
 {
   type Stalk = DynVector<F>;
@@ -177,7 +177,7 @@ pub struct GraphSheaf<F, V> {
   _type:                    PhantomData<F>,
 }
 
-impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> GraphSheaf<F, V> {
+impl<F: Field + Copy, V: PartialOrd + Eq + Hash + Clone> GraphSheaf<F, V> {
   /// builds a new sheaf over a graph
   pub fn new(graph: Graph<V, Undirected>, vertex_dimension: usize, edge_dimension: usize) -> Self {
     Self {
@@ -190,7 +190,7 @@ impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> GraphSheaf<F
   }
 }
 
-impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Presheaf<Graph<V, Undirected>>
+impl<F: Field + Copy, V: PartialOrd + Eq + Hash + Clone> Presheaf<Graph<V, Undirected>>
   for GraphSheaf<F, V>
 {
   type Data = DynVector<F>;
@@ -210,7 +210,7 @@ impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Presheaf<Gra
   }
 }
 
-impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Sheaf<Graph<V, Undirected>>
+impl<F: Field + Copy, V: PartialOrd + Eq + Hash + Clone> Sheaf<Graph<V, Undirected>>
   for GraphSheaf<F, V>
 {
 }
