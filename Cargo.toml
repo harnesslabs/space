@@ -4,8 +4,8 @@ resolver = "2"
 
 [workspace.dependencies]
 # Local dependencies
-harness-algebra = { version = "*", path = "algebra" }
-harness-space   = { version = "*", path = "space" }
+harness-algebra = { path = "algebra" }
+harness-space   = { path = "space" }
 
 # External dependencies
 itertools  = "0.14"
