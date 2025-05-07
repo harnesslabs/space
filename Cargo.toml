@@ -10,4 +10,6 @@ harness-space   = { path = "space" }
 # External dependencies
 itertools  = { version = "0.14" }
 num-traits = { version = "0.2" }
-termgraph  = { version = "0.4" }
+
+# Development dependencies
+tempfile = { version = "3.19" }
