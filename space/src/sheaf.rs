@@ -36,6 +36,7 @@
 //! on graphs, and modeling systems where local data must satisfy global constraints.
 use std::{
   collections::{HashMap, HashSet},
+  hash::{BuildHasher, Hash},
   marker::PhantomData,
 };
 
@@ -79,7 +80,7 @@ where <T as TopologicalSpace>::OpenSet: Clone {
   fn glue(&self, sections: &[Self::Section]) -> Option<Self::Section>
   where <Self as Presheaf<T>>::Section: 'static {
     // collect domains
-    let domains: Vec<_> = sections.iter().map(|s| s.domain()).collect();
+    let domains: Vec<_> = sections.iter().map(Self::Section::domain).collect();
     let sections = sections.to_vec();
     // union them all up
     let mut big_union = domains.first().cloned()?;
@@ -105,8 +106,8 @@ where <T as TopologicalSpace>::OpenSet: Clone {
     }
 
     // piecewise construction
-    //—you’ll need a constructor like Section::from_closure(domain, f)
-    Some(Self::Section::from_closure(big_union.clone(), move |pt| {
+    //—you'll need a constructor like Section::from_closure(domain, f)
+    Some(Self::Section::from_closure(big_union, move |pt| {
       // pick the first local section whose domain contains pt
       for sec in sections.clone() {
         if sec.domain().contains(pt) {
@@ -135,12 +136,11 @@ pub trait Section<T: TopologicalSpace>: PartialEq {
 
   /// Construct a section by giving its domain and a pointwise evaluation function
   fn from_closure<F>(domain: <T as TopologicalSpace>::OpenSet, f: F) -> Self
-  where F: Fn(&<T as TopologicalSpace>::Point) -> Option<Self::Stalk> + 'static;
+  where F: Fn(&<T as TopologicalSpace>::Point) -> Option<Self::Stalk>;
 }
 
-// TODO: I think we really want matrices on the edges, so we should go full tensor now.
-impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Section<Graph<V, Undirected>>
-  for HashMap<GraphPoint<V>, DynVector<F>>
+impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone, S: BuildHasher + Default>
+  Section<Graph<V, Undirected>> for HashMap<GraphPoint<V>, DynVector<F>, S>
 {
   type Stalk = DynVector<F>;
 
@@ -150,8 +150,8 @@ impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Section<Grap
 
   /// Construct a section by giving its domain and a pointwise evaluation function
   fn from_closure<G>(domain: HashSet<GraphPoint<V>>, f: G) -> Self
-  where G: Fn(&GraphPoint<V>) -> Option<Self::Stalk> + 'static {
-    let mut section = HashMap::with_capacity(domain.len());
+  where G: Fn(&GraphPoint<V>) -> Option<Self::Stalk> {
+    let mut section = Self::with_capacity_and_hasher(domain.len(), S::default());
     for pt in domain {
       if let Some(val) = f(&pt) {
         section.insert(pt, val);
@@ -165,30 +165,26 @@ impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> Section<Grap
 #[derive(Debug, Clone)]
 pub struct GraphSheaf<F, V> {
   /// Undirected Graph
-  _graph:                Graph<V, Undirected>,
+  pub graph:                Graph<V, Undirected>,
   /// Dimension of the vertex sections
-  _vertex_dimension:     usize,
+  pub vertex_dimension:     usize,
   /// Dimension of edge sections
-  _edge_dimension:       usize,
+  pub edge_dimension:       usize,
   /// restriction maps from vertices to edges
-  _restriction_matrices: HashMap<(usize, usize), Vec<Vec<f64>>>, /* Maps edges to restriction
-                                                                  * matrices */
+  pub restriction_matrices: HashMap<(usize, usize), Vec<Vec<f64>>>, /* Maps edges to restriction
+                                                                     * matrices */
   /// field type
-  _type:                 PhantomData<F>,
+  _type:                    PhantomData<F>,
 }
 
 impl<F: Field + Copy, V: PartialOrd + Eq + std::hash::Hash + Clone> GraphSheaf<F, V> {
   /// builds a new sheaf over a graph
-  pub fn new(
-    _graph: Graph<V, Undirected>,
-    _vertex_dimension: usize,
-    _edge_dimension: usize,
-  ) -> Self {
+  pub fn new(graph: Graph<V, Undirected>, vertex_dimension: usize, edge_dimension: usize) -> Self {
     Self {
-      _graph,
-      _vertex_dimension,
-      _edge_dimension,
-      _restriction_matrices: HashMap::new(),
+      graph,
+      vertex_dimension,
+      edge_dimension,
+      restriction_matrices: HashMap::new(),
       _type: PhantomData,
     }
   }
@@ -249,19 +245,19 @@ mod tests {
     // Add restriction matrices for each edge
     // For vertex 1 to edge (1,2)
     let r1_12 = vec![vec![1.0], vec![0.0]]; // Projects to first component
-    sheaf._restriction_matrices.insert((1, 2), r1_12);
+    sheaf.restriction_matrices.insert((1, 2), r1_12);
 
     // For vertex 2 to edge (1,2)
     let r2_12 = vec![vec![0.0], vec![1.0]]; // Projects to second component
-    sheaf._restriction_matrices.insert((2, 1), r2_12);
+    sheaf.restriction_matrices.insert((2, 1), r2_12);
 
     // For vertex 2 to edge (2,3)
     let r2_23 = vec![vec![1.0], vec![0.0]]; // Projects to first component
-    sheaf._restriction_matrices.insert((2, 3), r2_23);
+    sheaf.restriction_matrices.insert((2, 3), r2_23);
 
     // For vertex 3 to edge (2,3)
     let r3_23 = vec![vec![0.0], vec![1.0]]; // Projects to second component
-    sheaf._restriction_matrices.insert((3, 2), r3_23);
+    sheaf.restriction_matrices.insert((3, 2), r3_23);
 
     sheaf
   }
