@@ -76,6 +76,10 @@ pub trait Set {
   fn is_empty(&self) -> bool;
 }
 
+pub trait Poset: Set {
+  fn leq(&self, a: &Self::Point, b: &Self::Point) -> Option<bool>;
+}
+
 impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
   type Point = T;
 
@@ -102,6 +106,16 @@ impl<T: Ord + Clone> Set for BTreeSet<T> {
   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
 
   fn is_empty(&self) -> bool { Self::is_empty(self) }
+}
+
+impl<T: Ord + Clone> Poset for BTreeSet<T> {
+  fn leq(&self, a: &Self::Point, b: &Self::Point) -> Option<bool> {
+    if self.contains(a) && self.contains(b) {
+      Some(a <= b)
+    } else {
+      None
+    }
+  }
 }
 
 #[cfg(test)]
