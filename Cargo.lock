@@ -16,14 +16,14 @@ checksum = "48c757948c5ede0e46177b7add2e67155f70e33c07fea8284df6576da70b3719"
 
 [[package]]
 name = "harness-algebra"
-version = "0.2.1"
+version = "0.2.0"
 dependencies = [
  "num-traits",
 ]
 
 [[package]]
 name = "harness-space"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "harness-algebra",
  "itertools",
