@@ -1,4 +1,7 @@
-use std::collections::{BTreeSet, HashSet};
+use std::{
+  collections::{BTreeSet, HashSet},
+  hash::{BuildHasher, Hash},
+};
 
 /// A trait for sets that support basic set operations.
 ///
@@ -43,30 +46,30 @@ pub trait Set {
   fn is_empty(&self) -> bool;
 }
 
-impl<T> Set for HashSet<T> {
+impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
   type Point = T;
 
-  fn contains(&self, point: &Self::Point) -> bool { self.contains(point) }
+  fn contains(&self, point: &Self::Point) -> bool { Self::contains(self, point) }
 
-  fn difference(&self, other: &Self) -> Self { self.difference(other).cloned().collect() }
+  fn difference(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
 
-  fn intersect(&self, other: &Self) -> Self { self.intersection(other).cloned().collect() }
+  fn intersect(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
 
-  fn union(&self, other: &Self) -> Self { self.union(other).cloned().collect() }
+  fn union(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
 
-  fn is_empty(&self) -> bool { self.is_empty() }
+  fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
 
-impl<T> Set for BTreeSet<T> {
+impl<T: Ord + Clone> Set for BTreeSet<T> {
   type Point = T;
 
-  fn contains(&self, point: &Self::Point) -> bool { self.contains(point) }
+  fn contains(&self, point: &Self::Point) -> bool { Self::contains(self, point) }
 
-  fn difference(&self, other: &Self) -> Self { self.difference(other).cloned().collect() }
+  fn difference(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
 
-  fn intersect(&self, other: &Self) -> Self { self.intersection(other).cloned().collect() }
+  fn intersect(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
 
-  fn union(&self, other: &Self) -> Self { self.union(other).cloned().collect() }
+  fn union(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
 
-  fn is_empty(&self) -> bool { self.is_empty() }
+  fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
