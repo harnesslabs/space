@@ -28,6 +28,7 @@ dependencies = [
  "harness-algebra",
  "itertools",
  "num-traits",
+ "termgraph",
 ]
 
 [[package]]
@@ -47,3 +48,9 @@ checksum = "071dfc062690e90b734c0b2273ce72ad0ffa95f0c74596bc250dcfd960262841"
 dependencies = [
  "autocfg",
 ]
+
+[[package]]
+name = "termgraph"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8f78f23e6418b6ca453bf772e03567961c181230eb5bab587c7e3b186ae6fb42"

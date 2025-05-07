@@ -8,5 +8,6 @@ harness-algebra = { path = "algebra" }
 harness-space   = { path = "space" }
 
 # External dependencies
-itertools  = "0.14"
-num-traits = "0.2"
+itertools  = { version = "0.14" }
+num-traits = { version = "0.2" }
+termgraph  = { version = "0.4" }
