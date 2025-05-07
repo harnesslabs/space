@@ -7,7 +7,7 @@
 
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
-use crate::definitions::Set;
+use crate::definitions::{Set, TopologicalSpace};
 
 /// Private module to implement the sealed trait pattern.
 /// This prevents other crates from implementing DirectedType.
@@ -164,10 +164,50 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
     let edges: HashSet<(V, V)> = self.edges.union(&other.edges).cloned().collect();
     Self::new(vertices, edges)
   }
+
+  fn is_empty(&self) -> bool { self.vertices.is_empty() }
 }
 
-// TODO: Implement TopologicalSpace and MetricSpace traits
-// Commented implementations left for reference
+impl<V: PartialOrd + Eq + Hash + Clone> Set for HashSet<GraphPoint<V>> {
+  type Point = GraphPoint<V>;
+
+  fn contains(&self, point: &Self::Point) -> bool { self.contains(point) }
+
+  fn difference(&self, other: &Self) -> Self { self.difference(other).cloned().collect() }
+
+  fn intersect(&self, other: &Self) -> Self { self.intersection(other).cloned().collect() }
+
+  fn union(&self, other: &Self) -> Self { self.union(other).cloned().collect() }
+
+  fn is_empty(&self) -> bool { self.is_empty() }
+}
+
+impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> TopologicalSpace for Graph<V, D> {
+  type OpenSet = HashSet<GraphPoint<V>>;
+  type Point = GraphPoint<V>;
+
+  fn neighborhood(&self, point: Self::Point) -> Self::OpenSet {
+    let mut neighborhood = HashSet::new();
+    match point {
+      GraphPoint::Vertex(v) => {
+        neighborhood.insert(GraphPoint::Vertex(v.clone()));
+        for (u, w) in self.edges.clone().into_iter().filter(|(u, _)| *u == v) {
+          neighborhood.insert(GraphPoint::EdgePoint(u, w));
+        }
+      },
+      GraphPoint::EdgePoint(u, v) => {
+        neighborhood.insert(GraphPoint::EdgePoint(u.clone(), v.clone()));
+        neighborhood.insert(GraphPoint::Vertex(v));
+        neighborhood.insert(GraphPoint::Vertex(u));
+      },
+    }
+    neighborhood
+  }
+
+  fn is_open(&self, open_set: Self::OpenSet) -> bool {
+    open_set.iter().all(|point| self.contains(point))
+  }
+}
 
 #[cfg(test)]
 mod tests {

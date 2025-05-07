@@ -38,6 +38,13 @@ pub trait Set {
   /// # Arguments
   /// * `other` - The set to union with this set
   fn union(&self, other: &Self) -> Self;
+
+  /// Tests if the set is empty.
+  ///
+  /// # Returns
+  /// * `true` if the set is empty
+  /// * `false` otherwise
+  fn is_empty(&self) -> bool;
 }
 
 /// A trait for topological spaces.

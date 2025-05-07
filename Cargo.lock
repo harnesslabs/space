@@ -25,6 +25,7 @@ dependencies = [
 name = "harness-space"
 version = "0.1.2"
 dependencies = [
+ "harness-algebra",
  "itertools",
  "num-traits",
 ]
