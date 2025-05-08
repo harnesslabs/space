@@ -3,6 +3,7 @@
 
 pub mod definitions;
 pub mod graph;
+pub mod lattice;
 pub mod set;
 pub mod sheaf;
 pub mod simplicial;
