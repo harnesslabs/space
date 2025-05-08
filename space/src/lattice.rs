@@ -1,35 +1,125 @@
+//! # Lattice Module
+//! Defines a generic lattice data structure and associated operations.
+//! This module provides `Lattice<T>`, a structure capable of representing
+//! any partially ordered set where `T` is the type of elements in the lattice.
+//!
+//! ## Features
+//! - Creation of lattices and addition of elements and relations (`a ≤ b`).
+//! - Automatic computation of transitive closure to represent all implied relations.
+//! - Checking for relations (`leq`).
+//! - Finding minimal and maximal elements.
+//! - Computation of join (least upper bound) and meet (greatest lower bound) of elements.
+//! - Exporting the lattice structure to a DOT file format for visualization (e.g., with Graphviz).
+//!
+//! ## Type Constraints
+//! - The element type `T` must implement `std::hash::Hash`, `std::cmp::Eq`, and `std::clone::Clone`
+//!   for basic lattice operations.
+//! - For generating DOT file output using `save_to_dot_file`, `T` must also implement
+//!   `std::fmt::Display` (for node labels) and `std::cmp::Ord` (for consistent output ordering).
+//!
+//! ## Example Usage
+//! ```
+//! use harness_space::lattice::Lattice;
+//!
+//! // Create a new lattice for integers
+//! let mut lattice: Lattice<i32> = Lattice::new();
+//!
+//! // Add elements and relations (e.g., a simple chain 1 ≤ 2 ≤ 3)
+//! lattice.add_relation(1, 2);
+//! lattice.add_relation(2, 3);
+//!
+//! // Check relations
+//! assert!(lattice.leq(&1, &3));
+//! assert!(!lattice.leq(&3, &1));
+//!
+//! // Find minimal and maximal elements
+//! let minimal = lattice.minimal_elements();
+//! assert!(minimal.contains(&1) && minimal.len() == 1);
+//! let maximal = lattice.maximal_elements();
+//! assert!(maximal.contains(&3) && maximal.len() == 1);
+//!
+//! // Compute join and meet (for a diamond lattice, for example)
+//! let mut diamond: Lattice<char> = Lattice::new();
+//! diamond.add_relation('d', 'b'); // d is bottom
+//! diamond.add_relation('d', 'c');
+//! diamond.add_relation('b', 'a'); // a is top
+//! diamond.add_relation('c', 'a');
+//!
+//! assert_eq!(diamond.join('b', 'c'), Some('a'));
+//! assert_eq!(diamond.meet('b', 'c'), Some('d'));
+//!
+//! // Save to a DOT file (requires T: Display + Ord)
+//! // if let Err(e) = diamond.save_to_dot_file("diamond_lattice.dot") {
+//! //     eprintln!("Failed to save: {}", e);
+//! // }
+//! ```
+
 use std::{
   collections::{HashMap, HashSet},
-  fmt::Write as FmtWrite,
   fs::File,
   hash::Hash,
   io::{Result as IoResult, Write as IoWrite},
 };
 
-/// A node in a lattice representing an element and its relationships
+/// A node in a lattice representing an element and its relationships.
+///
+/// Each node stores an element of type `T` and maintains sets of its direct
+/// successors (elements greater than this one) and direct predecessors
+/// (elements less than this one) in the partial order.
 #[derive(Debug, Clone)]
 pub struct LatticeNode<T> {
-  /// The element stored in this node
+  /// The element stored in this node.
   element:      T,
-  /// Direct successors (elements that are greater than this one)
+  /// Direct successors (elements that are greater than this one according to the
+  /// lattice's partial order).
   successors:   HashSet<T>,
-  /// Direct predecessors (elements that are less than this one)
+  /// Direct predecessors (elements that are less than this one according to the
+  /// lattice's partial order).
   predecessors: HashSet<T>,
 }
 
 /// A general lattice structure that can represent any partially ordered set
 /// with join and meet operations.
-#[derive(Debug)]
+///
+/// A lattice is a partially ordered set in which any two elements have a unique
+/// supremum (also called a least upper bound or join) and a unique infimum
+/// (also called a greatest lower bound or meet).
+/// This implementation stores elements of type `T` and their relationships.
+/// The type `T` must implement `Hash`, `Eq`, and `Clone`.
+/// For DOT file generation, `T` must also implement `Display` and `Ord`.
+#[derive(Debug, Default)]
 pub struct Lattice<T> {
-  /// Map of elements to their nodes
+  /// Map of elements to their nodes. Each key is an element in the lattice,
+  /// and its value is the `LatticeNode` containing the element's relationships.
   nodes: HashMap<T, LatticeNode<T>>,
 }
 
 impl<T: Hash + Eq + Clone> Lattice<T> {
-  /// Creates a new empty lattice
+  /// Creates a new empty lattice.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let lattice: Lattice<i32> = Lattice::new();
+  /// ```
   pub fn new() -> Self { Self { nodes: HashMap::new() } }
 
-  /// Adds a new element to the lattice
+  /// Adds a new element to the lattice.
+  ///
+  /// If the element already exists in the lattice, this method does nothing.
+  ///
+  /// # Arguments
+  ///
+  /// * `element`: The element to add to the lattice.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new();
+  /// lattice.add_element(1);
+  /// ```
   pub fn add_element(&mut self, element: T) {
     if !self.nodes.contains_key(&element) {
       self.nodes.insert(element.clone(), LatticeNode {
@@ -40,7 +130,27 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
     }
   }
 
-  /// Adds a relation a ≤ b to the lattice
+  /// Adds a relation `a ≤ b` to the lattice.
+  ///
+  /// This indicates that element `a` is less than or equal to element `b`
+  /// in the partial order. If `a` or `b` are not already in the lattice,
+  /// they are added.
+  ///
+  /// After adding the direct relation, this method also updates the transitive
+  /// closure of the lattice to ensure all indirect relationships are captured.
+  ///
+  /// # Arguments
+  ///
+  /// * `a`: The smaller element in the relation.
+  /// * `b`: The greater element in the relation.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new();
+  /// lattice.add_relation(1, 2); // 1 ≤ 2
+  /// ```
   pub fn add_relation(&mut self, a: T, b: T) {
     self.add_element(a.clone());
     self.add_element(b.clone());
@@ -91,7 +201,32 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
     }
   }
 
-  /// Checks if a ≤ b in the lattice
+  /// Checks if `a ≤ b` in the lattice.
+  ///
+  /// This method determines if element `a` is less than or equal to element `b`
+  /// according to the partial order defined in the lattice. This relies on the
+  /// precomputed transitive closure.
+  ///
+  /// # Arguments
+  ///
+  /// * `a`: The first element.
+  /// * `b`: The second element.
+  ///
+  /// # Returns
+  ///
+  /// `true` if `a ≤ b`, `false` otherwise. Returns `false` if either `a` or `b`
+  /// is not in the lattice.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new();
+  /// lattice.add_relation(1, 2);
+  /// lattice.add_relation(2, 3);
+  /// assert!(lattice.leq(&1, &3)); // Transitive: 1 ≤ 2 and 2 ≤ 3 => 1 ≤ 3
+  /// assert!(!lattice.leq(&3, &1));
+  /// ```
   pub fn leq(&self, a: &T, b: &T) -> bool {
     if let Some(node_a) = self.nodes.get(a) {
       node_a.successors.contains(b)
@@ -100,7 +235,25 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
     }
   }
 
-  /// Returns all minimal elements in the lattice
+  /// Returns all minimal elements in the lattice.
+  ///
+  /// Minimal elements are those that have no predecessors in the partial order.
+  ///
+  /// # Returns
+  ///
+  /// A `HashSet` containing all minimal elements of the lattice.
+  /// If the lattice is empty, an empty set is returned.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new();
+  /// lattice.add_relation(1, 2);
+  /// lattice.add_relation(1, 3);
+  /// let minimal = lattice.minimal_elements();
+  /// assert!(minimal.contains(&1) && minimal.len() == 1);
+  /// ```
   pub fn minimal_elements(&self) -> HashSet<T> {
     self
       .nodes
@@ -110,7 +263,25 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
       .collect()
   }
 
-  /// Returns all maximal elements in the lattice
+  /// Returns all maximal elements in the lattice.
+  ///
+  /// Maximal elements are those that have no successors in the partial order.
+  ///
+  /// # Returns
+  ///
+  /// A `HashSet` containing all maximal elements of the lattice.
+  /// If the lattice is empty, an empty set is returned.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new();
+  /// lattice.add_relation(1, 3);
+  /// lattice.add_relation(2, 3);
+  /// let maximal = lattice.maximal_elements();
+  /// assert!(maximal.contains(&3) && maximal.len() == 1);
+  /// ```
   pub fn maximal_elements(&self) -> HashSet<T> {
     self
       .nodes
@@ -120,8 +291,37 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
       .collect()
   }
 
-  /// Computes the join (least upper bound) of two elements a and b.
-  /// Returns None if the join does not exist or is not unique.
+  /// Computes the join (least upper bound) of two elements `a` and `b`.
+  ///
+  /// The join of `a` and `b` is an element `x` such that `a ≤ x` and `b ≤ x`,
+  /// and for any other element `y` with `a ≤ y` and `b ≤ y`, it holds that `x ≤ y`.
+  ///
+  /// # Arguments
+  ///
+  /// * `a`: The first element.
+  /// * `b`: The second element.
+  ///
+  /// # Returns
+  ///
+  /// An `Option<T>` containing the unique join of `a` and `b` if it exists.
+  /// Returns `None` if:
+  /// * Either `a` or `b` is not in the lattice.
+  /// * `a` and `b` have no common upper bounds.
+  /// * `a` and `b` have multiple minimal common upper bounds (i.e., the join is not unique).
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new(); // Diamond lattice
+  /// lattice.add_relation(4, 2);
+  /// lattice.add_relation(4, 3);
+  /// lattice.add_relation(2, 1);
+  /// lattice.add_relation(3, 1);
+  /// // Here, 4 is bottom, 1 is top.
+  /// assert_eq!(lattice.join(2, 3), Some(1));
+  /// assert_eq!(lattice.join(4, 2), Some(2));
+  /// ```
   pub fn join(&self, a: T, b: T) -> Option<T> {
     if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
       return None; // Elements must be in the lattice
@@ -156,8 +356,37 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
     }
   }
 
-  /// Computes the meet (greatest lower bound) of two elements a and b.
-  /// Returns None if the meet does not exist or is not unique.
+  /// Computes the meet (greatest lower bound) of two elements `a` and `b`.
+  ///
+  /// The meet of `a` and `b` is an element `x` such that `x ≤ a` and `x ≤ b`,
+  /// and for any other element `y` with `y ≤ a` and `y ≤ b`, it holds that `y ≤ x`.
+  ///
+  /// # Arguments
+  ///
+  /// * `a`: The first element.
+  /// * `b`: The second element.
+  ///
+  /// # Returns
+  ///
+  /// An `Option<T>` containing the unique meet of `a` and `b` if it exists.
+  /// Returns `None` if:
+  /// * Either `a` or `b` is not in the lattice.
+  /// * `a` and `b` have no common lower bounds.
+  /// * `a` and `b` have multiple maximal common lower bounds (i.e., the meet is not unique).
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new(); // Diamond lattice
+  /// lattice.add_relation(4, 2);
+  /// lattice.add_relation(4, 3);
+  /// lattice.add_relation(2, 1);
+  /// lattice.add_relation(3, 1);
+  /// // Here, 4 is bottom, 1 is top.
+  /// assert_eq!(lattice.meet(2, 3), Some(4));
+  /// assert_eq!(lattice.meet(1, 2), Some(2));
+  /// ```
   pub fn meet(&self, a: T, b: T) -> Option<T> {
     if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
       return None; // Elements must be in the lattice
@@ -199,6 +428,58 @@ fn escape_dot_label(label: &str) -> String { label.replace('"', "\\\"") }
 // Implementation block for methods requiring Display and Ord for T
 impl<T: Hash + Eq + Clone + std::fmt::Display + Ord> Lattice<T> {
   /// Saves the lattice representation in DOT format to the specified file.
+  ///
+  /// This method generates a string in the DOT language (used by Graphviz)
+  /// representing the Hasse diagram of the lattice and writes it to the given file.
+  /// The diagram shows only the covering relations (immediate successor/predecessor).
+  /// Elements are displayed using their `Display` implementation.
+  /// The layout is bottom-to-top (`rankdir="BT"`).
+  ///
+  /// Requires `T` to implement `std::fmt::Display` and `std::cmp::Ord`
+  /// for consistent node labeling and ordering in the output.
+  ///
+  /// # Arguments
+  ///
+  /// * `filename`: The path to the file where the DOT representation will be saved. If the file
+  ///   exists, it will be overwritten.
+  ///
+  /// # Returns
+  ///
+  /// An `IoResult<()>` which is `Ok(())` on successful write, or an `Err`
+  /// containing an `std::io::Error` if any I/O error occurs (e.g., file
+  /// creation fails).
+  ///
+  /// # Panics
+  ///
+  /// This method does not explicitly panic, but file operations can panic
+  /// under certain unrecoverable conditions (though `File::create` and `writeln!`
+  /// typically return `Result`).
+  ///
+  /// # Examples
+  ///
+  /// ```no_run
+  /// use harness_space::lattice::Lattice;
+  /// let mut lattice = Lattice::new();
+  /// lattice.add_relation("a", "b");
+  /// lattice.add_relation("b", "c");
+  /// if let Err(e) = lattice.save_to_dot_file("my_lattice.dot") {
+  ///   eprintln!("Failed to save lattice: {}", e);
+  /// }
+  /// ```
+  ///
+  /// The resulting `my_lattice.dot` file would look something like:
+  /// ```dot
+  /// digraph Lattice {
+  ///   rankdir="BT";
+  ///   node [shape=plaintext];
+  ///   "a";
+  ///   "b";
+  ///   "c";
+  ///
+  ///   "a" -> "b";
+  ///   "b" -> "c";
+  /// }
+  /// ```
   pub fn save_to_dot_file(&self, filename: &str) -> IoResult<()> {
     let mut file = File::create(filename)?;
 
