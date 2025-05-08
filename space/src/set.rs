@@ -76,7 +76,22 @@ pub trait Set {
   fn is_empty(&self) -> bool;
 }
 
+/// A trait for sets that support partial order relations.
+///
+/// This trait extends the `Set` trait with a method for checking if one point is less than or equal
+/// to another.
+///
+/// # Type Parameters
+/// * `Point` - The type of elements contained in the set
 pub trait Poset: Set {
+  /// Tests if one point is less than or equal to another.
+  ///
+  /// # Arguments
+  /// * `a` - The first point
+  /// * `b` - The second point
+  ///
+  /// # Returns
+  /// * `Some(true)` if `a` is less than or equal to `b`
   fn leq(&self, a: &Self::Point, b: &Self::Point) -> Option<bool>;
 }
 
