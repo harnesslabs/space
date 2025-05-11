@@ -1,6 +1,9 @@
 use std::collections::HashMap;
 
-use crate::lattice::Lattice;
+use crate::{definitions::TopologicalSpace, lattice::Lattice, set::Set, sheaf::Presheaf};
+
+// TODO: This has not been optimized at all, and for certain operations this may be an inefficient
+// data structure, but it works for now.
 
 /// A cell in a cell complex, representing a k-dimensional cell with its attachments
 /// to (k-1)-dimensional cells.
@@ -10,7 +13,7 @@ pub struct Cell {
   dimension:   usize,
   /// The unique identifier for this cell
   id:          usize,
-  /// The cells this cell is attached to (its boundary)
+  /// The cells this cell is attached to (its star)
   attachments: Vec<usize>,
 }
 
@@ -135,6 +138,29 @@ impl CellComplex {
   /// Returns the maximal dimension of any cell in the complex
   pub fn max_dimension(&self) -> usize {
     self.cells.values().map(|cell| cell.dimension()).max().unwrap_or(0)
+  }
+}
+
+impl Set for CellComplex {
+  type Point = todo!();
+}
+
+impl TopologicalSpace for CellComplex {
+  type OpenSet = todo!();
+  type Point = todo!();
+}
+
+impl Presheaf<CellComplex> for CellComplex {
+  type Data = todo!();
+  type Section = todo!();
+
+  fn restrict(
+    &self,
+    section: &Self::Section,
+    from: &<CellComplex as TopologicalSpace>::OpenSet,
+    to: &<CellComplex as TopologicalSpace>::OpenSet,
+  ) -> Self::Section {
+    todo!()
   }
 }
 
