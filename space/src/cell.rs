@@ -1,6 +1,13 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use crate::{definitions::TopologicalSpace, lattice::Lattice, set::Set, sheaf::Presheaf};
+use harness_algebra::{ring::Field, vector::DynVector};
+
+use crate::{
+  definitions::TopologicalSpace,
+  lattice::Lattice,
+  set::Set,
+  sheaf::{Presheaf, Section},
+};
 
 // TODO: This has not been optimized at all, and for certain operations this may be an inefficient
 // data structure, but it works for now.
@@ -142,17 +149,52 @@ impl CellComplex {
 }
 
 impl Set for CellComplex {
-  type Point = todo!();
+  type Point = Cell;
+
+  fn contains(&self, point: &Self::Point) -> bool { self.cells.contains_key(&point.id()) }
+
+  fn is_empty(&self) -> bool { self.cells.is_empty() }
+
+  fn minus(&self, _: &Self) -> Self { todo!() }
+
+  fn meet(&self, _: &Self) -> Self { todo!() }
+
+  fn join(&self, _: &Self) -> Self { todo!() }
 }
 
 impl TopologicalSpace for CellComplex {
-  type OpenSet = todo!();
-  type Point = todo!();
+  type OpenSet = HashSet<Cell>;
+  type Point = Cell;
+
+  fn neighborhood(&self, point: Self::Point) -> Self::OpenSet { todo!() }
+
+  fn is_open(&self, open_set: Self::OpenSet) -> bool { todo!() }
 }
 
-impl Presheaf<CellComplex> for CellComplex {
-  type Data = todo!();
-  type Section = todo!();
+impl<F: Field + Copy> Section<CellComplex> for HashMap<Cell, DynVector<F>> {
+  type Stalk = DynVector<F>;
+
+  fn evaluate(&self, point: &<CellComplex as TopologicalSpace>::Point) -> Option<Self::Stalk> {
+    todo!()
+  }
+
+  fn domain(&self) -> HashSet<Cell> { todo!() }
+
+  fn from_closure<G>(domain: <CellComplex as TopologicalSpace>::OpenSet, f: G) -> Self
+  where G: Fn(&<CellComplex as TopologicalSpace>::Point) -> Option<Self::Stalk> {
+    todo!()
+  }
+}
+
+pub struct CellularSheaf<F> {
+  pub complex:              CellComplex,
+  pub stalk_dimensions:     HashMap<Cell, usize>,
+  pub restriction_matrices: HashMap<(usize, usize), Vec<Vec<F>>>,
+}
+
+impl<F: Field + Copy> Presheaf<CellComplex> for CellularSheaf<F> {
+  type Data = DynVector<F>;
+  type Section = HashMap<Cell, DynVector<F>>;
 
   fn restrict(
     &self,
