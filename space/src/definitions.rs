@@ -4,7 +4,7 @@
 //! used in topology and geometry. The traits form a hierarchy from basic set operations
 //! up through inner product spaces.
 
-use crate::set::Set;
+use crate::set::{Collection, Set};
 
 /// A trait for topological spaces.
 ///
@@ -36,6 +36,10 @@ pub trait TopologicalSpace {
   fn is_open(&self, open_set: Self::OpenSet) -> bool;
 }
 
+// TODO: If a metric space is also a normed space, then it should implement both traits and have a
+// default way to compute the distance between two points using the norm.
+// TODO: Previously I had a trait for metric spaces that extended `TopologicalSpace`, but this
+// was problematic because you really get a topology from the metric.
 /// A trait for metric spaces.
 ///
 /// A metric space is a set together with a notion of distance between points.
@@ -43,7 +47,7 @@ pub trait TopologicalSpace {
 ///
 /// # Type Parameters
 /// * `Distance` - The type used to represent distances between points
-pub trait MetricSpace: TopologicalSpace {
+pub trait MetricSpace: Collection {
   /// The type used to represent distances between points
   type Distance;
 
@@ -53,9 +57,8 @@ pub trait MetricSpace: TopologicalSpace {
   /// * `point_a` - The first point
   /// * `point_b` - The second point
   fn distance(
-    &self,
-    point_a: <Self as TopologicalSpace>::Point,
-    point_b: <Self as TopologicalSpace>::Point,
+    point_a: <Self as Collection>::Point,
+    point_b: <Self as Collection>::Point,
   ) -> Self::Distance;
 }
 
@@ -74,7 +77,7 @@ pub trait NormedSpace: MetricSpace {
   ///
   /// # Arguments
   /// * `point` - The point whose norm to compute
-  fn norm(&self, point: Self::Point) -> Self::Norm;
+  fn norm(point: Self::Point) -> Self::Norm;
 }
 
 /// A trait for inner product spaces.

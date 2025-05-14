@@ -45,7 +45,7 @@ use harness_algebra::{ring::Field, vector::DynVector};
 use crate::{
   definitions::TopologicalSpace,
   graph::{Graph, GraphPoint, Undirected},
-  set::Set,
+  set::{Collection, Set},
 };
 
 /// A trait representing a cellular sheaf over a topological space.
