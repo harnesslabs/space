@@ -1,10 +1,10 @@
-use std::{collections::HashSet, hash::Hash, iter::Sum};
+use std::iter::Sum;
 
 use harness_algebra::{ring::Field, vector::Vector};
 
 use crate::{
   definitions::{MetricSpace, NormedSpace},
-  set::{Collection, Set},
+  set::Collection,
 };
 
 /// Represents a collection of points in an N-dimensional space over a field F.
