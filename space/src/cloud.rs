@@ -1,3 +1,44 @@
+//! # Cloud - Vector Set in N-dimensional Space
+//!
+//! This module defines the `Cloud` struct and its implementations, representing a collection
+//! of points (vectors) in an `N-`dimensional space.
+//!
+//! ## Overview
+//!
+//! A [`Cloud<N, F>`] is essentially a set of N-dimensional vectors with elements from a field `F`.
+//! The module provides:
+//!
+//! - Basic collection operations ([`Collection::contains`], [`Collection::is_empty`])
+//! - Metric space capabilities ([`MetricSpace::distance`])
+//! - Normed space functionality ([`NormedSpace::norm`])
+//!
+//! ## Example
+//!
+//! ```
+//! use harness_algebra::vector::Vector;
+//! use harness_space::{cloud::Cloud, prelude::*};
+//!
+//! // Create two 2D vectors
+//! let v1 = Vector([1.0, 2.0]);
+//! let v2 = Vector([3.0, 4.0]);
+//!
+//! // Create a cloud containing these vectors
+//! let cloud = Cloud::new(vec![v1, v2]);
+//!
+//! // Check if the cloud contains a vector
+//! assert!(cloud.contains(&v1));
+//!
+//! // Calculate distance between vectors
+//! let distance = Cloud::<2, f64>::distance(v1, v2);
+//! ```
+//!
+//! ## Implementation Details
+//!
+//! The `Cloud` implements several traits:
+//! - `Collection` - Basic set operations
+//! - `MetricSpace` - Distance calculations
+//! - `NormedSpace` - Norm calculations (Euclidean norm)
+
 use std::iter::Sum;
 
 use harness_algebra::{ring::Field, vector::Vector};
@@ -7,9 +48,15 @@ use crate::{
   set::Collection,
 };
 
-/// Represents a collection of points in an N-dimensional space over a field F.
+/// Defines the `Cloud` struct, representing a collection of points (vectors)
+/// in an N-dimensional space.
 ///
-/// A `Cloud` is essentially a set of vectors, providing basic set operations
+/// This module provides the `Cloud` type, which can be used to store and
+/// manage a set of points. It implements traits for basic collection operations,
+/// as well as for metric and normed space concepts, allowing for calculations
+/// like distance and norm.
+///
+/// A `Cloud` is essentially a set of vectors, providing basic [`Collection`] operations
 /// as well as metric and normed space functionalities.
 #[derive(Debug, Clone)]
 pub struct Cloud<const N: usize, F: Field> {

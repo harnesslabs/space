@@ -33,6 +33,18 @@ use std::{
   hash::{BuildHasher, Hash},
 };
 
+/// A trait for collections that support basic set operations.
+///
+/// This trait defines the fundamental operations that can be performed on collections:
+/// containment testing, and emptiness testing.
+///
+/// # Type Parameters
+/// * `Point` - The type of elements contained in the collection
+///
+/// # Implementations
+/// * `HashSet<T, S>` where `T: Hash + Eq + Clone` and `S: BuildHasher + Default`
+/// * `BTreeSet<T>` where `T: Ord + Clone`
+/// * `Vec<T>` where `T: PartialEq`
 pub trait Collection {
   /// The type of elements contained in the collection
   type Point;
