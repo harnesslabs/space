@@ -33,6 +33,24 @@ use std::{
   hash::{BuildHasher, Hash},
 };
 
+pub trait Collection {
+  /// The type of elements contained in the collection
+  type Point;
+
+  /// Tests if a point is contained in the collection.
+  ///
+  /// # Arguments
+  /// * `point` - The point to test for containment
+  fn contains(&self, point: &Self::Point) -> bool;
+
+  /// Tests if the set is empty.
+  ///
+  /// # Returns
+  /// * `true` if the set is empty
+  /// * `false` otherwise
+  fn is_empty(&self) -> bool;
+}
+
 /// A trait for sets that support basic set operations.
 ///
 /// This trait defines the fundamental operations that can be performed on sets:
@@ -40,16 +58,7 @@ use std::{
 ///
 /// # Type Parameters
 /// * `Point` - The type of elements contained in the set
-pub trait Set {
-  /// The type of elements contained in the set
-  type Point;
-
-  /// Tests if a point is contained in the set.
-  ///
-  /// # Arguments
-  /// * `point` - The point to test for containment
-  fn contains(&self, point: &Self::Point) -> bool;
-
+pub trait Set: Collection {
   /// Computes the set difference (self - other).
   ///
   /// # Arguments
@@ -67,13 +76,6 @@ pub trait Set {
   /// # Arguments
   /// * `other` - The set to union with this set
   fn join(&self, other: &Self) -> Self;
-
-  /// Tests if the set is empty.
-  ///
-  /// # Returns
-  /// * `true` if the set is empty
-  /// * `false` otherwise
-  fn is_empty(&self) -> bool;
 }
 
 /// A trait for sets that support partial order relations.
@@ -95,32 +97,36 @@ pub trait Poset: Set {
   fn leq(&self, a: &Self::Point, b: &Self::Point) -> Option<bool>;
 }
 
-impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
+impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Collection for HashSet<T, S> {
   type Point = T;
 
   fn contains(&self, point: &Self::Point) -> bool { Self::contains(self, point) }
 
+  fn is_empty(&self) -> bool { Self::is_empty(self) }
+}
+
+impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
   fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
 
   fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
 
   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
+}
+
+impl<T: Ord + Clone> Collection for BTreeSet<T> {
+  type Point = T;
+
+  fn contains(&self, point: &Self::Point) -> bool { Self::contains(self, point) }
 
   fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
 
 impl<T: Ord + Clone> Set for BTreeSet<T> {
-  type Point = T;
-
-  fn contains(&self, point: &Self::Point) -> bool { Self::contains(self, point) }
-
   fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
 
   fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
 
   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
-
-  fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
 
 impl<T: Ord + Clone> Poset for BTreeSet<T> {
@@ -131,6 +137,14 @@ impl<T: Ord + Clone> Poset for BTreeSet<T> {
       None
     }
   }
+}
+
+impl<T: PartialEq> Collection for Vec<T> {
+  type Point = T;
+
+  fn contains(&self, point: &Self::Point) -> bool { self.iter().any(|p| p == point) }
+
+  fn is_empty(&self) -> bool { self.is_empty() }
 }
 
 #[cfg(test)]

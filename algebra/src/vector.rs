@@ -31,7 +31,7 @@ where <Self as TwoSidedModule>::Ring: Field {
 /// let w = Vector::<3, f64>([4.0, 5.0, 6.0]);
 /// let sum = v + w;
 /// ```
-#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct Vector<const M: usize, F: Field>(pub [F; M]);
 
 impl<const M: usize, F: Field + Copy> Default for Vector<M, F> {
@@ -118,6 +118,14 @@ impl<const M: usize, F: Field + Copy + Mul<Self>> TwoSidedModule for Vector<M, F
 
 impl<const M: usize, F: Field + Copy + Mul<Self>> VectorSpace for Vector<M, F> {}
 
+impl<const M: usize, F: Field> From<[F; M]> for Vector<M, F> {
+  fn from(components: [F; M]) -> Self { Self(components) }
+}
+
+impl<const M: usize, F: Field + Copy> From<&[F; M]> for Vector<M, F> {
+  fn from(components: &[F; M]) -> Self { Self(*components) }
+}
+
 /// A dynamically-sized vector over a field `F`.
 ///
 /// This structure represents a mathematical vector with components from a field `F`.
@@ -125,7 +133,7 @@ impl<const M: usize, F: Field + Copy + Mul<Self>> VectorSpace for Vector<M, F> {
 ///
 /// # Type Parameters
 /// * `F` - A field type that implements the `Field` trait
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DynVector<F: Field> {
   components: Vec<F>,
   dimension:  usize,

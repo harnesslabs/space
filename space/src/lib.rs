@@ -2,6 +2,7 @@
 #![warn(missing_docs)]
 
 pub mod cell;
+pub mod cloud;
 pub mod definitions;
 pub mod graph;
 pub mod lattice;

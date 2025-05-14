@@ -7,7 +7,10 @@
 
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
-use crate::{definitions::TopologicalSpace, set::Set};
+use crate::{
+  definitions::TopologicalSpace,
+  set::{Collection, Set},
+};
 
 /// Private module to implement the sealed trait pattern.
 /// This prevents other crates from implementing DirectedType.
@@ -109,8 +112,10 @@ impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
   }
 }
 
-impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
+impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Collection for Graph<V, D> {
   type Point = GraphPoint<V>;
+
+  fn is_empty(&self) -> bool { self.vertices.is_empty() }
 
   /// Tests if a point is contained in the graph.
   ///
@@ -127,7 +132,9 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
         self.edges.contains(&(u.clone(), v.clone())) | self.edges.contains(&(v.clone(), u.clone())),
     }
   }
+}
 
+impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
   /// Computes the set difference of two graphs (self - other).
   ///
   /// The resulting graph contains vertices and edges that are in `self` but not in `other`.
@@ -166,8 +173,6 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
     let edges: HashSet<(V, V)> = self.edges.union(&other.edges).cloned().collect();
     Self::new(vertices, edges)
   }
-
-  fn is_empty(&self) -> bool { self.vertices.is_empty() }
 }
 
 impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> TopologicalSpace for Graph<V, D> {

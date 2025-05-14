@@ -22,7 +22,7 @@ use harness_algebra::{ring::Field, vector::DynVector};
 use crate::{
   definitions::TopologicalSpace,
   lattice::Lattice,
-  set::Set,
+  set::{Collection, Set},
   sheaf::{Presheaf, Section},
 };
 
@@ -163,13 +163,15 @@ impl CellComplex {
   }
 }
 
-impl Set for CellComplex {
+impl Collection for CellComplex {
   type Point = Cell;
 
   fn contains(&self, point: &Self::Point) -> bool { self.cells.contains_key(&point.id()) }
 
   fn is_empty(&self) -> bool { self.cells.is_empty() }
+}
 
+impl Set for CellComplex {
   fn minus(&self, _: &Self) -> Self { todo!() }
 
   fn meet(&self, _: &Self) -> Self { todo!() }
