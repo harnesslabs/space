@@ -56,14 +56,14 @@ dependencies = [
 
 [[package]]
 name = "harness-algebra"
-version = "0.2.2"
+version = "0.2.3"
 dependencies = [
  "num-traits",
 ]
 
 [[package]]
 name = "harness-space"
-version = "0.2.0"
+version = "0.3.0"
 dependencies = [
  "harness-algebra",
  "itertools",
