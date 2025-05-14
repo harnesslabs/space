@@ -1,3 +1,20 @@
+//! # Cell Complex Module
+//!
+//! This module provides data structures and traits for representing regular cell complexes and
+//! cellular sheaves, as used in algebraic topology and combinatorial topology.
+//!
+//! ## Features
+//! - Defines the [`Cell`] struct for individual cells (with dimension and attachment information).
+//! - Defines the [`CellComplex`] struct for collections of cells and their attachment (face)
+//!   relations.
+//! - Provides efficient APIs for querying boundaries, stars, and k-skeleta of cell complexes.
+//! - (TODO) Implements the [`Set`] and [`TopologicalSpace`] traits for cell complexes.
+//! - (TODO) Defines the [`CellularSheaf`] struct for associating stalks and restriction maps to
+//!   cells, supporting computations in cellular sheaf theory.
+//!
+//! This module is suitable for applications in topological data analysis, sheaf theory, and related
+//! areas.
+
 use std::collections::{HashMap, HashSet};
 
 use harness_algebra::{ring::Field, vector::DynVector};
@@ -48,7 +65,7 @@ impl Cell {
 /// A cell complex representing a collection of cells with their attachment relationships.
 /// The attachment structure is represented as a lattice where cells are ordered by
 /// their attachment relationships.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct CellComplex {
   /// The cells in the complex, indexed by their IDs
   cells:              HashMap<usize, Cell>,
@@ -128,7 +145,7 @@ impl CellComplex {
   /// A vector of references to cells that are exactly one dimension higher than the given cell
   /// and are attached to it.
   pub fn open_star(&self, id: usize) -> Vec<&Cell> {
-    if let Some(cell) = self.cells.get(&id) {
+    self.cells.get(&id).map_or_else(Vec::new, |cell| {
       let target_dim = cell.dimension() + 1;
       self
         .cells
@@ -137,14 +154,12 @@ impl CellComplex {
           other_cell.dimension() == target_dim && other_cell.attachments().contains(&id)
         })
         .collect()
-    } else {
-      Vec::new()
-    }
+    })
   }
 
   /// Returns the maximal dimension of any cell in the complex
   pub fn max_dimension(&self) -> usize {
-    self.cells.values().map(|cell| cell.dimension()).max().unwrap_or(0)
+    self.cells.values().map(Cell::dimension).max().unwrap_or(0)
   }
 }
 
@@ -166,29 +181,56 @@ impl TopologicalSpace for CellComplex {
   type OpenSet = HashSet<Cell>;
   type Point = Cell;
 
-  fn neighborhood(&self, point: Self::Point) -> Self::OpenSet { todo!() }
+  fn neighborhood(&self, _point: Self::Point) -> Self::OpenSet { todo!() }
 
-  fn is_open(&self, open_set: Self::OpenSet) -> bool { todo!() }
+  fn is_open(&self, _open_set: Self::OpenSet) -> bool { todo!() }
 }
 
-impl<F: Field + Copy> Section<CellComplex> for HashMap<Cell, DynVector<F>> {
+impl<F: Field + Copy, S: ::std::hash::BuildHasher> Section<CellComplex>
+  for HashMap<Cell, DynVector<F>, S>
+{
   type Stalk = DynVector<F>;
 
-  fn evaluate(&self, point: &<CellComplex as TopologicalSpace>::Point) -> Option<Self::Stalk> {
+  fn evaluate(&self, _point: &<CellComplex as TopologicalSpace>::Point) -> Option<Self::Stalk> {
     todo!()
   }
 
   fn domain(&self) -> HashSet<Cell> { todo!() }
 
-  fn from_closure<G>(domain: <CellComplex as TopologicalSpace>::OpenSet, f: G) -> Self
+  fn from_closure<G>(_domain: <CellComplex as TopologicalSpace>::OpenSet, _f: G) -> Self
   where G: Fn(&<CellComplex as TopologicalSpace>::Point) -> Option<Self::Stalk> {
     todo!()
   }
 }
 
+/// A cellular sheaf over a cell complex, associating data (stalks) and restriction maps to the
+/// cells.
+///
+/// This struct represents a cellular sheaf as used in algebraic topology and sheaf theory, where:
+/// - Each cell in the underlying `CellComplex` is assigned a stalk (typically a vector space or
+///   module).
+/// - Each pair of incident cells (face relation) is assigned a restriction map (matrix) between
+///   their stalks.
+///
+/// # Fields
+/// * `complex` - The underlying cell complex over which the sheaf is defined.
+/// * `stalk_dimensions` - A mapping from each cell to the dimension of its stalk (e.g., the
+///   dimension of the vector space assigned to the cell).
+/// * `restriction_matrices` - A mapping from pairs of cell IDs `(from, to)` (where `to` is a face
+///   of `from`) to the matrix representing the restriction map from the stalk of `from` to the
+///   stalk of `to`.
+///
+/// This structure is suitable for computations in cellular sheaf theory, such as cohomology, and is
+/// compatible with the `Presheaf` trait for functorial operations.
+#[derive(Debug)]
 pub struct CellularSheaf<F> {
+  /// The underlying cell complex over which the sheaf is defined.
   pub complex:              CellComplex,
+  /// The dimension of the stalk (vector space) assigned to each cell.
   pub stalk_dimensions:     HashMap<Cell, usize>,
+  /// The restriction maps between stalks, represented as matrices.
+  /// Each key is a pair of cell IDs `(from, to)` where `to` is a face of `from`,
+  /// and the value is the matrix (as a Vec of Vecs) representing the restriction map.
   pub restriction_matrices: HashMap<(usize, usize), Vec<Vec<F>>>,
 }
 
@@ -198,9 +240,9 @@ impl<F: Field + Copy> Presheaf<CellComplex> for CellularSheaf<F> {
 
   fn restrict(
     &self,
-    section: &Self::Section,
-    from: &<CellComplex as TopologicalSpace>::OpenSet,
-    to: &<CellComplex as TopologicalSpace>::OpenSet,
+    _section: &Self::Section,
+    _from: &<CellComplex as TopologicalSpace>::OpenSet,
+    _to: &<CellComplex as TopologicalSpace>::OpenSet,
   ) -> Self::Section {
     todo!()
   }
@@ -250,7 +292,7 @@ mod tests {
     let v2 = complex.add_cell(0, vec![]);
 
     // Try to attach a 1-cell to two 0-cells (should be valid)
-    let e1 = complex.add_cell(1, vec![v1, v2]);
+    let _e1 = complex.add_cell(1, vec![v1, v2]);
 
     // Try to attach a 2-cell to a 0-cell (should panic)
     complex.add_cell(2, vec![v1]);
