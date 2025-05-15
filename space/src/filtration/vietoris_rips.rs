@@ -105,7 +105,7 @@ mod tests {
     let cloud: Cloud<2, f64> = Cloud::new(vec![]);
     let vr = VietorisRips::<2, f64>::new();
     let complex = vr.build(&cloud, 0.5);
-    assert!(complex.simplices_by_dimension(0).is_empty());
+    assert!(complex.simplices_by_dimension(0).is_none());
   }
 
   #[test]
@@ -116,9 +116,9 @@ mod tests {
     let complex = vr.build(&cloud, 0.5);
 
     let simplices_dim_0 = complex.simplices_by_dimension(0);
-    assert_eq!(simplices_dim_0.len(), 1);
-    assert_eq!(simplices_dim_0[0].vertices(), &[0]);
-    assert!(complex.simplices_by_dimension(1).is_empty());
+    assert_eq!(simplices_dim_0.unwrap().len(), 1);
+    assert_eq!(simplices_dim_0.unwrap()[0].vertices(), &[0]);
+    assert!(complex.simplices_by_dimension(1).is_none());
   }
 
   #[test]
@@ -130,15 +130,15 @@ mod tests {
 
     // Epsilon too small for an edge
     let complex_no_edge = vr.build(&cloud, 0.5); // distance is 1.0
-    assert_eq!(complex_no_edge.simplices_by_dimension(0).len(), 2);
-    assert!(complex_no_edge.simplices_by_dimension(1).is_empty());
+    assert_eq!(complex_no_edge.simplices_by_dimension(0).unwrap().len(), 2);
+    assert!(complex_no_edge.simplices_by_dimension(1).is_none());
 
     // Epsilon large enough for an edge
     let complex_with_edge = vr.build(&cloud, 1.5);
-    assert_eq!(complex_with_edge.simplices_by_dimension(0).len(), 2);
+    assert_eq!(complex_with_edge.simplices_by_dimension(0).unwrap().len(), 2);
     let simplices_dim_1 = complex_with_edge.simplices_by_dimension(1);
-    assert_eq!(simplices_dim_1.len(), 1);
-    assert_eq!(simplices_dim_1[0].vertices(), &[0, 1]);
+    assert_eq!(simplices_dim_1.unwrap().len(), 1);
+    assert_eq!(simplices_dim_1.unwrap()[0].vertices(), &[0, 1]);
   }
 
   #[test]
@@ -160,10 +160,10 @@ mod tests {
     // by `join_simplex` for the 2-simplex.
     let complex = vr.build(&cloud, 1.1);
 
-    assert_eq!(complex.simplices_by_dimension(0).len(), 3);
-    assert_eq!(complex.simplices_by_dimension(1).len(), 3);
-    assert_eq!(complex.simplices_by_dimension(2).len(), 1);
-    assert_eq!(complex.simplices_by_dimension(2)[0].vertices(), &[0, 1, 2]);
+    assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3);
+    assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3);
+    assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1);
+    assert_eq!(complex.simplices_by_dimension(2).unwrap()[0].vertices(), &[0, 1, 2]);
   }
   // To run these tests, SimplicialComplex needs a way to access simplices by dimension,
   // e.g., a method like `simplices_by_dimension(&self, dim: usize) -> Option<&Vec<Simplex>>`.
