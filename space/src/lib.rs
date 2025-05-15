@@ -4,6 +4,7 @@
 pub mod cell;
 pub mod cloud;
 pub mod definitions;
+pub mod filtration;
 pub mod graph;
 pub mod lattice;
 pub mod set;

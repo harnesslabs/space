@@ -132,6 +132,17 @@ impl SimplicialComplex {
     }
     chain.boundary()
   }
+
+  /// Returns a reference to the simplices of a given dimension.
+  ///
+  /// # Arguments
+  /// * `dimension` - The dimension of the simplices to return
+  ///
+  /// # Returns
+  /// A reference to the simplices of the given dimension.
+  pub fn simplices_by_dimension(&self, dimension: usize) -> &[Simplex] {
+    &self.simplices[dimension]
+  }
 }
 
 /// A chain represents a formal sum of simplices with coefficients from a ring.
