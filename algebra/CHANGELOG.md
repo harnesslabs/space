@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.4](https://github.com/harnesslabs/harness/compare/harness-algebra-v0.2.3...harness-algebra-v0.2.4) - 2025-05-15
+
+### Other
+- update Cargo.toml dependencies
+
 ## [0.2.2](https://github.com/harnesslabs/harness/compare/harness-algebra-v0.2.1...harness-algebra-v0.2.2) - 2025-05-07
 
 ### Added
