@@ -6,6 +6,8 @@ use std::{iter::Sum, marker::PhantomData};
 use harness_algebra::ring::Field;
 use itertools::Itertools;
 
+#[cfg(feature = "parallel")]
+use crate::filtration::ParallelFiltration;
 use crate::{
   cloud::Cloud,
   filtration::Filtration,
@@ -73,8 +75,10 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration for Vieto
           let point_a = points_vec[p1_idx]; // This is Vector<N, F>
           let point_b = points_vec[p2_idx]; // This is Vector<N, F>
 
-          // Use the static distance method from Cloud's MetricSpace impl
-          if Cloud::<N, F>::distance(point_a, point_b) > epsilon {
+          // Cloud::distance returns squared Euclidean distance.
+          // Epsilon is the Euclidean distance threshold.
+          // So, compare squared distance with epsilon * epsilon.
+          if Cloud::<N, F>::distance(point_a, point_b) > epsilon * epsilon {
             form_simplex = false;
             break;
           }
@@ -90,6 +94,16 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration for Vieto
     }
     complex
   }
+}
+
+#[cfg(feature = "parallel")]
+impl<const N: usize, F> ParallelFiltration for VietorisRips<N, F>
+where
+  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync, // Added Send + Sync for F
+  Cloud<N, F>: Sync,                                   // Ensure Cloud is Sync
+  SimplicialComplex: Send,                             // Ensure SimplicialComplex is Send
+{
+  // build_parallel is already defined with a default implementation in the trait
 }
 
 #[cfg(test)]
@@ -162,5 +176,82 @@ mod tests {
     assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3);
     assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1);
     assert_eq!(complex.simplices_by_dimension(2).unwrap()[0].vertices(), &[0, 1, 2]);
+  }
+
+  #[cfg(feature = "parallel")]
+  #[test]
+  fn test_vietoris_rips_parallel() {
+    use crate::filtration::ParallelFiltration; // Ensure trait is in scope
+
+    let p0 = Vector([0.0, 0.0]);
+    let p1 = Vector([1.0, 0.0]);
+    let p2 = Vector([2.0, 0.0]);
+    let p3 = Vector([0.5, 0.866]); // Forms a triangle with p0, p1 if epsilon is right
+
+    let cloud = Cloud::new(vec![p0, p1, p2, p3]);
+    let vr_builder = VietorisRips::<2, f64>::new();
+
+    let epsilons = vec![0.5, 1.1, 2.1]; // Three different epsilon values
+
+    let complexes = vr_builder.build_parallel(&cloud, epsilons);
+
+    assert_eq!(complexes.len(), 3);
+
+    // Complex 0 (epsilon = 0.5): Only vertices
+    let complex0 = &complexes[0];
+    assert_eq!(complex0.simplices_by_dimension(0).unwrap().len(), 4); // 4 points
+    assert!(complex0.simplices_by_dimension(1).is_none()); // No edges
+
+    // Complex 1 (epsilon = 1.1):
+    // Edges: [0,1], [1,2], [0,3], [1,3]
+    // 0-1: dist 1.0
+    // 1-2: dist 1.0
+    // 0-3: dist 1.0
+    // 1-3: dist 1.0
+    // Triangle: [0,1,3]
+    let complex1 = &complexes[1];
+    assert_eq!(complex1.simplices_by_dimension(0).unwrap().len(), 4);
+    assert_eq!(
+      complex1.simplices_by_dimension(1).unwrap().len(),
+      4,
+      "Expected 4 edges for eps=1.1"
+    );
+    assert_eq!(
+      complex1.simplices_by_dimension(2).unwrap().len(),
+      1,
+      "Expected 1 triangle for eps=1.1"
+    ); // [0,1,3]
+    assert!(
+      complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [0, 1, 3]
+        || complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [0, 1, 2]
+        || complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [0, 2, 3]
+        || complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [1, 2, 3],
+      "Triangle [0,1,3] should exist"
+    );
+
+    // Complex 2 (epsilon = 2.1):
+    // All points are connected to all other points.
+    // Should form a tetrahedron if we were in 3D, here it will be a full 3-simplex (K4)
+    // 4 vertices (0-simplices)
+    // 6 edges (1-simplices: (0,1), (0,2), (0,3), (1,2), (1,3), (2,3))
+    // 4 triangles (2-simplices: (0,1,2), (0,1,3), (0,2,3), (1,2,3))
+    // 1 tetrahedron (3-simplex: (0,1,2,3))
+    let complex2 = &complexes[2];
+    assert_eq!(complex2.simplices_by_dimension(0).unwrap().len(), 4);
+    assert_eq!(
+      complex2.simplices_by_dimension(1).unwrap().len(),
+      6,
+      "Expected 6 edges for eps=2.1"
+    );
+    assert_eq!(
+      complex2.simplices_by_dimension(2).unwrap().len(),
+      4,
+      "Expected 4 triangles for eps=2.1"
+    );
+    assert_eq!(
+      complex2.simplices_by_dimension(3).unwrap().len(),
+      1,
+      "Expected 1 3-simplex (tetrahedron) for eps=2.1"
+    );
   }
 }
