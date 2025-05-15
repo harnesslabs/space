@@ -23,14 +23,20 @@ use num_traits::{One, Zero};
 /// # Fields
 /// * `vertices` - A sorted vector of vertex indices that define the simplex
 /// * `dimension` - The dimension of the simplex (number of vertices - 1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq)]
 pub struct Simplex {
   vertices:  Vec<usize>,
   dimension: usize,
 }
 
-impl PartialEq for Simplex {
-  fn eq(&self, other: &Self) -> bool { self.vertices == other.vertices }
+impl Eq for Simplex {}
+
+impl PartialOrd for Simplex {
+  fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> { Some(self.cmp(other)) }
+}
+
+impl Ord for Simplex {
+  fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.vertices.cmp(&other.vertices) }
 }
 
 impl Simplex {
@@ -118,7 +124,9 @@ impl SimplicialComplex {
   /// dimension exist in the complex, returns an empty chain.
   ///
   /// # Note
-  /// This implementation assumes at most two simplices share any given face.
+  /// This implementation's logic for choosing coefficients is specific and may not align with
+  /// standard definitions for all purposes. It also assumes at most two simplices share any given
+  /// face. The primary boundary operator for homology calculations is `Chain::boundary()`.
   pub fn boundary<R: Clone + Neg<Output = R> + Add<Output = R> + Zero + One>(
     &self,
     dimension: usize,
@@ -126,25 +134,17 @@ impl SimplicialComplex {
     if dimension == 0 {
       return Chain::new();
     }
-
     let mut chain = Chain::new();
-    // Get the simplices for the given dimension. If none, result is an empty chain (from boundary
-    // of empty chain).
     if let Some(simplices_in_dim) = self.simplices.get(&dimension) {
-      for simplex in simplices_in_dim.clone() {
-        // Clone needed because we iterate and modify chain
-        // This logic for determining coefficient might need review for correctness
-        // in a general simplicial complex boundary. The original note said:
-        // "This implementation assumes at most two simplices share any given face."
-        // For now, preserving the existing logic.
-        if chain.simplices.iter().flat_map(Simplex::faces).any(|f| simplex.faces().contains(&f)) {
-          chain = chain + Chain::from_simplex_and_coeff(simplex, -R::one());
+      for s_val in simplices_in_dim.clone() {
+        // Renamed simplex to s_val
+        if chain.simplices.iter().flat_map(Simplex::faces).any(|f| s_val.faces().contains(&f)) {
+          chain = chain + Chain::from_simplex_and_coeff(s_val, -R::one());
         } else {
-          chain = chain + Chain::from_simplex_and_coeff(simplex, R::one());
+          chain = chain + Chain::from_simplex_and_coeff(s_val, R::one());
         }
       }
     }
-    // The boundary of the constructed chain is taken.
     chain.boundary()
   }
 
@@ -158,6 +158,184 @@ impl SimplicialComplex {
   /// otherwise `None`.
   pub fn simplices_by_dimension(&self, dimension: usize) -> Option<&[Simplex]> {
     self.simplices.get(&dimension).map(Vec::as_slice)
+  }
+
+  /// Computes the k-th homology group H_k with Z2 coefficients.
+  pub fn compute_homology_z2(&self, k: usize) -> HomologyGroup<Z2> {
+    if k == 0 {
+      let mut vertices = match self.simplices_by_dimension(0) {
+        Some(v) => v.to_vec(),
+        None => return HomologyGroup::trivial(0),
+      };
+      if vertices.is_empty() {
+        return HomologyGroup::trivial(0);
+      }
+      vertices.sort_unstable();
+
+      let mut adj: Vec<Vec<usize>> = vec![Vec::new(); vertices.len()];
+      let vertex_to_idx: std::collections::HashMap<Simplex, usize> =
+        vertices.iter().enumerate().map(|(i, v_s)| (v_s.clone(), i)).collect();
+
+      if let Some(edges) = self.simplices_by_dimension(1) {
+        for edge_s in edges {
+          if edge_s.vertices().len() == 2 {
+            let v0_s = Simplex::new(0, vec![edge_s.vertices()[0]]);
+            let v1_s = Simplex::new(0, vec![edge_s.vertices()[1]]);
+            if let (Some(&idx0), Some(&idx1)) = (vertex_to_idx.get(&v0_s), vertex_to_idx.get(&v1_s))
+            {
+              adj[idx0].push(idx1);
+              adj[idx1].push(idx0);
+            }
+          }
+        }
+      }
+      let mut visited = vec![false; vertices.len()];
+      let mut components = 0;
+      let mut h0_generators = Vec::new();
+      for i in 0..vertices.len() {
+        if !visited[i] {
+          components += 1;
+          h0_generators.push(Chain::from_simplex_and_coeff(vertices[i].clone(), Z2::one()));
+          let mut q = std::collections::VecDeque::new();
+          q.push_back(i);
+          visited[i] = true;
+          while let Some(u) = q.pop_front() {
+            for &v_idx in &adj[u] {
+              if !visited[v_idx] {
+                visited[v_idx] = true;
+                q.push_back(v_idx);
+              }
+            }
+          }
+        }
+      }
+      let z0_gens: Vec<Chain<Z2>> =
+        vertices.iter().map(|v| Chain::from_simplex_and_coeff(v.clone(), Z2::one())).collect();
+      let s1_for_b0 = match self.simplices_by_dimension(1) {
+        Some(s) => {
+          let mut sorted_s = s.to_vec();
+          sorted_s.sort_unstable();
+          sorted_s
+        },
+        None => Vec::new(),
+      };
+      let b0_gens = if s1_for_b0.is_empty() || vertices.is_empty() {
+        Vec::new()
+      } else {
+        let mut mat_d1 = linalg_z2::get_boundary_matrix(&s1_for_b0, &vertices);
+        let (_, p_cols_d1) = linalg_z2::row_gaussian_elimination_z2(&mut mat_d1);
+        let d_s1_chains: Vec<Chain<Z2>> = s1_for_b0
+          .iter()
+          .map(|s| Chain::from_simplex_and_coeff(s.clone(), Z2::one()).boundary())
+          .collect();
+        linalg_z2::image_basis_from_row_echelon_z2(&mat_d1, &d_s1_chains, &p_cols_d1)
+      };
+      return HomologyGroup {
+        dimension:           0,
+        betti_number:        components,
+        cycle_generators:    z0_gens,
+        boundary_generators: b0_gens,
+        homology_generators: h0_generators,
+      };
+    }
+
+    let s_k = match self.simplices_by_dimension(k) {
+      Some(s) if !s.is_empty() => {
+        let mut sorted_s = s.to_vec();
+        sorted_s.sort_unstable();
+        sorted_s
+      },
+      _ => return HomologyGroup::trivial(k),
+    };
+    let s_km1 = match self.simplices_by_dimension(k - 1) {
+      Some(s) => {
+        let mut ss = s.to_vec();
+        ss.sort_unstable();
+        ss
+      },
+      None => Vec::new(),
+    };
+    let s_kp1 = match self.simplices_by_dimension(k + 1) {
+      Some(s) => {
+        let mut ss = s.to_vec();
+        ss.sort_unstable();
+        ss
+      },
+      None => Vec::new(),
+    };
+    let ck_basis: Vec<Chain<Z2>> =
+      s_k.iter().map(|s| Chain::from_simplex_and_coeff(s.clone(), Z2::one())).collect();
+
+    let b_k_gens = if s_kp1.is_empty() || s_k.is_empty() {
+      Vec::new()
+    } else {
+      let mut mat_dkp1 = linalg_z2::get_boundary_matrix(&s_kp1, &s_k);
+      let (_, p_cols) = linalg_z2::row_gaussian_elimination_z2(&mut mat_dkp1);
+      let d_skp1_chains: Vec<Chain<Z2>> = s_kp1
+        .iter()
+        .map(|s| Chain::from_simplex_and_coeff(s.clone(), Z2::one()).boundary())
+        .collect();
+      linalg_z2::image_basis_from_row_echelon_z2(&mat_dkp1, &d_skp1_chains, &p_cols)
+    };
+
+    let z_k_gens = if s_k.is_empty() {
+      Vec::new()
+    } else if s_km1.is_empty() {
+      ck_basis.clone()
+    } else {
+      let mut mat_dk = linalg_z2::get_boundary_matrix(&s_k, &s_km1);
+      let (_, p_cols) = linalg_z2::row_gaussian_elimination_z2(&mut mat_dk);
+      linalg_z2::kernel_basis_from_row_echelon_z2(&mat_dk, &ck_basis, &p_cols)
+    };
+
+    if s_k.is_empty() {
+      return HomologyGroup::trivial(k);
+    }
+    let sk_map: std::collections::HashMap<Simplex, usize> =
+      s_k.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
+    let mut quot_mat_cols = Vec::new();
+    for ch in b_k_gens.iter() {
+      quot_mat_cols.push(linalg_z2::chain_to_coeff_vector(ch, &sk_map, s_k.len()));
+    }
+    let num_b = quot_mat_cols.len();
+    for ch in z_k_gens.iter() {
+      quot_mat_cols.push(linalg_z2::chain_to_coeff_vector(ch, &sk_map, s_k.len()));
+    }
+
+    if quot_mat_cols.is_empty() {
+      return HomologyGroup {
+        dimension:           k,
+        betti_number:        z_k_gens.len(),
+        cycle_generators:    z_k_gens.clone(),
+        boundary_generators: b_k_gens,
+        homology_generators: z_k_gens.clone(),
+      };
+    }
+
+    let mut q_mat = vec![vec![Z2::zero(); quot_mat_cols.len()]; s_k.len()];
+    if !s_k.is_empty() {
+      for r in 0..s_k.len() {
+        for c in 0..quot_mat_cols.len() {
+          q_mat[r][c] = quot_mat_cols[c][r];
+        }
+      }
+    }
+
+    let (_, p_cols_q) = linalg_z2::row_gaussian_elimination_z2(&mut q_mat);
+    let mut h_k_gens = Vec::new();
+    for &p_idx in &p_cols_q {
+      if p_idx >= num_b {
+        h_k_gens.push(z_k_gens[p_idx - num_b].clone());
+      }
+    }
+
+    HomologyGroup {
+      dimension:           k,
+      betti_number:        h_k_gens.len(),
+      cycle_generators:    z_k_gens,
+      boundary_generators: b_k_gens,
+      homology_generators: h_k_gens,
+    }
   }
 }
 
@@ -327,6 +505,383 @@ pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
     Permutation::Even
   } else {
     Permutation::Odd
+  }
+}
+
+/// Represents the finite field Z_2 = {0, 1}.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Z2(pub u8);
+
+impl Z2 {
+  pub fn new(val: u8) -> Self {
+    assert!(val == 0 || val == 1, "Z2 value must be 0 or 1");
+    Z2(val)
+  }
+}
+
+impl Zero for Z2 {
+  fn zero() -> Self { Z2(0) }
+
+  fn is_zero(&self) -> bool { self.0 == 0 }
+}
+
+impl One for Z2 {
+  fn one() -> Self { Z2(1) }
+}
+
+impl Add for Z2 {
+  type Output = Self;
+
+  fn add(self, rhs: Self) -> Self::Output { Z2((self.0 + rhs.0) % 2) }
+}
+
+impl Neg for Z2 {
+  type Output = Self;
+
+  fn neg(self) -> Self::Output {
+    self // In Z2, -x = x
+  }
+}
+
+impl std::ops::Mul for Z2 {
+  type Output = Self;
+
+  fn mul(self, rhs: Self) -> Self::Output {
+    Z2(self.0 * rhs.0) // 0*0=0, 0*1=0, 1*0=0, 1*1=1
+  }
+}
+
+/// Stores the results of a homology computation for a specific dimension.
+///
+/// # Type Parameters
+/// * `R` - The coefficient ring type.
+#[derive(Debug, Clone)]
+pub struct HomologyGroup<R: Clone + Zero + One + Add<Output = R> + Neg<Output = R> + PartialEq> {
+  /// The dimension k for which this homology group H_k is computed.
+  pub dimension:           usize,
+  /// The Betti number, which is the rank of the homology group H_k.
+  /// For Z2 coefficients, this is dim(H_k).
+  pub betti_number:        usize,
+  /// A basis for the k-cycles (Z_k = ker ∂_k).
+  /// Each element is a chain representing a cycle.
+  pub cycle_generators:    Vec<Chain<R>>,
+  /// A basis for the k-boundaries (B_k = im ∂_{k+1}).
+  /// Each element is a chain representing a boundary.
+  pub boundary_generators: Vec<Chain<R>>,
+  /// A basis for the homology group H_k = Z_k / B_k.
+  /// Each element is a chain representing a homology class generator.
+  pub homology_generators: Vec<Chain<R>>,
+}
+
+impl<R: Clone + Zero + One + Add<Output = R> + Neg<Output = R> + PartialEq> HomologyGroup<R> {
+  /// Creates a new, empty homology group for a given dimension.
+  /// Typically used when the homology group is trivial.
+  pub fn trivial(dimension: usize) -> Self {
+    Self {
+      dimension,
+      betti_number: 0,
+      cycle_generators: Vec::new(),
+      boundary_generators: Vec::new(),
+      homology_generators: Vec::new(),
+    }
+  }
+}
+
+mod linalg_z2 {
+  use std::collections::HashMap;
+
+  use num_traits::{One, Zero};
+
+  use super::{Chain, Simplex, Z2};
+
+  /// Performs Gaussian elimination on a matrix over Z2 to bring it to column echelon form.
+  /// The matrix is modified in place.
+  /// Returns the rank of the matrix (number of pivot columns).
+  pub fn column_gaussian_elimination_z2(matrix: &mut Vec<Vec<Z2>>) -> usize {
+    if matrix.is_empty() || matrix[0].is_empty() {
+      return 0;
+    }
+    let rows = matrix.len();
+    let cols = matrix[0].len();
+    let mut pivot_row = 0;
+    let mut rank = 0;
+
+    for j in 0..cols {
+      // Iterate through columns (potential pivot columns)
+      if pivot_row >= rows {
+        break;
+      }
+      let mut i = pivot_row;
+      while i < rows && matrix[i][j].is_zero() {
+        i += 1;
+      }
+
+      if i < rows {
+        // Found a pivot in this column at matrix[i][j]
+        // Swap row i with pivot_row to bring pivot to matrix[pivot_row][j]
+        if i != pivot_row {
+          for col_idx in j..cols {
+            let temp = matrix[i][col_idx];
+            matrix[i][col_idx] = matrix[pivot_row][col_idx];
+            matrix[pivot_row][col_idx] = temp;
+          }
+        }
+
+        // Eliminate other 1s in this column below the pivot
+        // (Not strictly needed for column echelon form if we only clear to the right for kernel,
+        // but for a canonical form or image basis, this structure is fine)
+        // For Z2, if matrix[k][j] is 1 (and k != pivot_row), add pivot_row to row k.
+        for k in 0..rows {
+          if k != pivot_row && !matrix[k][j].is_zero() {
+            for col_idx in j..cols {
+              matrix[k][col_idx] = matrix[k][col_idx] + matrix[pivot_row][col_idx];
+            }
+          }
+        }
+        pivot_row += 1;
+        rank += 1;
+      }
+    }
+    rank
+  }
+
+  /// Extracts a basis for the kernel (null space) of a matrix A (m x n) in column echelon form.
+  /// The matrix A maps vectors of size n to vectors of size m.
+  /// `column_basis_elements` are the elements corresponding to the columns of the original matrix
+  /// (e.g., k-simplices). This function assumes `matrix` is already in a form where kernel
+  /// vectors can be identified (e.g. column echelon form). For a matrix M (rows x cols), its
+  /// kernel is found from M^T x = 0 or by directly solving Mx=0. Let's use the standard method
+  /// for Mx=0 where M is m x n. If M is brought to row echelon form, free variables correspond to
+  /// non-pivot columns. Here, we will adapt for column operations if needed, or use row echelon
+  /// form for standard kernel finding. For simplicity, let's assume we'll use Row Echelon Form to
+  /// find kernel. So, the `column_gaussian_elimination_z2` should probably be
+  /// `row_gaussian_elimination_z2`.
+
+  /// Performs Gaussian elimination on a matrix over Z2 to bring it to row echelon form.
+  /// The matrix is modified in place.
+  /// Returns a tuple (rank, pivot_columns_indices).
+  pub fn row_gaussian_elimination_z2(matrix: &mut Vec<Vec<Z2>>) -> (usize, Vec<usize>) {
+    if matrix.is_empty() || matrix[0].is_empty() {
+      return (0, Vec::new());
+    }
+    let rows = matrix.len();
+    let cols = matrix[0].len();
+    let mut lead = 0; // current pivot column
+    let mut rank = 0;
+    let mut pivot_cols = Vec::new();
+
+    for r in 0..rows {
+      if lead >= cols {
+        break;
+      }
+      let mut i = r;
+      while matrix[i][lead].is_zero() {
+        i += 1;
+        if i == rows {
+          i = r;
+          lead += 1;
+          if lead == cols {
+            return (rank, pivot_cols);
+          }
+        }
+      }
+      matrix.swap(i, r);
+      pivot_cols.push(lead);
+
+      // Normalize pivot row (pivot element is already 1 in Z2 if non-zero)
+      // For rows below pivot, eliminate the entry in the pivot column
+      for i in 0..rows {
+        if i != r && !matrix[i][lead].is_zero() {
+          // matrix[i] = matrix[i] + matrix[r]
+          for j in lead..cols {
+            matrix[i][j] = matrix[i][j] + matrix[r][j];
+          }
+        }
+      }
+      lead += 1;
+      rank += 1;
+    }
+    (rank, pivot_cols)
+  }
+
+  /// Extracts a basis for the kernel (null space) of a matrix A (m x n) given in row echelon form.
+  /// `column_basis_elements` are chains corresponding to columns of original matrix A.
+  /// The number of elements in `column_basis_elements` must be `n` (number of columns).
+  pub fn kernel_basis_from_row_echelon_z2(
+    row_echelon_matrix: &[Vec<Z2>],
+    column_basis_elements: &[Chain<Z2>],
+    pivot_cols: &[usize],
+  ) -> Vec<Chain<Z2>> {
+    if row_echelon_matrix.is_empty() || row_echelon_matrix[0].is_empty() {
+      // If matrix is empty, or has 0 columns, kernel depends on context.
+      // If 0 columns, kernel is trivial. If 0 rows (non-empty cols), kernel is all of C_n.
+      // This case needs careful handling based on matrix dimensions.
+      // For now, if matrix is empty, assume trivial kernel if no column_basis_elements,
+      // otherwise it's more complex. Let's assume non-empty matrix or column_basis_elements match
+      // cols.
+      if column_basis_elements.is_empty() {
+        return Vec::new();
+      }
+      // If it's a zero map from non-trivial C_n, then all of C_n is kernel
+      return column_basis_elements.to_vec();
+    }
+
+    let num_rows = row_echelon_matrix.len();
+    let num_cols = row_echelon_matrix[0].len();
+    assert_eq!(
+      num_cols,
+      column_basis_elements.len(),
+      "Number of columns in matrix must match number of column basis elements"
+    );
+
+    let mut kernel_generators = Vec::new();
+    let mut current_pivot_idx = 0;
+
+    for j in 0..num_cols {
+      // Iterate through columns
+      if current_pivot_idx < pivot_cols.len() && pivot_cols[current_pivot_idx] == j {
+        // This is a pivot column
+        current_pivot_idx += 1;
+      } else {
+        // This is a free variable column
+        let mut generator_coeffs = vec![Z2::zero(); num_cols];
+        generator_coeffs[j] = Z2::one(); // Set free variable to 1
+
+        // Solve for pivot variables in terms of this free variable
+        // Ax = 0. For row i, Sum(A_ik * x_k) = 0
+        // Iterate upwards through pivot rows to express pivot variables.
+        let mut temp_pivot_idx = 0;
+        for r in 0..num_rows {
+          // iterate through effective rows (rank)
+          if temp_pivot_idx < pivot_cols.len()
+            && row_echelon_matrix[r][pivot_cols[temp_pivot_idx]].is_one()
+          {
+            let pivot_col_for_row_r = pivot_cols[temp_pivot_idx];
+            // If this pivot var is not the free var itself (it shouldn't be)
+            if pivot_col_for_row_r != j {
+              // The value of x_{pivot_col_for_row_r} should be such that equation for row r holds.
+              // A[r][pivot_col_for_row_r]*x_{pivot_col_for_row_r} + A[r][j]*x_j (which is 1) + ...
+              // = 0 Since A[r][pivot_col_for_row_r] is 1 (pivot), and x_j is 1:
+              // x_{pivot_col_for_row_r} + A[r][j] = 0  => x_{pivot_col_for_row_r} = -A[r][j] =
+              // A[r][j] in Z2.
+              if !row_echelon_matrix[r][j].is_zero() {
+                // only if A[r][j] is 1
+                generator_coeffs[pivot_col_for_row_r] = row_echelon_matrix[r][j];
+              }
+            }
+            temp_pivot_idx += 1;
+            if temp_pivot_idx >= pivot_cols.len() {
+              break;
+            }
+          } else if temp_pivot_idx >= pivot_cols.len() {
+            break; // No more pivots
+          }
+        }
+
+        // Construct chain from coefficients
+        let mut gen_chain = Chain::new();
+        for (idx, coeff) in generator_coeffs.iter().enumerate() {
+          if !coeff.is_zero() {
+            // Create a unit chain for the simplex column_basis_elements[idx]
+            // This assumes column_basis_elements[idx] is a Chain with one simplex and coeff 1.
+            // Or, more generally, it is the chain we want to add if coeff is 1.
+            // For now, let's assume column_basis_elements are unit chains.
+            gen_chain = gen_chain + column_basis_elements[idx].clone(); // Coeff is Z2(1), so adding
+                                                                        // is correct.
+          }
+        }
+        if !gen_chain.simplices.is_empty() {
+          // Ensure it's not a zero chain
+          kernel_generators.push(gen_chain);
+        }
+      }
+    }
+    kernel_generators
+  }
+
+  /// Extracts a basis for the image (column space) of a matrix A.
+  /// The columns of the original matrix A that become pivot columns in its Row Echelon Form
+  /// correspond to basis vectors for Im(A). `column_basis_elements` are chains corresponding to
+  /// columns of original matrix A.
+  pub fn image_basis_from_row_echelon_z2(
+    _row_echelon_matrix: &[Vec<Z2>], // Matrix itself not strictly needed if we have pivot_cols
+    column_basis_elements: &[Chain<Z2>],
+    pivot_cols: &[usize],
+  ) -> Vec<Chain<Z2>> {
+    let mut image_generators = Vec::new();
+    for &pivot_col_idx in pivot_cols {
+      if pivot_col_idx < column_basis_elements.len() {
+        image_generators.push(column_basis_elements[pivot_col_idx].clone());
+      }
+    }
+    image_generators
+  }
+
+  // Helper function to convert a Chain to a coefficient vector relative to a basis of simplices.
+  // Used internally for matrix construction.
+  pub(super) fn chain_to_coeff_vector(
+    chain: &Chain<Z2>,
+    basis_simplices_map: &HashMap<Simplex, usize>, // Map simplex to its index in the basis
+    basis_size: usize,
+  ) -> Vec<Z2> {
+    let mut vector = vec![Z2::zero(); basis_size];
+    for (i, simplex) in chain.simplices.iter().enumerate() {
+      if let Some(&idx) = basis_simplices_map.get(simplex) {
+        // In Z2, the coefficient is either 0 or 1.
+        // If the simplex is in the chain, its coefficient is effectively Z2(1)
+        // (assuming chain.coefficients[i] is Z2::one()).
+        // Chain addition takes care of summing coefficients.
+        if !chain.coefficients[i].is_zero() {
+          vector[idx] = vector[idx] + chain.coefficients[i]; // Add in Z2
+        }
+      }
+    }
+    vector
+  }
+
+  /// Constructs the boundary matrix for ∂_k: C_k -> C_{k-1}.
+  /// Columns are indexed by `ordered_k_simplices`.
+  /// Rows are indexed by `ordered_km1_simplices`.
+  /// The (i,j)-th entry is 1 if ordered_km1_simplices[i] is in the boundary of
+  /// ordered_k_simplices[j], else 0.
+  pub fn get_boundary_matrix(
+    ordered_k_simplices: &[Simplex],   // Basis for C_k (domain)
+    ordered_km1_simplices: &[Simplex], // Basis for C_{k-1} (codomain)
+  ) -> Vec<Vec<Z2>> {
+    if ordered_k_simplices.is_empty() {
+      // No k-simplices, so map is from a zero space. Matrix has 0 columns.
+      // Number of rows is |S_{k-1}|.
+      return vec![vec![]; ordered_km1_simplices.len()];
+    }
+    if ordered_km1_simplices.is_empty() {
+      // Map is to a zero space (C_{k-1} is trivial).
+      // Matrix has |S_k| columns and 0 rows.
+      // Each column is empty.
+      // However, conventionally, this matrix would have 0 rows and |S_k| columns.
+      return vec![Vec::new(); 0]; // Standard representation of a matrix with 0 rows.
+    }
+
+    let num_rows = ordered_km1_simplices.len();
+    let num_cols = ordered_k_simplices.len();
+
+    let mut matrix = vec![vec![Z2::zero(); num_cols]; num_rows];
+
+    // Create a map for quick lookup of (k-1)-simplex indices
+    let km1_simplex_to_idx: HashMap<Simplex, usize> =
+      ordered_km1_simplices.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
+
+    for (j, k_simplex) in ordered_k_simplices.iter().enumerate() {
+      // For each k-simplex, compute its boundary.
+      // The boundary is a (k-1)-chain.
+      let boundary_chain = Chain::from_simplex_and_coeff(k_simplex.clone(), Z2::one()).boundary();
+
+      // Convert this boundary_chain into a column vector for the matrix.
+      let col_vector = chain_to_coeff_vector(&boundary_chain, &km1_simplex_to_idx, num_rows);
+      for i in 0..num_rows {
+        matrix[i][j] = col_vector[i];
+      }
+    }
+    matrix
   }
 }
 
