@@ -645,18 +645,6 @@ mod linalg_z2 {
     rank
   }
 
-  /// Extracts a basis for the kernel (null space) of a matrix A (m x n) in column echelon form.
-  /// The matrix A maps vectors of size n to vectors of size m.
-  /// `column_basis_elements` are the elements corresponding to the columns of the original matrix
-  /// (e.g., k-simplices). This function assumes `matrix` is already in a form where kernel
-  /// vectors can be identified (e.g. column echelon form). For a matrix M (rows x cols), its
-  /// kernel is found from M^T x = 0 or by directly solving Mx=0. Let's use the standard method
-  /// for Mx=0 where M is m x n. If M is brought to row echelon form, free variables correspond to
-  /// non-pivot columns. Here, we will adapt for column operations if needed, or use row echelon
-  /// form for standard kernel finding. For simplicity, let's assume we'll use Row Echelon Form to
-  /// find kernel. So, the `column_gaussian_elimination_z2` should probably be
-  /// `row_gaussian_elimination_z2`.
-
   /// Performs Gaussian elimination on a matrix over Z2 to bring it to row echelon form.
   /// The matrix is modified in place.
   /// Returns a tuple (rank, pivot_columns_indices).
@@ -1098,5 +1086,202 @@ mod tests {
     assert!(dim0_simplices.contains(&s0_v0), "Missing 0-simplex [0]");
     assert!(dim0_simplices.contains(&s0_v1), "Missing 0-simplex [1]");
     assert!(dim0_simplices.contains(&s0_v2), "Missing 0-simplex [2]");
+  }
+
+  #[test]
+  fn test_homology_point() {
+    let mut complex = SimplicialComplex::new();
+    let p0 = Simplex::new(0, vec![0]);
+    complex.join_simplex(p0.clone());
+
+    // H_0
+    let h0 = complex.compute_homology_z2(0);
+    assert_eq!(h0.dimension, 0, "H0: Dimension check");
+    assert_eq!(h0.betti_number, 1, "H0: Betti number for a point should be 1");
+    assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
+    // The generator should be the point [0]
+    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Z2::one());
+    assert!(h0.homology_generators.contains(&expected_gen_h0), "H0: Generator mismatch");
+
+    // H_1
+    let h1 = complex.compute_homology_z2(1);
+    assert_eq!(h1.dimension, 1, "H1: Dimension check");
+    assert_eq!(h1.betti_number, 0, "H1: Betti number for a point should be 0");
+    assert!(h1.homology_generators.is_empty(), "H1: Should have no generators");
+
+    // H_2
+    let h2 = complex.compute_homology_z2(2);
+    assert_eq!(h2.betti_number, 0, "H2: Betti number for a point should be 0");
+  }
+
+  #[test]
+  fn test_homology_edge() {
+    let mut complex = SimplicialComplex::new();
+    let edge01 = Simplex::new(1, vec![0, 1]);
+    complex.join_simplex(edge01.clone()); // join_simplex adds faces: p0, p1
+
+    // H_0
+    let h0 = complex.compute_homology_z2(0);
+    assert_eq!(h0.dimension, 0, "H0: Dimension check");
+    assert_eq!(h0.betti_number, 1, "H0: Betti number for an edge should be 1 (connected)");
+    assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
+    // Generator could be [0] or [1]. Let's check if it's one of them.
+    // The compute_homology_z2(0) implementation picks the first vertex of a component.
+    // Since vertices are sorted (0, then 1), [0] should be the generator.
+    let p0 = Simplex::new(0, vec![0]);
+    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Z2::one());
+    assert!(h0.homology_generators.contains(&expected_gen_h0), "H0: Generator for edge");
+
+    // H_1
+    let h1 = complex.compute_homology_z2(1);
+    assert_eq!(h1.dimension, 1, "H1: Dimension check");
+    assert_eq!(h1.betti_number, 0, "H1: Betti number for an edge should be 0 (no hole)");
+    assert!(h1.homology_generators.is_empty(), "H1: Should have no generators for an edge");
+  }
+
+  #[test]
+  fn test_homology_two_disjoint_points() {
+    let mut complex = SimplicialComplex::new();
+    let p0 = Simplex::new(0, vec![0]);
+    let p1 = Simplex::new(0, vec![1]);
+    complex.join_simplex(p0.clone());
+    complex.join_simplex(p1.clone());
+
+    // H_0
+    let h0 = complex.compute_homology_z2(0);
+    assert_eq!(h0.dimension, 0, "H0: Dimension check");
+    assert_eq!(h0.betti_number, 2, "H0: Betti for two disjoint points should be 2");
+    assert_eq!(h0.homology_generators.len(), 2, "H0: Should have two generators");
+    let expected_gen1_h0 = Chain::from_simplex_and_coeff(p0, Z2::one());
+    let expected_gen2_h0 = Chain::from_simplex_and_coeff(p1, Z2::one());
+    assert!(h0.homology_generators.contains(&expected_gen1_h0), "H0: Generator [0] missing");
+    assert!(h0.homology_generators.contains(&expected_gen2_h0), "H0: Generator [1] missing");
+
+    // H_1
+    let h1 = complex.compute_homology_z2(1);
+    assert_eq!(h1.betti_number, 0, "H1: Betti for two disjoint points should be 0");
+  }
+
+  #[test]
+  fn test_homology_filled_triangle() {
+    let mut complex = SimplicialComplex::new();
+    let triangle012 = Simplex::new(2, vec![0, 1, 2]);
+    complex.join_simplex(triangle012.clone()); // Adds tri, its edges, and its vertices
+
+    // H_0
+    let h0 = complex.compute_homology_z2(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti for a triangle should be 1");
+
+    // H_1
+    let h1 = complex.compute_homology_z2(1);
+    assert_eq!(h1.betti_number, 0, "H1: Betti for a filled triangle should be 0 (no 1D hole)");
+    assert!(h1.homology_generators.is_empty(), "H1: Should have no 1D homology generators");
+
+    // H_2
+    let h2 = complex.compute_homology_z2(2);
+    assert_eq!(h2.betti_number, 0, "H2: Betti for a filled triangle should be 0 (not a void)");
+    assert!(h2.homology_generators.is_empty(), "H2: Should have no 2D homology generators");
+  }
+
+  #[test]
+  fn test_homology_circle() {
+    let mut complex = SimplicialComplex::new();
+    // A circle formed by three 1-simplices (edges of a triangle)
+    let s01 = Simplex::new(1, vec![0, 1]);
+    let s12 = Simplex::new(1, vec![1, 2]);
+    let s20 = Simplex::new(1, vec![0, 2]); // Note: vertices sorted to [0,2]
+
+    complex.join_simplex(s01.clone());
+    complex.join_simplex(s12.clone());
+    complex.join_simplex(s20.clone());
+    // This also adds vertices [0], [1], [2]
+
+    // H_0
+    let h0 = complex.compute_homology_z2(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti for a circle should be 1");
+
+    // H_1
+    let h1 = complex.compute_homology_z2(1);
+    assert_eq!(h1.betti_number, 1, "H1: Betti for a circle should be 1");
+    assert_eq!(h1.homology_generators.len(), 1, "H1: Should have one 1D homology generator");
+
+    // Check the generator for H1. It should be the cycle s01+s12+s02 (in Z2).
+    // The generator chain must contain these three simplices s01, s12, s02 with Z2(1) coeff.
+    // And its boundary must be zero.
+    let generator_h1 = h1.homology_generators[0].clone();
+    assert_eq!(generator_h1.simplices.len(), 3, "H1: Circle generator should have 3 simplices");
+
+    // Define the simplices we expect to find in the generator chain
+    let simplex01 = Simplex::new(1, vec![0, 1]);
+    let simplex12 = Simplex::new(1, vec![1, 2]);
+    let simplex02 = Simplex::new(1, vec![0, 2]);
+
+    assert!(generator_h1.simplices.contains(&simplex01), "H1: Gen missing s01 ([0,1])");
+    assert!(generator_h1.simplices.contains(&simplex12), "H1: Gen missing s12 ([1,2])");
+    assert!(generator_h1.simplices.contains(&simplex02), "H1: Gen missing s02 ([0,2])");
+
+    for coeff in &generator_h1.coefficients {
+      assert_eq!(*coeff, Z2::one(), "H1: All coeffs in Z2 cycle generator should be 1");
+    }
+    assert!(
+      generator_h1.boundary().simplices.is_empty(),
+      "H1: Generator's boundary should be zero"
+    );
+
+    // H_2
+    let h2 = complex.compute_homology_z2(2);
+    assert_eq!(h2.betti_number, 0, "H2: Betti for a circle should be 0");
+  }
+
+  #[test]
+  fn test_homology_sphere_surface() {
+    // Boundary of a tetrahedron: 4 vertices, 6 edges, 4 faces ([012],[013],[023],[123])
+    let mut complex = SimplicialComplex::new();
+    let f012 = Simplex::new(2, vec![0, 1, 2]);
+    let f013 = Simplex::new(2, vec![0, 1, 3]);
+    let f023 = Simplex::new(2, vec![0, 2, 3]);
+    let f123 = Simplex::new(2, vec![1, 2, 3]);
+
+    // Important: Only add the 2-simplices (faces).
+    // join_simplex will add their boundaries (edges and vertices).
+    // If we added the 3-simplex (tetrahedron itself), H2 would be 0.
+    complex.join_simplex(f012.clone());
+    complex.join_simplex(f013.clone());
+    complex.join_simplex(f023.clone());
+    complex.join_simplex(f123.clone());
+
+    // H_0: Should be 1 (connected surface)
+    let h0 = complex.compute_homology_z2(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti for sphere surface should be 1");
+
+    // H_1: Should be 0 (no 1D holes on sphere surface)
+    let h1 = complex.compute_homology_z2(1);
+    assert_eq!(h1.betti_number, 0, "H1: Betti for sphere surface should be 0");
+    assert!(h1.homology_generators.is_empty(), "H1: Generators for sphere surface should be empty");
+
+    // H_2: Should be 1 (the enclosed void)
+    let h2 = complex.compute_homology_z2(2);
+    assert_eq!(h2.betti_number, 1, "H2: Betti for sphere surface should be 1");
+    assert_eq!(h2.homology_generators.len(), 1, "H2: Should have one 2D generator");
+
+    // The generator should be the sum of all 4 faces (with Z2 coefficients)
+    let generator_h2 = h2.homology_generators[0].clone();
+    assert_eq!(generator_h2.simplices.len(), 4, "H2: Sphere generator should be sum of 4 faces");
+    assert!(generator_h2.simplices.contains(&f012), "H2: Gen missing face [0,1,2]");
+    assert!(generator_h2.simplices.contains(&f013), "H2: Gen missing face [0,1,3]");
+    assert!(generator_h2.simplices.contains(&f023), "H2: Gen missing face [0,2,3]");
+    assert!(generator_h2.simplices.contains(&f123), "H2: Gen missing face [1,2,3]");
+    for coeff in &generator_h2.coefficients {
+      assert_eq!(*coeff, Z2::one(), "H2: All coeffs in Z2 cycle generator should be 1");
+    }
+    // Boundary of this 2-cycle must be 0.
+    assert!(
+      generator_h2.boundary().simplices.is_empty(),
+      "H2: Generator's boundary should be zero"
+    );
+
+    // H_3: No 3-simplices in the complex, so H_3 is trivial.
+    let h3 = complex.compute_homology_z2(3);
+    assert_eq!(h3.betti_number, 0, "H3: Betti for sphere surface (dim 2 complex) should be 0");
   }
 }
