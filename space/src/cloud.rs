@@ -70,6 +70,9 @@ impl<F: Field, const N: usize> Cloud<N, F> {
   ///
   /// * `points`: A `HashSet` of `Vector<N, F>` representing the points in the cloud.
   pub fn new(points: Vec<Vector<N, F>>) -> Self { Self { points } }
+
+  /// Returns a reference to the points in the cloud.
+  pub fn points_ref(&self) -> &Vec<Vector<N, F>> { &self.points }
 }
 
 // impl<F: Field + Copy, const N: usize> Set for Cloud<N, F> {

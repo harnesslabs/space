@@ -4,7 +4,10 @@
 //! including operations for computing boundaries and manipulating chains of simplices.
 //! The implementation ensures that vertices in simplices are always stored in sorted order.
 
-use std::ops::{Add, Neg};
+use std::{
+  collections::HashMap,
+  ops::{Add, Neg},
+};
 
 use itertools::Itertools;
 use num_traits::{One, Zero};
@@ -73,31 +76,33 @@ impl Simplex {
 #[derive(Debug, Default)]
 pub struct SimplicialComplex {
   /// Vector of simplices grouped by dimension
-  simplices: Vec<Vec<Simplex>>,
+  simplices: HashMap<usize, Vec<Simplex>>,
 }
 
 impl SimplicialComplex {
   /// Creates a new empty simplicial complex.
-  pub fn new() -> Self { Self { simplices: vec![] } }
+  pub fn new() -> Self { Self { simplices: HashMap::new() } }
 
   /// Adds a simplex and all its faces to the complex.
   ///
   /// If the simplex is already present, it will not be added again.
   /// This method recursively adds all faces of the simplex as well.
   pub fn join_simplex(&mut self, simplex: Simplex) {
-    while self.simplices.len() <= simplex.dimension() {
-      self.simplices.push(Vec::new());
-    }
-    if self.simplices[simplex.dimension()].contains(&simplex) {
+    let dim = simplex.dimension();
+    let simplices_in_dim = self.simplices.entry(dim).or_default();
+
+    if simplices_in_dim.contains(&simplex) {
       return;
     }
 
     if simplex.dimension() > 0 {
       for face in simplex.faces() {
-        self.join_simplex(face);
+        self.join_simplex(face); // Recursive call
       }
     }
-    self.simplices[simplex.dimension()].push(simplex);
+    // Add the current simplex after its faces (if any) are processed.
+    // This re-fetches mutable access in case recursion modified other dimensions.
+    self.simplices.entry(dim).or_default().push(simplex);
   }
 
   /// Computes the boundary of all simplices of a given dimension in the complex.
@@ -109,8 +114,8 @@ impl SimplicialComplex {
   /// * `dimension` - The dimension of simplices whose boundary to compute
   ///
   /// # Returns
-  /// A chain representing the boundary. If dimension is 0 or exceeds the maximum
-  /// dimension in the complex, returns an empty chain.
+  /// A chain representing the boundary. If dimension is 0 or no simplices of that
+  /// dimension exist in the complex, returns an empty chain.
   ///
   /// # Note
   /// This implementation assumes at most two simplices share any given face.
@@ -118,19 +123,41 @@ impl SimplicialComplex {
     &self,
     dimension: usize,
   ) -> Chain<R> {
-    if dimension == 0 || dimension >= self.simplices.len() {
+    if dimension == 0 {
       return Chain::new();
     }
+
     let mut chain = Chain::new();
-    let simplices = self.simplices[dimension].clone();
-    for simplex in simplices {
-      if chain.simplices.iter().flat_map(Simplex::faces).any(|f| simplex.faces().contains(&f)) {
-        chain = chain + Chain::from_simplex_and_coeff(simplex, -R::one());
-      } else {
-        chain = chain + Chain::from_simplex_and_coeff(simplex, R::one());
+    // Get the simplices for the given dimension. If none, result is an empty chain (from boundary
+    // of empty chain).
+    if let Some(simplices_in_dim) = self.simplices.get(&dimension) {
+      for simplex in simplices_in_dim.clone() {
+        // Clone needed because we iterate and modify chain
+        // This logic for determining coefficient might need review for correctness
+        // in a general simplicial complex boundary. The original note said:
+        // "This implementation assumes at most two simplices share any given face."
+        // For now, preserving the existing logic.
+        if chain.simplices.iter().flat_map(Simplex::faces).any(|f| simplex.faces().contains(&f)) {
+          chain = chain + Chain::from_simplex_and_coeff(simplex, -R::one());
+        } else {
+          chain = chain + Chain::from_simplex_and_coeff(simplex, R::one());
+        }
       }
     }
+    // The boundary of the constructed chain is taken.
     chain.boundary()
+  }
+
+  /// Returns a reference to the simplices of a given dimension.
+  ///
+  /// # Arguments
+  /// * `dimension` - The dimension of the simplices to return
+  ///
+  /// # Returns
+  /// An `Option` containing a slice of simplices if the dimension exists,
+  /// otherwise `None`.
+  pub fn simplices_by_dimension(&self, dimension: usize) -> Option<&[Simplex]> {
+    self.simplices.get(&dimension).map(Vec::as_slice)
   }
 }
 
@@ -321,9 +348,9 @@ mod tests {
   fn test_simplicial_complex() {
     let mut complex = SimplicialComplex::new();
     complex.join_simplex(Simplex::new(2, vec![0, 1, 2]));
-    assert_eq!(complex.simplices[2].len(), 1);
-    assert_eq!(complex.simplices[1].len(), 3);
-    assert_eq!(complex.simplices[0].len(), 3);
+    assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1);
+    assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3);
+    assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3);
   }
 
   #[test]
@@ -477,5 +504,44 @@ mod tests {
     assert_eq!(boundary.coefficients[1], 1);
     assert_eq!(boundary.coefficients[2], -1);
     assert_eq!(boundary.coefficients[3], 1);
+  }
+
+  #[test]
+  fn test_simplices_by_dimension_basic() {
+    let mut complex = SimplicialComplex::new();
+
+    // Adding a 2-simplex will also add its 1-simplex faces and 0-simplex vertices
+    // due to the behavior of join_simplex.
+    let s2_v012 = Simplex::new(2, vec![0, 1, 2]);
+    complex.join_simplex(s2_v012.clone());
+
+    // Expected 0-simplices (vertices)
+    let s0_v0 = Simplex::new(0, vec![0]);
+    let s0_v1 = Simplex::new(0, vec![1]);
+    let s0_v2 = Simplex::new(0, vec![2]);
+
+    // Expected 1-simplices (edges)
+    let s1_v01 = Simplex::new(1, vec![0, 1]); // face of s2_v012
+    let s1_v02 = Simplex::new(1, vec![0, 2]); // face of s2_v012
+    let s1_v12 = Simplex::new(1, vec![1, 2]); // face of s2_v012
+
+    // Check dimension 2
+    let dim2_simplices = complex.simplices_by_dimension(2).expect("Dim 2 should exist");
+    assert_eq!(dim2_simplices.len(), 1, "Should be one 2-simplex");
+    assert!(dim2_simplices.contains(&s2_v012), "Missing 2-simplex [0,1,2]");
+
+    // Check dimension 1
+    let dim1_simplices = complex.simplices_by_dimension(1).expect("Dim 1 should exist");
+    assert_eq!(dim1_simplices.len(), 3, "Should be three 1-simplices");
+    assert!(dim1_simplices.contains(&s1_v01), "Missing 1-simplex [0,1]");
+    assert!(dim1_simplices.contains(&s1_v02), "Missing 1-simplex [0,2]");
+    assert!(dim1_simplices.contains(&s1_v12), "Missing 1-simplex [1,2]");
+
+    // Check dimension 0
+    let dim0_simplices = complex.simplices_by_dimension(0).expect("Dim 0 should exist");
+    assert_eq!(dim0_simplices.len(), 3, "Should be three 0-simplices");
+    assert!(dim0_simplices.contains(&s0_v0), "Missing 0-simplex [0]");
+    assert!(dim0_simplices.contains(&s0_v1), "Missing 0-simplex [1]");
+    assert!(dim0_simplices.contains(&s0_v2), "Missing 0-simplex [2]");
   }
 }
