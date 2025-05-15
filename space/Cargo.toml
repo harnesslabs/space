@@ -12,8 +12,12 @@ version     = "0.3.0"
 
 [dependencies]
 harness-algebra = { workspace = true }
-itertools       = { workspace = true }
+itertools       = { workspace = true, features = ["use_std"] }
 num-traits      = { workspace = true }
-
+rayon           = { workspace = true, optional = true }
 [dev-dependencies]
 tempfile = { workspace = true }
+
+
+[features]
+parallel = ["rayon"]

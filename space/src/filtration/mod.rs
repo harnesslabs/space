@@ -25,3 +25,29 @@ pub trait Filtration {
   /// The constructed output space.
   fn build(&self, input: &Self::InputSpace, param: Self::Parameter) -> Self::OutputSpace;
 }
+
+#[cfg(feature = "parallel")] use rayon::prelude::*;
+
+#[cfg(feature = "parallel")]
+/// A trait for filtrations that can be built in parallel.
+pub trait ParallelFiltration: Filtration
+where
+  Self: Sync,
+  Self::InputSpace: Sync,
+  Self::Parameter: Send,
+  Self::OutputSpace: Send, {
+  /// Builds the output space in parallel for multiple parameters.
+  ///
+  /// # Arguments
+  /// * `input`: A reference to the input space.
+  /// * `param`: A vector of parameters to build the output space for.
+  ///
+  /// # Returns
+  fn build_parallel(
+    &self,
+    input: &Self::InputSpace,
+    param: Vec<Self::Parameter>,
+  ) -> Vec<Self::OutputSpace> {
+    param.into_par_iter().map(|p| self.build(input, p)).collect()
+  }
+}
