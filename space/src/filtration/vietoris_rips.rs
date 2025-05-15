@@ -3,9 +3,8 @@
 
 use std::{iter::Sum, marker::PhantomData};
 
-use harness_algebra::{ring::Field, vector::Vector}; /* Assuming Vector is needed for
-                                                      * Cloud's points */
-use itertools::Itertools; // For combinations
+use harness_algebra::ring::Field;
+use itertools::Itertools;
 
 use crate::{
   cloud::Cloud,
@@ -98,7 +97,6 @@ mod tests {
   use harness_algebra::vector::Vector;
 
   use super::*;
-  use crate::definitions::MetricSpace; // for Cloud::distance
 
   #[test]
   fn test_vietoris_rips_empty_cloud() {
@@ -165,10 +163,4 @@ mod tests {
     assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1);
     assert_eq!(complex.simplices_by_dimension(2).unwrap()[0].vertices(), &[0, 1, 2]);
   }
-  // To run these tests, SimplicialComplex needs a way to access simplices by dimension,
-  // e.g., a method like `simplices_by_dimension(&self, dim: usize) -> Option<&Vec<Simplex>>`.
-  // Add this to SimplicialComplex:
-  // pub fn simplices_by_dimension(&self, dim: usize) -> Option<&Vec<Simplex>> {
-  //   self.simplices.get(dim)
-  // }
 }
