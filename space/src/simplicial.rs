@@ -89,7 +89,7 @@ impl SimplicialComplex {
   /// This method recursively adds all faces of the simplex as well.
   pub fn join_simplex(&mut self, simplex: Simplex) {
     let dim = simplex.dimension();
-    let simplices_in_dim = self.simplices.entry(dim).or_insert_with(Vec::new);
+    let simplices_in_dim = self.simplices.entry(dim).or_default();
 
     if simplices_in_dim.contains(&simplex) {
       return;
@@ -102,7 +102,7 @@ impl SimplicialComplex {
     }
     // Add the current simplex after its faces (if any) are processed.
     // This re-fetches mutable access in case recursion modified other dimensions.
-    self.simplices.entry(dim).or_insert_with(Vec::new).push(simplex);
+    self.simplices.entry(dim).or_default().push(simplex);
   }
 
   /// Computes the boundary of all simplices of a given dimension in the complex.
