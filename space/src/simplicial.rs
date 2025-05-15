@@ -489,4 +489,43 @@ mod tests {
     assert_eq!(boundary.coefficients[2], -1);
     assert_eq!(boundary.coefficients[3], 1);
   }
+
+  #[test]
+  fn test_simplices_by_dimension_basic() {
+    let mut complex = SimplicialComplex::new();
+
+    // Adding a 2-simplex will also add its 1-simplex faces and 0-simplex vertices
+    // due to the behavior of join_simplex.
+    let s2_v012 = Simplex::new(2, vec![0, 1, 2]);
+    complex.join_simplex(s2_v012.clone());
+
+    // Expected 0-simplices (vertices)
+    let s0_v0 = Simplex::new(0, vec![0]);
+    let s0_v1 = Simplex::new(0, vec![1]);
+    let s0_v2 = Simplex::new(0, vec![2]);
+
+    // Expected 1-simplices (edges)
+    let s1_v01 = Simplex::new(1, vec![0, 1]); // face of s2_v012
+    let s1_v02 = Simplex::new(1, vec![0, 2]); // face of s2_v012
+    let s1_v12 = Simplex::new(1, vec![1, 2]); // face of s2_v012
+
+    // Check dimension 2
+    let dim2_simplices = complex.simplices_by_dimension(2);
+    assert_eq!(dim2_simplices.len(), 1, "Should be one 2-simplex");
+    assert!(dim2_simplices.contains(&s2_v012), "Missing 2-simplex [0,1,2]");
+
+    // Check dimension 1
+    let dim1_simplices = complex.simplices_by_dimension(1);
+    assert_eq!(dim1_simplices.len(), 3, "Should be three 1-simplices");
+    assert!(dim1_simplices.contains(&s1_v01), "Missing 1-simplex [0,1]");
+    assert!(dim1_simplices.contains(&s1_v02), "Missing 1-simplex [0,2]");
+    assert!(dim1_simplices.contains(&s1_v12), "Missing 1-simplex [1,2]");
+
+    // Check dimension 0
+    let dim0_simplices = complex.simplices_by_dimension(0);
+    assert_eq!(dim0_simplices.len(), 3, "Should be three 0-simplices");
+    assert!(dim0_simplices.contains(&s0_v0), "Missing 0-simplex [0]");
+    assert!(dim0_simplices.contains(&s0_v1), "Missing 0-simplex [1]");
+    assert!(dim0_simplices.contains(&s0_v2), "Missing 0-simplex [2]");
+  }
 }
