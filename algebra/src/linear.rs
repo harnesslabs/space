@@ -1,8 +1,108 @@
+//! Linear algebra functions for computations over fields.
+//!
+//! This module provides implementations of common linear algebra algorithms,
+//! particularly focusing on Gaussian elimination. These functions are generic
+//! and can operate on matrices whose elements are from any type that implements
+//! the [`Field`](crate::ring::Field) trait and is `Copy`.
+//!
+//! Common field types used with this module include:
+//! - Standard floating-point numbers: `f64`, `f32`.
+//! - Boolean values: [`Boolean`](crate::arithmetic::Boolean), representing the field
+//!   $\\mathbb{Z}/2\\mathbb{Z}$.
+//! - Modular arithmetic types: For example, types representing $\\mathbb{Z}/p\\mathbb{Z}$ for a
+//!   prime $p$, such as the `Mod7` type used in tests (generated via macros like `modular!` and
+//!   `prime_field!`).
+//!
+//! The primary functions provided are:
+//! - [`row_gaussian_elimination`]: Transforms a matrix into its row echelon form (specifically,
+//!   reduced row echelon form).
+//! - [`column_gaussian_elimination`]: Transforms a matrix into a column echelon form using row
+//!   operations.
 use crate::ring::Field;
 
 /// Performs Gaussian elimination on a matrix to bring it to column echelon form
 /// using row operations. The matrix is modified in place.
-/// Returns the rank of the matrix (number of pivot columns).
+///
+/// The "column echelon form" achieved here means that:
+/// 1. Each pivot element is 1.
+/// 2. All other entries in a pivot column (both above and below the pivot) are 0.
+/// 3. Pivot columns are to the left of non-pivot columns within the scope of rows processed so far.
+///
+/// This function iterates through columns, identifies a pivot element in the current column (at or
+/// below the current pivot row), swaps rows if necessary to bring the pivot to the `pivot_row`,
+/// normalizes the `pivot_row` so the pivot element becomes 1, and then uses row operations to
+/// eliminate all other non-zero elements in the current pivot column.
+///
+/// # Arguments
+///
+/// * `matrix`: A mutable slice of vectors, representing the matrix. Each `Vec<F>` is a row. The
+///   matrix elements must be of a type `F` that implements [`Field`](crate::ring::Field) and
+///   `Copy`.
+///
+/// # Returns
+///
+/// The rank of the matrix, which is the number of pivot columns found.
+///
+/// # Examples
+///
+/// ```
+/// use harness_algebra::ring::Field; // For trait bounds
+/// use harness_algebra::{
+///   arithmetic::{Boolean, One, Zero},
+///   linear::column_gaussian_elimination,
+/// }; // For Boolean example
+///
+/// // Example with Boolean (representing Z/2Z)
+/// let mut matrix_z2 = vec![vec![Boolean(true), Boolean(true), Boolean(false)], vec![
+///   Boolean(true),
+///   Boolean(false),
+///   Boolean(true),
+/// ]];
+/// let rank_z2 = column_gaussian_elimination(&mut matrix_z2);
+/// assert_eq!(rank_z2, 2);
+/// // Expected column echelon form (one possibility):
+/// // [[1, 0, 1],
+/// //  [0, 1, 1]]
+/// assert_eq!(matrix_z2, vec![vec![Boolean(true), Boolean(false), Boolean(true)], vec![
+///   Boolean(false),
+///   Boolean(true),
+///   Boolean(true)
+/// ],]);
+///
+/// // Example with f64
+/// let mut matrix_f64 = vec![vec![1.0, 2.0, 1.0], vec![2.0, 4.0, 0.0], vec![3.0, 6.0, 0.0]];
+/// let rank_f64 = column_gaussian_elimination(&mut matrix_f64);
+/// assert_eq!(rank_f64, 2);
+/// // Expected column echelon form (one possibility for f64):
+/// // [[1.0, 2.0, 0.0],
+/// //  [0.0, 0.0, 1.0],
+/// //  [0.0, 0.0, 0.0]]
+/// // Note: The exact form can depend on pivot choices if multiple exist.
+/// // For the given example and implementation:
+/// // Pivot (0,0) -> 1.0. Row 0: [1,2,1].
+/// //   R1 -= 2*R0 => [0,0,-2]
+/// //   R2 -= 3*R0 => [0,0,-3]
+/// // Matrix: [[1,2,1],[0,0,-2],[0,0,-3]]
+/// // Pivot (0,0) is 1. Clear column 0 for other rows (already done). pivot_row=1, rank=1.
+/// // Next column (j=1). Pivot search from row 1. matrix[1][1]=0, matrix[2][1]=0. No pivot.
+/// // Next column (j=2). Pivot search from row 1. matrix[1][2]=-2. Pivot is -2 at (1,2).
+/// //   Swap row 1 with pivot_row (1) (no change).
+/// //   Normalize row 1: R1 /= -2 => [0,0,1]
+/// //   Matrix: [[1,2,1],[0,0,1],[0,0,-3]]
+/// //   Pivot (1,2) is 1. Clear column 2 for other rows.
+/// //     R0 -= 1*R1 => [1,2,0]
+/// //     R2 -= -3*R1 => [0,0,0]
+/// // Final Matrix: [[1,2,0],[0,0,1],[0,0,0]]
+/// assert!((matrix_f64[0][0] - 1.0).abs() < 1e-9);
+/// assert!((matrix_f64[0][1] - 2.0).abs() < 1e-9);
+/// assert!(matrix_f64[0][2].abs() < 1e-9);
+/// assert!(matrix_f64[1][0].abs() < 1e-9);
+/// assert!(matrix_f64[1][1].abs() < 1e-9);
+/// assert!((matrix_f64[1][2] - 1.0).abs() < 1e-9);
+/// assert!(matrix_f64[2][0].abs() < 1e-9);
+/// assert!(matrix_f64[2][1].abs() < 1e-9);
+/// assert!(matrix_f64[2][2].abs() < 1e-9);
+/// ```
 pub fn column_gaussian_elimination<F: Field + Copy>(matrix: &mut [Vec<F>]) -> usize {
   if matrix.is_empty() || matrix[0].is_empty() {
     return 0;
@@ -71,7 +171,80 @@ pub fn column_gaussian_elimination<F: Field + Copy>(matrix: &mut [Vec<F>]) -> us
 
 /// Performs Gaussian elimination on a matrix over Z2 to bring it to row echelon form.
 /// The matrix is modified in place.
-/// Returns a tuple `(rank, pivot_columns_indices)`.
+///
+/// The reduced row echelon form satisfies the following properties:
+/// 1. If a row has non-zero entries, its first non-zero entry (pivot) is 1.
+/// 2. All other entries in a pivot column are 0.
+/// 3. Rows consisting entirely of zeros are at the bottom of the matrix.
+/// 4. For any two pivot rows, the pivot in the upper row is to the left of the pivot in the lower
+///    row.
+///
+/// # Arguments
+///
+/// * `matrix`: A mutable slice of vectors, representing the matrix. Each `Vec<F>` is a row. The
+///   matrix elements must be of a type `F` that implements [`Field`](crate::ring::Field) and
+///   `Copy`.
+///
+/// # Returns
+///
+/// A tuple `(rank, pivot_columns_indices)`:
+/// * `rank`: The rank of the matrix (number of non-zero rows in RREF, or number of pivots).
+/// * `pivot_columns_indices`: A vector containing the column indices of the pivot elements, ordered
+///   by the row in which they appear.
+///
+/// # Examples
+///
+/// ```
+/// use harness_algebra::ring::Field; // For trait bounds
+/// use harness_algebra::{
+///   arithmetic::{Boolean, One, Zero},
+///   linear::row_gaussian_elimination,
+/// }; // For Boolean example
+///
+/// // Example with Boolean (representing Z/2Z)
+/// let mut matrix_z2 = vec![
+///   vec![Boolean(true), Boolean(true), Boolean(false)], // [1, 1, 0]
+///   vec![Boolean(true), Boolean(false), Boolean(true)], // [1, 0, 1]
+/// ];
+/// let (rank_z2, pivots_z2) = row_gaussian_elimination(&mut matrix_z2);
+/// assert_eq!(rank_z2, 2);
+/// assert_eq!(pivots_z2, vec![0, 1]); // Pivots at (0,0) and (1,1) after transformation
+///                                    // R1 = R1 (no change initially as matrix[0][0] is pivot)
+///                                    // R2 = R2 + R1 = [1,0,1] + [1,1,0] = [0,1,1]
+///                                    // Matrix: [[1,1,0], [0,1,1]]
+///                                    // Pivot for R2 is matrix[1][1]=1.
+///                                    // R1 = R1 + R2 = [1,1,0] + [0,1,1] = [1,0,1]
+///                                    // Final RREF:
+///                                    // [[1, 0, 1],
+///                                    //  [0, 1, 1]]
+/// assert_eq!(matrix_z2, vec![vec![Boolean(true), Boolean(false), Boolean(true)], vec![
+///   Boolean(false),
+///   Boolean(true),
+///   Boolean(true)
+/// ],]);
+///
+/// // Example with f64
+/// let mut matrix_f64 =
+///   vec![vec![1.0, 2.0, -1.0, 3.0], vec![2.0, 4.0, -2.0, 7.0], vec![0.0, 1.0, 2.0, 1.0]];
+/// let (rank_f64, pivots_f64) = row_gaussian_elimination(&mut matrix_f64);
+/// assert_eq!(rank_f64, 3);
+/// // Expected pivot columns might be [0, 1, 3] or similar depending on exact RREF steps.
+/// // Let's check the RREF form.
+/// // Expected RREF (one possibility):
+/// // [[1.0, 0.0, -5.0, 0.0],
+/// //  [0.0, 1.0,  2.0, 0.0],
+/// //  [0.0, 0.0,  0.0, 1.0]]
+/// // This would imply pivots_f64 = vec![0,1,3]
+/// assert_eq!(pivots_f64, vec![0, 1, 3]);
+///
+/// let expected_rref_f64 =
+///   vec![vec![1.0, 0.0, -5.0, 0.0], vec![0.0, 1.0, 2.0, 0.0], vec![0.0, 0.0, 0.0, 1.0]];
+/// for i in 0..matrix_f64.len() {
+///   for j in 0..matrix_f64[i].len() {
+///     assert!((matrix_f64[i][j] - expected_rref_f64[i][j]).abs() < 1e-9);
+///   }
+/// }
+/// ```
 pub fn row_gaussian_elimination<F: Field + Copy>(matrix: &mut [Vec<F>]) -> (usize, Vec<usize>) {
   if matrix.is_empty() || matrix[0].is_empty() {
     return (0, Vec::new());

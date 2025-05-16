@@ -40,15 +40,6 @@
 //! let v2 = Vector::<3, f64>([4.0, 5.0, 6.0]);
 //! let sum = v1 + v2;
 //! ```
-//!
-//! # Modules
-//!
-//! - [`arithmetic`]: Basic arithmetic traits and operations
-//! - [`group`]: Group theory abstractions and implementations
-//! - [`ring`]: Ring theory abstractions and implementations
-//! - [`module`]: Module theory abstractions and implementations
-//! - [`vector`]: Vector space abstractions and implementations
-//! - [`mod@modular`]: Modular arithmetic abstractions and implementations
 
 #![warn(missing_docs)]
 #![allow(incomplete_features)]
