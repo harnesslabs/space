@@ -98,6 +98,7 @@ impl Add for Boolean {
 impl Sub for Boolean {
   type Output = Self;
 
+  #[allow(clippy::suspicious_arithmetic_impl)]
   fn sub(self, rhs: Self) -> Self::Output { self + rhs }
 }
 

@@ -158,6 +158,10 @@ macro_rules! modular {
 
     impl $crate::group::AbelianGroup for $name {}
     impl $crate::ring::Ring for $name {}
+
+    impl From<$inner> for $name {
+      fn from(value: $inner) -> Self { Self::new(value) }
+    }
   };
 }
 

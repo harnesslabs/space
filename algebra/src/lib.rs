@@ -57,6 +57,7 @@
 pub mod algebras;
 pub mod arithmetic;
 pub mod group;
+pub mod linear;
 pub mod modular;
 pub mod module;
 pub mod ring;
