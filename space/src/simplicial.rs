@@ -9,7 +9,7 @@ use std::{
   ops::{Add, Neg},
 };
 
-use harness_algebra::ring::Field;
+use harness_algebra::{arithmetic::Boolean, modular, prime_field, ring::Field};
 use itertools::Itertools;
 use num_traits::{One, Zero};
 
@@ -639,13 +639,26 @@ mod linalg {
       matrix.swap(i, r);
       pivot_cols.push(lead);
 
-      // Normalize pivot row (pivot element is already 1 in Z2 if non-zero)
-      // For rows below pivot, eliminate the entry in the pivot column
-      for i in 0..rows {
-        if i != r && !matrix[i][lead].is_zero() {
-          // matrix[i] = matrix[i] + matrix[r]
-          for j in lead..cols {
-            matrix[i][j] = matrix[i][j] + matrix[r][j];
+      let pivot_val = matrix[r][lead];
+      // For a field, a non-zero pivot_val is expected here.
+      // The Field trait should provide inverse. Panicking if not found for a non-zero element is
+      // acceptable.
+      let inv_pivot = pivot_val.multiplicative_inverse();
+
+      // Normalize pivot row: matrix[r][j] = matrix[r][j] * inv_pivot
+      for j in lead..cols {
+        matrix[r][j] = matrix[r][j] * inv_pivot;
+      }
+
+      // Eliminate other rows: matrix[i] = matrix[i] - factor * matrix[r]
+      for i_row in 0..rows {
+        if i_row != r {
+          let factor = matrix[i_row][lead]; // factor is F, which is Copy
+          if !factor.is_zero() {
+            for j_col in lead..cols {
+              let term = factor * matrix[r][j_col];
+              matrix[i_row][j_col] = matrix[i_row][j_col] - term;
+            }
           }
         }
       }
@@ -664,21 +677,34 @@ mod linalg {
     pivot_cols: &[usize],
   ) -> Vec<Chain<F>> {
     if row_echelon_matrix.is_empty() || row_echelon_matrix[0].is_empty() {
-      // If matrix is empty, or has 0 columns, kernel depends on context.
-      // If 0 columns, kernel is trivial. If 0 rows (non-empty cols), kernel is all of C_n.
-      // This case needs careful handling based on matrix dimensions.
-      // For now, if matrix is empty, assume trivial kernel if no column_basis_elements,
-      // otherwise it's more complex. Let's assume non-empty matrix or column_basis_elements match
-      // cols.
       if column_basis_elements.is_empty() {
         return Vec::new();
       }
-      // If it's a zero map from non-trivial C_n, then all of C_n is kernel
-      return column_basis_elements.to_vec();
+      // If it's a zero map from non-trivial C_n to C_m (m > 0), or to C_0,
+      // then all of C_n is kernel.
+      // This case should be handled if num_rows (effective rank) is 0 but num_cols > 0.
+      // The current logic for free variables should correctly make all columns free if rank is 0.
+      let is_zero_matrix_effectively = pivot_cols.is_empty();
+      if is_zero_matrix_effectively && !column_basis_elements.is_empty() {
+        return column_basis_elements.to_vec();
+      }
+      if column_basis_elements.is_empty() {
+        // Explicitly handle if no columns to form basis from
+        return Vec::new();
+      }
+      // Fallback if matrix had rows but all were zero, or other edge cases
+      // This part of the original condition might be too simple.
+      // Let the main loop handle it: if all columns are free, it will generate all basis elements.
     }
 
-    let num_rows = row_echelon_matrix.len();
-    let num_cols = row_echelon_matrix[0].len();
+    let num_cols = if !row_echelon_matrix.is_empty() { row_echelon_matrix[0].len() } else { 0 };
+    if num_cols == 0 && column_basis_elements.is_empty() {
+      return Vec::new();
+    }
+    // If num_cols is 0 but column_basis_elements is not, it's an inconsistency.
+    // If row_echelon_matrix is empty but column_basis_elements is not, it implies a map to C_0.
+    // In this case, all columns are free. num_rows would be 0.
+
     assert_eq!(
       num_cols,
       column_basis_elements.len(),
@@ -688,61 +714,72 @@ mod linalg {
     let mut kernel_generators = Vec::new();
     let mut current_pivot_idx = 0;
 
-    for j in 0..num_cols {
-      // Iterate through columns
-      if current_pivot_idx < pivot_cols.len() && pivot_cols[current_pivot_idx] == j {
+    for j_col in 0..num_cols {
+      // Iterate through columns (potential free variables)
+      if current_pivot_idx < pivot_cols.len() && pivot_cols[current_pivot_idx] == j_col {
         // This is a pivot column
         current_pivot_idx += 1;
       } else {
-        // This is a free variable column
+        // This is a free variable column j_col
         let mut generator_coeffs = vec![<F as Zero>::zero(); num_cols];
-        generator_coeffs[j] = <F as One>::one(); // Set free variable to 1
+        generator_coeffs[j_col] = <F as One>::one(); // Set free variable x_{j_col} to 1
 
         // Solve for pivot variables in terms of this free variable
-        // Ax = 0. For row i, Sum(A_ik * x_k) = 0
-        // Iterate upwards through pivot rows to express pivot variables.
-        let mut temp_pivot_idx = 0;
-        for r in 0..num_rows {
-          // iterate through effective rows (rank)
-          if temp_pivot_idx < pivot_cols.len()
-            && row_echelon_matrix[r][pivot_cols[temp_pivot_idx]].is_one()
-          {
-            let pivot_col_for_row_r = pivot_cols[temp_pivot_idx];
-            // If this pivot var is not the free var itself (it shouldn't be)
-            if pivot_col_for_row_r != j {
-              // The value of x_{pivot_col_for_row_r} should be such that equation for row r holds.
-              // A[r][pivot_col_for_row_r]*x_{pivot_col_for_row_r} + A[r][j]*x_j (which is 1) + ...
-              // = 0 Since A[r][pivot_col_for_row_r] is 1 (pivot), and x_j is 1:
-              // x_{pivot_col_for_row_r} + A[r][j] = 0  => x_{pivot_col_for_row_r} = -A[r][j] =
-              // A[r][j] in Z2.
-              if !row_echelon_matrix[r][j].is_zero() {
-                // only if A[r][j] is 1
-                generator_coeffs[pivot_col_for_row_r] = row_echelon_matrix[r][j];
-              }
-            }
-            temp_pivot_idx += 1;
-            if temp_pivot_idx >= pivot_cols.len() {
-              break;
-            }
-          } else if temp_pivot_idx >= pivot_cols.len() {
-            break; // No more pivots
+        // For each pivot row r, associated with a pivot column p_c = pivot_cols[r_idx]:
+        //   x_{p_c} * 1 + M[r][j_col] * x_{j_col} = 0  (other free vars are 0, other pivots are 0
+        // in this equation)   x_{p_c} = -M[r][j_col] * x_{j_col}
+        // Since x_{j_col} = 1, then x_{p_c} = -M[r][j_col]
+
+        // Iterate through the pivot rows of the row_echelon_matrix
+        // The number of actual pivot rows is pivot_cols.len() (which is the rank)
+        // `row_echelon_matrix` still has all original rows, but non-pivot rows are zero or become
+        // zero relevant to pivots.
+
+        let mut temp_p_idx = 0; // index into pivot_cols vector
+        for r_idx in 0..pivot_cols.len() {
+          // Iterate over actual pivot rows by their index in pivot_cols
+          let pivot_row_actual_index = r_idx; // In reduced row echelon form, pivot r is in row r.
+                                              // The way `row_gaussian_elimination` is written, it processes row by row.
+                                              // The pivot `matrix[r][lead]` means `pivot_cols[r_idx]` is that `lead`.
+          let pivot_col_for_this_row = pivot_cols[r_idx];
+
+          // We need to ensure row_echelon_matrix[pivot_row_actual_index] is the correct row.
+          // The RRE matrix has its pivots matrix[r_idx][pivot_cols[r_idx]] = 1.
+          if !row_echelon_matrix[pivot_row_actual_index][j_col].is_zero() {
+            generator_coeffs[pivot_col_for_this_row] =
+              -row_echelon_matrix[pivot_row_actual_index][j_col];
           }
         }
 
-        // Construct chain from coefficients
         let mut gen_chain = Chain::new();
         for (idx, coeff) in generator_coeffs.iter().enumerate() {
           if !coeff.is_zero() {
-            // Create a unit chain for the simplex column_basis_elements[idx]
-            // This assumes column_basis_elements[idx] is a Chain with one simplex and coeff 1.
-            // Or, more generally, it is the chain we want to add if coeff is 1.
-            // For now, let's assume column_basis_elements are unit chains.
-            gen_chain = gen_chain + column_basis_elements[idx].clone(); // Coeff is Z2(1), so adding
-                                                                        // is correct.
+            // This creates a chain with one simplex and the calculated coefficient.
+            // Then adds it to gen_chain. This is not quite right.
+            // We need to sum up (coeff_i * basis_chain_i).
+            // gen_chain = gen_chain + (coeff.clone() * column_basis_elements[idx].clone());
+            // Chain does not currently support multiplication by scalar from the left.
+            // For now, assume coeff is 1 or -1, or for Z2, just 1.
+            // If coeff is F::one(), add column_basis_elements[idx]
+            // If coeff is -F::one(), subtract column_basis_elements[idx] (add its negation)
+            // This logic needs Chain to support scalar multiplication or careful construction.
+
+            // Current Chain::add combines like terms. We are building a new chain from a linear
+            // combination. Let's assume column_basis_elements are single simplices with
+            // coeff 1.
+            let mut single_term_chain = column_basis_elements[idx].clone();
+            // We need to scale single_term_chain by *coeff.
+            // A simple way for now, if we assume Field allows it:
+            for c in single_term_chain.coefficients.iter_mut() {
+              *c = *c * (*coeff); // Assumes coeff is F, c is F.
+            }
+            if !coeff.is_zero() {
+              // Re-check after potential multiplication if coeff was complex.
+              gen_chain = gen_chain + single_term_chain;
+            }
           }
         }
         if !gen_chain.simplices.is_empty() {
-          // Ensure it's not a zero chain
           kernel_generators.push(gen_chain);
         }
       }
@@ -837,11 +874,27 @@ mod linalg {
   }
 }
 
+// Define Mod7 field
+modular!(Mod7, u32, 7);
+prime_field!(Mod7);
+
+// Ensure Mod7 implements necessary traits if not covered by macros,
+// e.g., Copy, Debug, PartialEq, Default. Field usually implies many.
+// prime_field! likely derives these or ensures they are implemented.
+
 #[cfg(test)]
 mod tests {
-  use harness_algebra::arithmetic::Boolean;
+  use std::fmt::Debug; // For F in assert messages if Chain prints it
 
-  use super::*;
+  use harness_algebra::arithmetic::Boolean;
+  use harness_algebra::ring::Field; // For trait bounds
+  use num_traits::{One, Zero}; // For F::one(), F::zero()
+
+  use super::{Mod7, *}; // Make sure Mod7 is in scope here
+
+  // Helper trait bound alias for tests
+  trait TestField: Field + Copy + PartialEq + Debug {}
+  impl<T: Field + Copy + PartialEq + Debug> TestField for T {}
 
   #[test]
   fn test_simplex_faces() {
@@ -1054,200 +1107,310 @@ mod tests {
     assert!(dim0_simplices.contains(&s0_v2), "Missing 0-simplex [2]");
   }
 
-  #[test]
-  fn test_homology_point() {
+  fn test_homology_point_generic<F: TestField>() {
     let mut complex = SimplicialComplex::new();
     let p0 = Simplex::new(0, vec![0]);
     complex.join_simplex(p0.clone());
 
     // H_0
-    let h0 = complex.compute_homology::<Boolean>(0);
+    let h0 = complex.compute_homology::<F>(0);
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 1, "H0: Betti number for a point should be 1");
     assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
-    // The generator should be the point [0]
-    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Boolean::one());
-    assert!(h0.homology_generators.contains(&expected_gen_h0), "H0: Generator mismatch");
+    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, F::one());
+    assert!(
+      h0.homology_generators.contains(&expected_gen_h0),
+      "H0: Generator mismatch for field {:?}",
+      std::any::type_name::<F>()
+    );
 
     // H_1
-    let h1 = complex.compute_homology::<Boolean>(1);
+    let h1 = complex.compute_homology::<F>(1);
     assert_eq!(h1.dimension, 1, "H1: Dimension check");
     assert_eq!(h1.betti_number, 0, "H1: Betti number for a point should be 0");
-    assert!(h1.homology_generators.is_empty(), "H1: Should have no generators");
-
-    // H_2
-    let h2 = complex.compute_homology::<Boolean>(2);
-    assert_eq!(h2.betti_number, 0, "H2: Betti number for a point should be 0");
-  }
-
-  #[test]
-  fn test_homology_edge() {
-    let mut complex = SimplicialComplex::new();
-    let edge01 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(edge01.clone()); // join_simplex adds faces: p0, p1
-
-    // H_0
-    let h0 = complex.compute_homology::<Boolean>(0);
-    assert_eq!(h0.dimension, 0, "H0: Dimension check");
-    assert_eq!(h0.betti_number, 1, "H0: Betti number for an edge should be 1 (connected)");
-    assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
-    // Generator could be [0] or [1]. Let's check if it's one of them.
-    // The compute_homology_z2(0) implementation picks the first vertex of a component.
-    // Since vertices are sorted (0, then 1), [0] should be the generator.
-    let p0 = Simplex::new(0, vec![0]);
-    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Boolean::one());
-    assert!(h0.homology_generators.contains(&expected_gen_h0), "H0: Generator for edge");
-
-    // H_1
-    let h1 = complex.compute_homology::<Boolean>(1);
-    assert_eq!(h1.dimension, 1, "H1: Dimension check");
-    assert_eq!(h1.betti_number, 0, "H1: Betti number for an edge should be 0 (no hole)");
-    assert!(h1.homology_generators.is_empty(), "H1: Should have no generators for an edge");
-  }
-
-  #[test]
-  fn test_homology_two_disjoint_points() {
-    let mut complex = SimplicialComplex::new();
-    let p0 = Simplex::new(0, vec![0]);
-    let p1 = Simplex::new(0, vec![1]);
-    complex.join_simplex(p0.clone());
-    complex.join_simplex(p1.clone());
-
-    // H_0
-    let h0 = complex.compute_homology::<Boolean>(0);
-    assert_eq!(h0.dimension, 0, "H0: Dimension check");
-    assert_eq!(h0.betti_number, 2, "H0: Betti for two disjoint points should be 2");
-    assert_eq!(h0.homology_generators.len(), 2, "H0: Should have two generators");
-    let expected_gen1_h0 = Chain::from_simplex_and_coeff(p0, Boolean::one());
-    let expected_gen2_h0 = Chain::from_simplex_and_coeff(p1, Boolean::one());
-    assert!(h0.homology_generators.contains(&expected_gen1_h0), "H0: Generator [0] missing");
-    assert!(h0.homology_generators.contains(&expected_gen2_h0), "H0: Generator [1] missing");
-
-    // H_1
-    let h1 = complex.compute_homology::<Boolean>(1);
-    assert_eq!(h1.betti_number, 0, "H1: Betti for two disjoint points should be 0");
-  }
-
-  #[test]
-  fn test_homology_filled_triangle() {
-    let mut complex = SimplicialComplex::new();
-    let triangle012 = Simplex::new(2, vec![0, 1, 2]);
-    complex.join_simplex(triangle012.clone()); // Adds tri, its edges, and its vertices
-
-    // H_0
-    let h0 = complex.compute_homology::<Boolean>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti for a triangle should be 1");
-
-    // H_1
-    let h1 = complex.compute_homology::<Boolean>(1);
-    assert_eq!(h1.betti_number, 0, "H1: Betti for a filled triangle should be 0 (no 1D hole)");
-    assert!(h1.homology_generators.is_empty(), "H1: Should have no 1D homology generators");
-
-    // H_2
-    let h2 = complex.compute_homology::<Boolean>(2);
-    assert_eq!(h2.betti_number, 0, "H2: Betti for a filled triangle should be 0 (not a void)");
-    assert!(h2.homology_generators.is_empty(), "H2: Should have no 2D homology generators");
-  }
-
-  #[test]
-  fn test_homology_circle() {
-    let mut complex = SimplicialComplex::new();
-    // A circle formed by three 1-simplices (edges of a triangle)
-    let s01 = Simplex::new(1, vec![0, 1]);
-    let s12 = Simplex::new(1, vec![1, 2]);
-    let s20 = Simplex::new(1, vec![0, 2]); // Note: vertices sorted to [0,2]
-
-    complex.join_simplex(s01.clone());
-    complex.join_simplex(s12.clone());
-    complex.join_simplex(s20.clone());
-    // This also adds vertices [0], [1], [2]
-
-    // H_0
-    let h0 = complex.compute_homology::<Boolean>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti for a circle should be 1");
-
-    // H_1
-    let h1 = complex.compute_homology::<Boolean>(1);
-    assert_eq!(h1.betti_number, 1, "H1: Betti for a circle should be 1");
-    assert_eq!(h1.homology_generators.len(), 1, "H1: Should have one 1D homology generator");
-
-    // Check the generator for H1. It should be the cycle s01+s12+s02 (in Z2).
-    // The generator chain must contain these three simplices s01, s12, s02 with Z2(1) coeff.
-    // And its boundary must be zero.
-    let generator_h1 = h1.homology_generators[0].clone();
-    assert_eq!(generator_h1.simplices.len(), 3, "H1: Circle generator should have 3 simplices");
-
-    // Define the simplices we expect to find in the generator chain
-    let simplex01 = Simplex::new(1, vec![0, 1]);
-    let simplex12 = Simplex::new(1, vec![1, 2]);
-    let simplex02 = Simplex::new(1, vec![0, 2]);
-
-    assert!(generator_h1.simplices.contains(&simplex01), "H1: Gen missing s01 ([0,1])");
-    assert!(generator_h1.simplices.contains(&simplex12), "H1: Gen missing s12 ([1,2])");
-    assert!(generator_h1.simplices.contains(&simplex02), "H1: Gen missing s02 ([0,2])");
-
-    for coeff in &generator_h1.coefficients {
-      assert_eq!(*coeff, Boolean::one(), "H1: All coeffs in Z2 cycle generator should be 1");
-    }
     assert!(
-      generator_h1.boundary().simplices.is_empty(),
-      "H1: Generator's boundary should be zero"
+      h1.homology_generators.is_empty(),
+      "H1: Should have no generators for field {:?}",
+      std::any::type_name::<F>()
     );
 
     // H_2
-    let h2 = complex.compute_homology::<Boolean>(2);
-    assert_eq!(h2.betti_number, 0, "H2: Betti for a circle should be 0");
+    let h2 = complex.compute_homology::<F>(2);
+    assert_eq!(
+      h2.betti_number,
+      0,
+      "H2: Betti number for a point should be 0 for field {:?}",
+      std::any::type_name::<F>()
+    );
   }
 
   #[test]
-  fn test_homology_sphere_surface() {
-    // Boundary of a tetrahedron: 4 vertices, 6 edges, 4 faces ([012],[013],[023],[123])
+  fn test_homology_point_all_fields() {
+    test_homology_point_generic::<Boolean>();
+    test_homology_point_generic::<Mod7>();
+  }
+
+  fn test_homology_edge_generic<F: TestField>() {
+    let mut complex = SimplicialComplex::new();
+    let edge01 = Simplex::new(1, vec![0, 1]);
+    complex.join_simplex(edge01.clone());
+
+    let h0 = complex.compute_homology::<F>(0);
+    assert_eq!(h0.dimension, 0, "H0: Dimension check");
+    assert_eq!(h0.betti_number, 1, "H0: Betti for an edge");
+    assert_eq!(h0.homology_generators.len(), 1, "H0: One generator");
+    let p0 = Simplex::new(0, vec![0]);
+    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, F::one());
+    assert!(
+      h0.homology_generators.contains(&expected_gen_h0),
+      "H0: Generator for edge field {:?}",
+      std::any::type_name::<F>()
+    );
+
+    let h1 = complex.compute_homology::<F>(1);
+    assert_eq!(h1.dimension, 1, "H1: Dimension check");
+    assert_eq!(h1.betti_number, 0, "H1: Betti for an edge");
+    assert!(
+      h1.homology_generators.is_empty(),
+      "H1: No generators for edge field {:?}",
+      std::any::type_name::<F>()
+    );
+  }
+
+  #[test]
+  fn test_homology_edge_all_fields() {
+    test_homology_edge_generic::<Boolean>();
+    test_homology_edge_generic::<Mod7>();
+  }
+
+  fn test_homology_two_disjoint_points_generic<F: TestField>() {
+    let mut complex = SimplicialComplex::new();
+    let p0_s = Simplex::new(0, vec![0]);
+    let p1_s = Simplex::new(0, vec![1]);
+    complex.join_simplex(p0_s.clone());
+    complex.join_simplex(p1_s.clone());
+
+    let h0 = complex.compute_homology::<F>(0);
+    assert_eq!(h0.dimension, 0, "H0: Dimension check");
+    assert_eq!(h0.betti_number, 2, "H0: Betti for two points");
+    assert_eq!(h0.homology_generators.len(), 2, "H0: Two generators");
+    let expected_gen1_h0 = Chain::from_simplex_and_coeff(p0_s, F::one());
+    let expected_gen2_h0 = Chain::from_simplex_and_coeff(p1_s, F::one());
+    assert!(
+      h0.homology_generators.contains(&expected_gen1_h0),
+      "H0: Gen [0] missing field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      h0.homology_generators.contains(&expected_gen2_h0),
+      "H0: Gen [1] missing field {:?}",
+      std::any::type_name::<F>()
+    );
+
+    let h1 = complex.compute_homology::<F>(1);
+    assert_eq!(
+      h1.betti_number,
+      0,
+      "H1: Betti for two points field {:?}",
+      std::any::type_name::<F>()
+    );
+  }
+
+  #[test]
+  fn test_homology_two_disjoint_points_all_fields() {
+    test_homology_two_disjoint_points_generic::<Boolean>();
+    test_homology_two_disjoint_points_generic::<Mod7>();
+  }
+
+  fn test_homology_filled_triangle_generic<F: TestField>() {
+    let mut complex = SimplicialComplex::new();
+    let triangle012 = Simplex::new(2, vec![0, 1, 2]);
+    complex.join_simplex(triangle012.clone());
+
+    let h0 = complex.compute_homology::<F>(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti for triangle field {:?}", std::any::type_name::<F>());
+
+    let h1 = complex.compute_homology::<F>(1);
+    assert_eq!(
+      h1.betti_number,
+      0,
+      "H1: Betti for filled triangle field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      h1.homology_generators.is_empty(),
+      "H1: No 1D generators field {:?}",
+      std::any::type_name::<F>()
+    );
+
+    let h2 = complex.compute_homology::<F>(2);
+    assert_eq!(
+      h2.betti_number,
+      0,
+      "H2: Betti for filled triangle field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      h2.homology_generators.is_empty(),
+      "H2: No 2D generators field {:?}",
+      std::any::type_name::<F>()
+    );
+  }
+
+  #[test]
+  fn test_homology_filled_triangle_all_fields() {
+    test_homology_filled_triangle_generic::<Boolean>();
+    test_homology_filled_triangle_generic::<Mod7>();
+  }
+
+  fn test_homology_circle_generic<F: TestField>() {
+    let mut complex = SimplicialComplex::new();
+    let s01 = Simplex::new(1, vec![0, 1]);
+    let s12 = Simplex::new(1, vec![1, 2]);
+    let s02 = Simplex::new(1, vec![0, 2]);
+
+    complex.join_simplex(s01.clone());
+    complex.join_simplex(s12.clone());
+    complex.join_simplex(s02.clone());
+
+    let h0 = complex.compute_homology::<F>(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti for circle field {:?}", std::any::type_name::<F>());
+
+    let h1 = complex.compute_homology::<F>(1);
+    assert_eq!(h1.betti_number, 1, "H1: Betti for circle field {:?}", std::any::type_name::<F>());
+    assert_eq!(
+      h1.homology_generators.len(),
+      1,
+      "H1: One 1D generator field {:?}",
+      std::any::type_name::<F>()
+    );
+
+    let generator_h1 = h1.homology_generators[0].clone();
+    assert_eq!(
+      generator_h1.simplices.len(),
+      3,
+      "H1: Circle generator 3 simplices field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      generator_h1.simplices.contains(&s01),
+      "H1: Gen missing s01 field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      generator_h1.simplices.contains(&s12),
+      "H1: Gen missing s12 field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      generator_h1.simplices.contains(&s02),
+      "H1: Gen missing s02 field {:?}",
+      std::any::type_name::<F>()
+    );
+    for coeff in &generator_h1.coefficients {
+      assert_eq!(
+        *coeff,
+        F::one(),
+        "H1: Coeffs should be 1 for field {:?}",
+        std::any::type_name::<F>()
+      );
+    }
+    assert!(
+      generator_h1.boundary().simplices.is_empty(),
+      "H1: Generator boundary zero field {:?}",
+      std::any::type_name::<F>()
+    );
+
+    let h2 = complex.compute_homology::<F>(2);
+    assert_eq!(h2.betti_number, 0, "H2: Betti for circle field {:?}", std::any::type_name::<F>());
+  }
+
+  #[test]
+  fn test_homology_circle_all_fields() {
+    test_homology_circle_generic::<Boolean>();
+    test_homology_circle_generic::<Mod7>();
+  }
+
+  fn test_homology_sphere_surface_generic<F: TestField>() {
     let mut complex = SimplicialComplex::new();
     let f012 = Simplex::new(2, vec![0, 1, 2]);
     let f013 = Simplex::new(2, vec![0, 1, 3]);
     let f023 = Simplex::new(2, vec![0, 2, 3]);
     let f123 = Simplex::new(2, vec![1, 2, 3]);
 
-    // Important: Only add the 2-simplices (faces).
-    // join_simplex will add their boundaries (edges and vertices).
-    // If we added the 3-simplex (tetrahedron itself), H2 would be 0.
     complex.join_simplex(f012.clone());
     complex.join_simplex(f013.clone());
     complex.join_simplex(f023.clone());
     complex.join_simplex(f123.clone());
 
-    // H_0: Should be 1 (connected surface)
-    let h0 = complex.compute_homology::<Boolean>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti for sphere surface should be 1");
+    let h0 = complex.compute_homology::<F>(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti sphere field {:?}", std::any::type_name::<F>());
 
-    // H_1: Should be 0 (no 1D holes on sphere surface)
-    let h1 = complex.compute_homology::<Boolean>(1);
-    assert_eq!(h1.betti_number, 0, "H1: Betti for sphere surface should be 0");
-    assert!(h1.homology_generators.is_empty(), "H1: Generators for sphere surface should be empty");
-
-    // H_2: Should be 1 (the enclosed void)
-    let h2 = complex.compute_homology::<Boolean>(2);
-    assert_eq!(h2.betti_number, 1, "H2: Betti for sphere surface should be 1");
-    assert_eq!(h2.homology_generators.len(), 1, "H2: Should have one 2D generator");
-
-    // The generator should be the sum of all 4 faces (with Z2 coefficients)
-    let generator_h2 = h2.homology_generators[0].clone();
-    assert_eq!(generator_h2.simplices.len(), 4, "H2: Sphere generator should be sum of 4 faces");
-    assert!(generator_h2.simplices.contains(&f012), "H2: Gen missing face [0,1,2]");
-    assert!(generator_h2.simplices.contains(&f013), "H2: Gen missing face [0,1,3]");
-    assert!(generator_h2.simplices.contains(&f023), "H2: Gen missing face [0,2,3]");
-    assert!(generator_h2.simplices.contains(&f123), "H2: Gen missing face [1,2,3]");
-    for coeff in &generator_h2.coefficients {
-      assert_eq!(*coeff, Boolean::one(), "H2: All coeffs in Z2 cycle generator should be 1");
-    }
-    // Boundary of this 2-cycle must be 0.
+    let h1 = complex.compute_homology::<F>(1);
+    assert_eq!(h1.betti_number, 0, "H1: Betti sphere field {:?}", std::any::type_name::<F>());
     assert!(
-      generator_h2.boundary().simplices.is_empty(),
-      "H2: Generator's boundary should be zero"
+      h1.homology_generators.is_empty(),
+      "H1: Generators sphere field {:?}",
+      std::any::type_name::<F>()
     );
 
-    // H_3: No 3-simplices in the complex, so H_3 is trivial.
-    let h3 = complex.compute_homology::<Boolean>(3);
-    assert_eq!(h3.betti_number, 0, "H3: Betti for sphere surface (dim 2 complex) should be 0");
+    let h2 = complex.compute_homology::<F>(2);
+    assert_eq!(h2.betti_number, 1, "H2: Betti sphere field {:?}", std::any::type_name::<F>());
+    assert_eq!(
+      h2.homology_generators.len(),
+      1,
+      "H2: One 2D generator field {:?}",
+      std::any::type_name::<F>()
+    );
+
+    let generator_h2 = h2.homology_generators[0].clone();
+    assert_eq!(
+      generator_h2.simplices.len(),
+      4,
+      "H2: Sphere generator 4 faces field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      generator_h2.simplices.contains(&f012),
+      "H2: Gen missing f012 field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      generator_h2.simplices.contains(&f013),
+      "H2: Gen missing f013 field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      generator_h2.simplices.contains(&f023),
+      "H2: Gen missing f023 field {:?}",
+      std::any::type_name::<F>()
+    );
+    assert!(
+      generator_h2.simplices.contains(&f123),
+      "H2: Gen missing f123 field {:?}",
+      std::any::type_name::<F>()
+    );
+    for coeff in &generator_h2.coefficients {
+      assert_eq!(
+        *coeff,
+        F::one(),
+        "H2: Coeffs should be 1 for field {:?}",
+        std::any::type_name::<F>()
+      );
+    }
+    assert!(
+      generator_h2.boundary().simplices.is_empty(),
+      "H2: Generator boundary zero field {:?}",
+      std::any::type_name::<F>()
+    );
+
+    let h3 = complex.compute_homology::<F>(3);
+    assert_eq!(h3.betti_number, 0, "H3: Betti sphere field {:?}", std::any::type_name::<F>());
+  }
+
+  #[test]
+  fn test_homology_sphere_surface_all_fields() {
+    test_homology_sphere_surface_generic::<Boolean>();
+    test_homology_sphere_surface_generic::<Mod7>();
   }
 }
