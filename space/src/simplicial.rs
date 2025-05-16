@@ -874,27 +874,20 @@ mod linalg {
   }
 }
 
-// Define Mod7 field
-modular!(Mod7, u32, 7);
-prime_field!(Mod7);
-
-// Ensure Mod7 implements necessary traits if not covered by macros,
-// e.g., Copy, Debug, PartialEq, Default. Field usually implies many.
-// prime_field! likely derives these or ensures they are implemented.
-
+// TODO: Verify the homology generators are correct.
 #[cfg(test)]
 mod tests {
-  use std::fmt::Debug; // For F in assert messages if Chain prints it
+  use std::fmt::Debug;
 
-  use harness_algebra::arithmetic::Boolean;
-  use harness_algebra::ring::Field; // For trait bounds
-  use num_traits::{One, Zero}; // For F::one(), F::zero()
+  use harness_algebra::{arithmetic::Boolean, ring::Field};
 
-  use super::{Mod7, *}; // Make sure Mod7 is in scope here
+  use super::*; // Make sure Mod7 is in scope here
 
+  modular!(Mod7, u32, 7);
+  prime_field!(Mod7);
   // Helper trait bound alias for tests
-  trait TestField: Field + Copy + PartialEq + Debug {}
-  impl<T: Field + Copy + PartialEq + Debug> TestField for T {}
+  trait TestField: Field + Copy + Debug {}
+  impl<T: Field + Copy + Debug> TestField for T {}
 
   #[test]
   fn test_simplex_faces() {
@@ -1307,14 +1300,26 @@ mod tests {
       "H1: Gen missing s02 field {:?}",
       std::any::type_name::<F>()
     );
-    for coeff in &generator_h1.coefficients {
-      assert_eq!(
+
+    // Check that all coefficients of the generator are F::one() or -F::one().
+    assert!(
+      !generator_h1.coefficients.is_empty(),
+      "H1: Generator should have coefficients for field {:?}",
+      std::any::type_name::<F>()
+    );
+    let one = F::one();
+    let neg_one = -F::one();
+
+    for coeff in generator_h1.coefficients.iter() {
+      assert!(
+        *coeff == one || *coeff == neg_one,
+        "H1: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
+         field {:?}",
         *coeff,
-        F::one(),
-        "H1: Coeffs should be 1 for field {:?}",
         std::any::type_name::<F>()
       );
     }
+
     assert!(
       generator_h1.boundary().simplices.is_empty(),
       "H1: Generator boundary zero field {:?}",
@@ -1390,14 +1395,26 @@ mod tests {
       "H2: Gen missing f123 field {:?}",
       std::any::type_name::<F>()
     );
-    for coeff in &generator_h2.coefficients {
-      assert_eq!(
+
+    // Check that all coefficients of the generator are F::one() or -F::one().
+    assert!(
+      !generator_h2.coefficients.is_empty(),
+      "H2: Generator should have coefficients for field {:?}",
+      std::any::type_name::<F>()
+    );
+    let one = F::one();
+    let neg_one = -F::one();
+
+    for coeff in generator_h2.coefficients.iter() {
+      assert!(
+        *coeff == one || *coeff == neg_one,
+        "H2: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
+         field {:?}",
         *coeff,
-        F::one(),
-        "H2: Coeffs should be 1 for field {:?}",
         std::any::type_name::<F>()
       );
     }
+
     assert!(
       generator_h2.boundary().simplices.is_empty(),
       "H2: Generator boundary zero field {:?}",
