@@ -158,13 +158,7 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
 
 impl<F> Additive for TropicalElement<F> where F: Copy + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
 impl<F> Multiplicative for TropicalElement<F> where F: Copy + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
-impl<F> Semiring for TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
-  fn zero() -> Self { TropicalElement::NegInfinity }
-
-  fn one() -> Self { TropicalElement::Element(F::zero()) }
-}
+impl<F> Semiring for TropicalElement<F> where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
 
 /// Symmetric bilinear form
 #[derive(Debug, PartialEq, Eq)]
@@ -222,7 +216,7 @@ where
     x: &[TropicalElement<F>; N],
     y: &[TropicalElement<F>; N],
   ) -> TropicalElement<F> {
-    let mut result = <TropicalElement<F> as Semiring>::zero();
+    let mut result = TropicalElement::<F>::zero();
 
     for (i, &xi) in x.iter().enumerate() {
       for (j, &yj) in y.iter().enumerate() {
@@ -296,16 +290,16 @@ mod tests {
     assert_eq!(b * c, TropicalElement::new(7.0));
 
     // Test zero and one
-    assert_eq!(<TropicalElement<f64> as Semiring>::zero().value(), TropicalElement::NegInfinity);
-    assert_eq!(<TropicalElement<f64> as Semiring>::one().value(), TropicalElement::Element(0.0));
+    assert_eq!(TropicalElement::<f64>::zero().value(), TropicalElement::NegInfinity);
+    assert_eq!(TropicalElement::<f64>::one().value(), TropicalElement::Element(0.0));
 
     // Test additive identity
-    assert_eq!(a + <TropicalElement<f64> as Semiring>::zero(), a);
-    assert_eq!(<TropicalElement<f64> as Semiring>::zero() + a, a);
+    assert_eq!(a + TropicalElement::<f64>::zero(), a);
+    assert_eq!(TropicalElement::<f64>::zero() + a, a);
 
     // Test multiplicative identity
-    assert_eq!(a * <TropicalElement<f64> as Semiring>::one(), a);
-    assert_eq!(<TropicalElement<f64> as Semiring>::one() * a, a);
+    assert_eq!(a * TropicalElement::<f64>::one(), a);
+    assert_eq!(TropicalElement::<f64>::one() * a, a);
 
     // Test additive assignment
     let mut x = a;
@@ -337,14 +331,12 @@ mod tests {
     assert_eq!(bilinear_form.evaluate(&x, &y), TropicalElement::new(11.0));
 
     // Test with zero vector
-    let zero =
-      [<TropicalElement<f64> as Semiring>::zero(), <TropicalElement<f64> as Semiring>::zero()];
-    assert_eq!(bilinear_form.evaluate(&zero, &y), <TropicalElement<f64> as Semiring>::zero());
-    assert_eq!(bilinear_form.evaluate(&x, &zero), <TropicalElement<f64> as Semiring>::zero());
+    let zero = [TropicalElement::<f64>::zero(), TropicalElement::<f64>::zero()];
+    assert_eq!(bilinear_form.evaluate(&zero, &y), TropicalElement::<f64>::zero());
+    assert_eq!(bilinear_form.evaluate(&x, &zero), TropicalElement::<f64>::zero());
 
     // Test with one vector
-    let one =
-      [<TropicalElement<f64> as Semiring>::one(), <TropicalElement<f64> as Semiring>::one()];
+    let one = [TropicalElement::<f64>::one(), TropicalElement::<f64>::one()];
     assert_eq!(bilinear_form.evaluate(&one, &one), TropicalElement::new(2.0));
   }
 
@@ -384,8 +376,8 @@ mod tests {
   #[test]
   fn test_tropical_element_zero_one_properties() {
     let a = TropicalElement::new(3.0);
-    let zero = <TropicalElement<f64> as Semiring>::zero();
-    let one = <TropicalElement<f64> as Semiring>::one();
+    let zero = TropicalElement::<f64>::zero();
+    let one = TropicalElement::<f64>::one();
 
     // Test zero properties
     assert!(zero.is_zero());

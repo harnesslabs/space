@@ -9,6 +9,7 @@ use std::{
   ops::{Add, Neg},
 };
 
+use harness_algebra::ring::Field;
 use itertools::Itertools;
 use num_traits::{One, Zero};
 
@@ -161,7 +162,7 @@ impl SimplicialComplex {
   }
 
   /// Computes the k-th homology group H_k with Z2 coefficients.
-  pub fn compute_homology_z2(&self, k: usize) -> HomologyGroup<Z2> {
+  pub fn compute_homology<F: Field + Copy>(&self, k: usize) -> HomologyGroup<F> {
     if k == 0 {
       let mut vertices = match self.simplices_by_dimension(0) {
         Some(v) => v.to_vec(),
@@ -195,7 +196,7 @@ impl SimplicialComplex {
       for i in 0..vertices.len() {
         if !visited[i] {
           components += 1;
-          h0_generators.push(Chain::from_simplex_and_coeff(vertices[i].clone(), Z2::one()));
+          h0_generators.push(Chain::from_simplex_and_coeff(vertices[i].clone(), <F as One>::one()));
           let mut q = std::collections::VecDeque::new();
           q.push_back(i);
           visited[i] = true;
@@ -209,8 +210,10 @@ impl SimplicialComplex {
           }
         }
       }
-      let z0_gens: Vec<Chain<Z2>> =
-        vertices.iter().map(|v| Chain::from_simplex_and_coeff(v.clone(), Z2::one())).collect();
+      let z0_gens: Vec<Chain<F>> = vertices
+        .iter()
+        .map(|v| Chain::from_simplex_and_coeff(v.clone(), <F as One>::one()))
+        .collect();
       let s1_for_b0 = match self.simplices_by_dimension(1) {
         Some(s) => {
           let mut sorted_s = s.to_vec();
@@ -222,13 +225,13 @@ impl SimplicialComplex {
       let b0_gens = if s1_for_b0.is_empty() || vertices.is_empty() {
         Vec::new()
       } else {
-        let mut mat_d1 = linalg_z2::get_boundary_matrix(&s1_for_b0, &vertices);
-        let (_, p_cols_d1) = linalg_z2::row_gaussian_elimination_z2(&mut mat_d1);
-        let d_s1_chains: Vec<Chain<Z2>> = s1_for_b0
+        let mut mat_d1 = linalg::get_boundary_matrix(&s1_for_b0, &vertices);
+        let (_, p_cols_d1) = linalg::row_gaussian_elimination(&mut mat_d1);
+        let d_s1_chains: Vec<Chain<F>> = s1_for_b0
           .iter()
-          .map(|s| Chain::from_simplex_and_coeff(s.clone(), Z2::one()).boundary())
+          .map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one()).boundary())
           .collect();
-        linalg_z2::image_basis_from_row_echelon_z2(&mat_d1, &d_s1_chains, &p_cols_d1)
+        linalg::image_basis_from_row_echelon(&mat_d1, &d_s1_chains, &p_cols_d1)
       };
       return HomologyGroup {
         dimension:           0,
@@ -263,19 +266,19 @@ impl SimplicialComplex {
       },
       None => Vec::new(),
     };
-    let ck_basis: Vec<Chain<Z2>> =
-      s_k.iter().map(|s| Chain::from_simplex_and_coeff(s.clone(), Z2::one())).collect();
+    let ck_basis: Vec<Chain<F>> =
+      s_k.iter().map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one())).collect();
 
     let b_k_gens = if s_kp1.is_empty() || s_k.is_empty() {
       Vec::new()
     } else {
-      let mut mat_dkp1 = linalg_z2::get_boundary_matrix(&s_kp1, &s_k);
-      let (_, p_cols) = linalg_z2::row_gaussian_elimination_z2(&mut mat_dkp1);
-      let d_skp1_chains: Vec<Chain<Z2>> = s_kp1
+      let mut mat_dkp1 = linalg::get_boundary_matrix(&s_kp1, &s_k);
+      let (_, p_cols) = linalg::row_gaussian_elimination(&mut mat_dkp1);
+      let d_skp1_chains: Vec<Chain<F>> = s_kp1
         .iter()
-        .map(|s| Chain::from_simplex_and_coeff(s.clone(), Z2::one()).boundary())
+        .map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one()).boundary())
         .collect();
-      linalg_z2::image_basis_from_row_echelon_z2(&mat_dkp1, &d_skp1_chains, &p_cols)
+      linalg::image_basis_from_row_echelon(&mat_dkp1, &d_skp1_chains, &p_cols)
     };
 
     let z_k_gens = if s_k.is_empty() {
@@ -283,9 +286,9 @@ impl SimplicialComplex {
     } else if s_km1.is_empty() {
       ck_basis.clone()
     } else {
-      let mut mat_dk = linalg_z2::get_boundary_matrix(&s_k, &s_km1);
-      let (_, p_cols) = linalg_z2::row_gaussian_elimination_z2(&mut mat_dk);
-      linalg_z2::kernel_basis_from_row_echelon_z2(&mat_dk, &ck_basis, &p_cols)
+      let mut mat_dk = linalg::get_boundary_matrix(&s_k, &s_km1);
+      let (_, p_cols) = linalg::row_gaussian_elimination(&mut mat_dk);
+      linalg::kernel_basis_from_row_echelon(&mat_dk, &ck_basis, &p_cols)
     };
 
     if s_k.is_empty() {
@@ -295,11 +298,11 @@ impl SimplicialComplex {
       s_k.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
     let mut quot_mat_cols = Vec::new();
     for ch in b_k_gens.iter() {
-      quot_mat_cols.push(linalg_z2::chain_to_coeff_vector(ch, &sk_map, s_k.len()));
+      quot_mat_cols.push(linalg::chain_to_coeff_vector(ch, &sk_map, s_k.len()));
     }
     let num_b = quot_mat_cols.len();
     for ch in z_k_gens.iter() {
-      quot_mat_cols.push(linalg_z2::chain_to_coeff_vector(ch, &sk_map, s_k.len()));
+      quot_mat_cols.push(linalg::chain_to_coeff_vector(ch, &sk_map, s_k.len()));
     }
 
     if quot_mat_cols.is_empty() {
@@ -312,7 +315,7 @@ impl SimplicialComplex {
       };
     }
 
-    let mut q_mat = vec![vec![Z2::zero(); quot_mat_cols.len()]; s_k.len()];
+    let mut q_mat = vec![vec![<F as Zero>::zero(); quot_mat_cols.len()]; s_k.len()];
     if !s_k.is_empty() {
       for r in 0..s_k.len() {
         for c in 0..quot_mat_cols.len() {
@@ -321,7 +324,7 @@ impl SimplicialComplex {
       }
     }
 
-    let (_, p_cols_q) = linalg_z2::row_gaussian_elimination_z2(&mut q_mat);
+    let (_, p_cols_q) = linalg::row_gaussian_elimination(&mut q_mat);
     let mut h_k_gens = Vec::new();
     for &p_idx in &p_cols_q {
       if p_idx >= num_b {
@@ -508,55 +511,13 @@ pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
   }
 }
 
-/// Represents the finite field Z_2 = {0, 1}.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct Z2(pub u8);
-
-impl Z2 {
-  pub fn new(val: u8) -> Self {
-    assert!(val == 0 || val == 1, "Z2 value must be 0 or 1");
-    Z2(val)
-  }
-}
-
-impl Zero for Z2 {
-  fn zero() -> Self { Z2(0) }
-
-  fn is_zero(&self) -> bool { self.0 == 0 }
-}
-
-impl One for Z2 {
-  fn one() -> Self { Z2(1) }
-}
-
-impl Add for Z2 {
-  type Output = Self;
-
-  fn add(self, rhs: Self) -> Self::Output { Z2((self.0 + rhs.0) % 2) }
-}
-
-impl Neg for Z2 {
-  type Output = Self;
-
-  fn neg(self) -> Self::Output {
-    self // In Z2, -x = x
-  }
-}
-
-impl std::ops::Mul for Z2 {
-  type Output = Self;
-
-  fn mul(self, rhs: Self) -> Self::Output {
-    Z2(self.0 * rhs.0) // 0*0=0, 0*1=0, 1*0=0, 1*1=1
-  }
-}
-
+// TODO: This could be done over a ring in general, but a `Field` is much nicer.
 /// Stores the results of a homology computation for a specific dimension.
 ///
 /// # Type Parameters
 /// * `R` - The coefficient ring type.
 #[derive(Debug, Clone)]
-pub struct HomologyGroup<R: Clone + Zero + One + Add<Output = R> + Neg<Output = R> + PartialEq> {
+pub struct HomologyGroup<R: Field> {
   /// The dimension k for which this homology group H_k is computed.
   pub dimension:           usize,
   /// The Betti number, which is the rank of the homology group H_k.
@@ -573,7 +534,7 @@ pub struct HomologyGroup<R: Clone + Zero + One + Add<Output = R> + Neg<Output = 
   pub homology_generators: Vec<Chain<R>>,
 }
 
-impl<R: Clone + Zero + One + Add<Output = R> + Neg<Output = R> + PartialEq> HomologyGroup<R> {
+impl<R: Field> HomologyGroup<R> {
   /// Creates a new, empty homology group for a given dimension.
   /// Typically used when the homology group is trivial.
   pub fn trivial(dimension: usize) -> Self {
@@ -587,17 +548,17 @@ impl<R: Clone + Zero + One + Add<Output = R> + Neg<Output = R> + PartialEq> Homo
   }
 }
 
-mod linalg_z2 {
+mod linalg {
   use std::collections::HashMap;
 
   use num_traits::{One, Zero};
 
-  use super::{Chain, Simplex, Z2};
+  use super::{Chain, Field, Simplex};
 
   /// Performs Gaussian elimination on a matrix over Z2 to bring it to column echelon form.
   /// The matrix is modified in place.
   /// Returns the rank of the matrix (number of pivot columns).
-  pub fn column_gaussian_elimination_z2(matrix: &mut Vec<Vec<Z2>>) -> usize {
+  pub fn column_gaussian_elimination<F: Field + Copy>(matrix: &mut Vec<Vec<F>>) -> usize {
     if matrix.is_empty() || matrix[0].is_empty() {
       return 0;
     }
@@ -648,7 +609,9 @@ mod linalg_z2 {
   /// Performs Gaussian elimination on a matrix over Z2 to bring it to row echelon form.
   /// The matrix is modified in place.
   /// Returns a tuple (rank, pivot_columns_indices).
-  pub fn row_gaussian_elimination_z2(matrix: &mut Vec<Vec<Z2>>) -> (usize, Vec<usize>) {
+  pub fn row_gaussian_elimination<F: Field + Copy>(
+    matrix: &mut Vec<Vec<F>>,
+  ) -> (usize, Vec<usize>) {
     if matrix.is_empty() || matrix[0].is_empty() {
       return (0, Vec::new());
     }
@@ -695,11 +658,11 @@ mod linalg_z2 {
   /// Extracts a basis for the kernel (null space) of a matrix A (m x n) given in row echelon form.
   /// `column_basis_elements` are chains corresponding to columns of original matrix A.
   /// The number of elements in `column_basis_elements` must be `n` (number of columns).
-  pub fn kernel_basis_from_row_echelon_z2(
-    row_echelon_matrix: &[Vec<Z2>],
-    column_basis_elements: &[Chain<Z2>],
+  pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
+    row_echelon_matrix: &[Vec<F>],
+    column_basis_elements: &[Chain<F>],
     pivot_cols: &[usize],
-  ) -> Vec<Chain<Z2>> {
+  ) -> Vec<Chain<F>> {
     if row_echelon_matrix.is_empty() || row_echelon_matrix[0].is_empty() {
       // If matrix is empty, or has 0 columns, kernel depends on context.
       // If 0 columns, kernel is trivial. If 0 rows (non-empty cols), kernel is all of C_n.
@@ -732,8 +695,8 @@ mod linalg_z2 {
         current_pivot_idx += 1;
       } else {
         // This is a free variable column
-        let mut generator_coeffs = vec![Z2::zero(); num_cols];
-        generator_coeffs[j] = Z2::one(); // Set free variable to 1
+        let mut generator_coeffs = vec![<F as Zero>::zero(); num_cols];
+        generator_coeffs[j] = <F as One>::one(); // Set free variable to 1
 
         // Solve for pivot variables in terms of this free variable
         // Ax = 0. For row i, Sum(A_ik * x_k) = 0
@@ -791,11 +754,11 @@ mod linalg_z2 {
   /// The columns of the original matrix A that become pivot columns in its Row Echelon Form
   /// correspond to basis vectors for Im(A). `column_basis_elements` are chains corresponding to
   /// columns of original matrix A.
-  pub fn image_basis_from_row_echelon_z2(
-    _row_echelon_matrix: &[Vec<Z2>], // Matrix itself not strictly needed if we have pivot_cols
-    column_basis_elements: &[Chain<Z2>],
+  pub fn image_basis_from_row_echelon<F: Field + Copy>(
+    _row_echelon_matrix: &[Vec<F>], // Matrix itself not strictly needed if we have pivot_cols
+    column_basis_elements: &[Chain<F>],
     pivot_cols: &[usize],
-  ) -> Vec<Chain<Z2>> {
+  ) -> Vec<Chain<F>> {
     let mut image_generators = Vec::new();
     for &pivot_col_idx in pivot_cols {
       if pivot_col_idx < column_basis_elements.len() {
@@ -807,12 +770,12 @@ mod linalg_z2 {
 
   // Helper function to convert a Chain to a coefficient vector relative to a basis of simplices.
   // Used internally for matrix construction.
-  pub(super) fn chain_to_coeff_vector(
-    chain: &Chain<Z2>,
+  pub(super) fn chain_to_coeff_vector<F: Field + Copy>(
+    chain: &Chain<F>,
     basis_simplices_map: &HashMap<Simplex, usize>, // Map simplex to its index in the basis
     basis_size: usize,
-  ) -> Vec<Z2> {
-    let mut vector = vec![Z2::zero(); basis_size];
+  ) -> Vec<F> {
+    let mut vector = vec![<F as Zero>::zero(); basis_size];
     for (i, simplex) in chain.simplices.iter().enumerate() {
       if let Some(&idx) = basis_simplices_map.get(simplex) {
         // In Z2, the coefficient is either 0 or 1.
@@ -832,10 +795,10 @@ mod linalg_z2 {
   /// Rows are indexed by `ordered_km1_simplices`.
   /// The (i,j)-th entry is 1 if ordered_km1_simplices[i] is in the boundary of
   /// ordered_k_simplices[j], else 0.
-  pub fn get_boundary_matrix(
+  pub fn get_boundary_matrix<F: Field + Copy>(
     ordered_k_simplices: &[Simplex],   // Basis for C_k (domain)
     ordered_km1_simplices: &[Simplex], // Basis for C_{k-1} (codomain)
-  ) -> Vec<Vec<Z2>> {
+  ) -> Vec<Vec<F>> {
     if ordered_k_simplices.is_empty() {
       // No k-simplices, so map is from a zero space. Matrix has 0 columns.
       // Number of rows is |S_{k-1}|.
@@ -852,7 +815,7 @@ mod linalg_z2 {
     let num_rows = ordered_km1_simplices.len();
     let num_cols = ordered_k_simplices.len();
 
-    let mut matrix = vec![vec![Z2::zero(); num_cols]; num_rows];
+    let mut matrix = vec![vec![<F as Zero>::zero(); num_cols]; num_rows];
 
     // Create a map for quick lookup of (k-1)-simplex indices
     let km1_simplex_to_idx: HashMap<Simplex, usize> =
@@ -861,7 +824,8 @@ mod linalg_z2 {
     for (j, k_simplex) in ordered_k_simplices.iter().enumerate() {
       // For each k-simplex, compute its boundary.
       // The boundary is a (k-1)-chain.
-      let boundary_chain = Chain::from_simplex_and_coeff(k_simplex.clone(), Z2::one()).boundary();
+      let boundary_chain =
+        Chain::from_simplex_and_coeff(k_simplex.clone(), <F as One>::one()).boundary();
 
       // Convert this boundary_chain into a column vector for the matrix.
       let col_vector = chain_to_coeff_vector(&boundary_chain, &km1_simplex_to_idx, num_rows);
@@ -875,6 +839,8 @@ mod linalg_z2 {
 
 #[cfg(test)]
 mod tests {
+  use harness_algebra::arithmetic::Boolean;
+
   use super::*;
 
   #[test]
@@ -1095,22 +1061,22 @@ mod tests {
     complex.join_simplex(p0.clone());
 
     // H_0
-    let h0 = complex.compute_homology_z2(0);
+    let h0 = complex.compute_homology::<Boolean>(0);
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 1, "H0: Betti number for a point should be 1");
     assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
     // The generator should be the point [0]
-    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Z2::one());
+    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Boolean::one());
     assert!(h0.homology_generators.contains(&expected_gen_h0), "H0: Generator mismatch");
 
     // H_1
-    let h1 = complex.compute_homology_z2(1);
+    let h1 = complex.compute_homology::<Boolean>(1);
     assert_eq!(h1.dimension, 1, "H1: Dimension check");
     assert_eq!(h1.betti_number, 0, "H1: Betti number for a point should be 0");
     assert!(h1.homology_generators.is_empty(), "H1: Should have no generators");
 
     // H_2
-    let h2 = complex.compute_homology_z2(2);
+    let h2 = complex.compute_homology::<Boolean>(2);
     assert_eq!(h2.betti_number, 0, "H2: Betti number for a point should be 0");
   }
 
@@ -1121,7 +1087,7 @@ mod tests {
     complex.join_simplex(edge01.clone()); // join_simplex adds faces: p0, p1
 
     // H_0
-    let h0 = complex.compute_homology_z2(0);
+    let h0 = complex.compute_homology::<Boolean>(0);
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 1, "H0: Betti number for an edge should be 1 (connected)");
     assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
@@ -1129,11 +1095,11 @@ mod tests {
     // The compute_homology_z2(0) implementation picks the first vertex of a component.
     // Since vertices are sorted (0, then 1), [0] should be the generator.
     let p0 = Simplex::new(0, vec![0]);
-    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Z2::one());
+    let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, Boolean::one());
     assert!(h0.homology_generators.contains(&expected_gen_h0), "H0: Generator for edge");
 
     // H_1
-    let h1 = complex.compute_homology_z2(1);
+    let h1 = complex.compute_homology::<Boolean>(1);
     assert_eq!(h1.dimension, 1, "H1: Dimension check");
     assert_eq!(h1.betti_number, 0, "H1: Betti number for an edge should be 0 (no hole)");
     assert!(h1.homology_generators.is_empty(), "H1: Should have no generators for an edge");
@@ -1148,17 +1114,17 @@ mod tests {
     complex.join_simplex(p1.clone());
 
     // H_0
-    let h0 = complex.compute_homology_z2(0);
+    let h0 = complex.compute_homology::<Boolean>(0);
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 2, "H0: Betti for two disjoint points should be 2");
     assert_eq!(h0.homology_generators.len(), 2, "H0: Should have two generators");
-    let expected_gen1_h0 = Chain::from_simplex_and_coeff(p0, Z2::one());
-    let expected_gen2_h0 = Chain::from_simplex_and_coeff(p1, Z2::one());
+    let expected_gen1_h0 = Chain::from_simplex_and_coeff(p0, Boolean::one());
+    let expected_gen2_h0 = Chain::from_simplex_and_coeff(p1, Boolean::one());
     assert!(h0.homology_generators.contains(&expected_gen1_h0), "H0: Generator [0] missing");
     assert!(h0.homology_generators.contains(&expected_gen2_h0), "H0: Generator [1] missing");
 
     // H_1
-    let h1 = complex.compute_homology_z2(1);
+    let h1 = complex.compute_homology::<Boolean>(1);
     assert_eq!(h1.betti_number, 0, "H1: Betti for two disjoint points should be 0");
   }
 
@@ -1169,16 +1135,16 @@ mod tests {
     complex.join_simplex(triangle012.clone()); // Adds tri, its edges, and its vertices
 
     // H_0
-    let h0 = complex.compute_homology_z2(0);
+    let h0 = complex.compute_homology::<Boolean>(0);
     assert_eq!(h0.betti_number, 1, "H0: Betti for a triangle should be 1");
 
     // H_1
-    let h1 = complex.compute_homology_z2(1);
+    let h1 = complex.compute_homology::<Boolean>(1);
     assert_eq!(h1.betti_number, 0, "H1: Betti for a filled triangle should be 0 (no 1D hole)");
     assert!(h1.homology_generators.is_empty(), "H1: Should have no 1D homology generators");
 
     // H_2
-    let h2 = complex.compute_homology_z2(2);
+    let h2 = complex.compute_homology::<Boolean>(2);
     assert_eq!(h2.betti_number, 0, "H2: Betti for a filled triangle should be 0 (not a void)");
     assert!(h2.homology_generators.is_empty(), "H2: Should have no 2D homology generators");
   }
@@ -1197,11 +1163,11 @@ mod tests {
     // This also adds vertices [0], [1], [2]
 
     // H_0
-    let h0 = complex.compute_homology_z2(0);
+    let h0 = complex.compute_homology::<Boolean>(0);
     assert_eq!(h0.betti_number, 1, "H0: Betti for a circle should be 1");
 
     // H_1
-    let h1 = complex.compute_homology_z2(1);
+    let h1 = complex.compute_homology::<Boolean>(1);
     assert_eq!(h1.betti_number, 1, "H1: Betti for a circle should be 1");
     assert_eq!(h1.homology_generators.len(), 1, "H1: Should have one 1D homology generator");
 
@@ -1221,7 +1187,7 @@ mod tests {
     assert!(generator_h1.simplices.contains(&simplex02), "H1: Gen missing s02 ([0,2])");
 
     for coeff in &generator_h1.coefficients {
-      assert_eq!(*coeff, Z2::one(), "H1: All coeffs in Z2 cycle generator should be 1");
+      assert_eq!(*coeff, Boolean::one(), "H1: All coeffs in Z2 cycle generator should be 1");
     }
     assert!(
       generator_h1.boundary().simplices.is_empty(),
@@ -1229,7 +1195,7 @@ mod tests {
     );
 
     // H_2
-    let h2 = complex.compute_homology_z2(2);
+    let h2 = complex.compute_homology::<Boolean>(2);
     assert_eq!(h2.betti_number, 0, "H2: Betti for a circle should be 0");
   }
 
@@ -1251,16 +1217,16 @@ mod tests {
     complex.join_simplex(f123.clone());
 
     // H_0: Should be 1 (connected surface)
-    let h0 = complex.compute_homology_z2(0);
+    let h0 = complex.compute_homology::<Boolean>(0);
     assert_eq!(h0.betti_number, 1, "H0: Betti for sphere surface should be 1");
 
     // H_1: Should be 0 (no 1D holes on sphere surface)
-    let h1 = complex.compute_homology_z2(1);
+    let h1 = complex.compute_homology::<Boolean>(1);
     assert_eq!(h1.betti_number, 0, "H1: Betti for sphere surface should be 0");
     assert!(h1.homology_generators.is_empty(), "H1: Generators for sphere surface should be empty");
 
     // H_2: Should be 1 (the enclosed void)
-    let h2 = complex.compute_homology_z2(2);
+    let h2 = complex.compute_homology::<Boolean>(2);
     assert_eq!(h2.betti_number, 1, "H2: Betti for sphere surface should be 1");
     assert_eq!(h2.homology_generators.len(), 1, "H2: Should have one 2D generator");
 
@@ -1272,7 +1238,7 @@ mod tests {
     assert!(generator_h2.simplices.contains(&f023), "H2: Gen missing face [0,2,3]");
     assert!(generator_h2.simplices.contains(&f123), "H2: Gen missing face [1,2,3]");
     for coeff in &generator_h2.coefficients {
-      assert_eq!(*coeff, Z2::one(), "H2: All coeffs in Z2 cycle generator should be 1");
+      assert_eq!(*coeff, Boolean::one(), "H2: All coeffs in Z2 cycle generator should be 1");
     }
     // Boundary of this 2-cycle must be 0.
     assert!(
@@ -1281,7 +1247,7 @@ mod tests {
     );
 
     // H_3: No 3-simplices in the complex, so H_3 is trivial.
-    let h3 = complex.compute_homology_z2(3);
+    let h3 = complex.compute_homology::<Boolean>(3);
     assert_eq!(h3.betti_number, 0, "H3: Betti for sphere surface (dim 2 complex) should be 0");
   }
 }

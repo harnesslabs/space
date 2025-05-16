@@ -75,6 +75,16 @@ pub trait Multiplicative: Mul<Output = Self> + MulAssign + PartialEq + Sized {}
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Boolean(pub bool);
 
+impl One for Boolean {
+  fn one() -> Self { Self(true) }
+}
+
+impl Zero for Boolean {
+  fn zero() -> Self { Self(false) }
+
+  fn is_zero(&self) -> bool { !self.0 }
+}
+
 impl Add for Boolean {
   type Output = Self;
 
@@ -83,6 +93,24 @@ impl Add for Boolean {
   /// This corresponds to the addition operation in the field GF(2).
   #[allow(clippy::suspicious_arithmetic_impl)]
   fn add(self, rhs: Self) -> Self::Output { Self(self.0 ^ rhs.0) }
+}
+
+impl Sub for Boolean {
+  type Output = Self;
+
+  fn sub(self, rhs: Self) -> Self::Output { self + rhs }
+}
+
+impl Neg for Boolean {
+  type Output = Self;
+
+  fn neg(self) -> Self::Output { self }
+}
+
+impl SubAssign for Boolean {
+  /// Implements subtraction assignment as XOR operation.
+  #[allow(clippy::suspicious_op_assign_impl)]
+  fn sub_assign(&mut self, rhs: Self) { self.0 ^= rhs.0; }
 }
 
 impl AddAssign for Boolean {
@@ -106,6 +134,19 @@ impl MulAssign for Boolean {
   fn mul_assign(&mut self, rhs: Self) { self.0 &= rhs.0; }
 }
 
+impl Div for Boolean {
+  type Output = Self;
+
+  #[allow(clippy::suspicious_arithmetic_impl)]
+  fn div(self, rhs: Self) -> Self::Output { self * rhs }
+}
+
+impl DivAssign for Boolean {
+  /// Implements division assignment as AND operation.
+  #[allow(clippy::suspicious_op_assign_impl)]
+  fn div_assign(&mut self, rhs: Self) { self.0 &= rhs.0; }
+}
+
 /// Trait for types that have a concept of positive infinity.
 pub trait Infinity {
   /// Returns the positive infinity value for the type.
@@ -113,11 +154,11 @@ pub trait Infinity {
 }
 
 impl Infinity for f32 {
-  fn infinity() -> Self { f32::INFINITY }
+  fn infinity() -> Self { Self::INFINITY }
 }
 
 impl Infinity for f64 {
-  fn infinity() -> Self { f64::INFINITY }
+  fn infinity() -> Self { Self::INFINITY }
 }
 
 impl Additive for Boolean {}

@@ -4,8 +4,8 @@
 //! including both general rings and fields (which are special types of rings).
 
 use crate::{
-  arithmetic::{Additive, Div, DivAssign, Multiplicative, One, Zero},
-  group::AbelianGroup,
+  arithmetic::{Additive, Boolean, Div, DivAssign, Multiplicative, One, Zero},
+  group::{AbelianGroup, Group},
 };
 
 /// A trait representing a mathematical ring.
@@ -13,13 +13,7 @@ use crate::{
 /// A ring is a set equipped with two binary operations (addition and multiplication)
 /// satisfying properties analogous to those of addition and multiplication of integers.
 /// This trait combines the requirements for an Abelian group with multiplicative properties.
-pub trait Ring: AbelianGroup + Multiplicative {
-  /// Returns the multiplicative identity element of the ring.
-  fn one() -> Self;
-
-  /// Returns the additive identity element of the ring.
-  fn zero() -> Self;
-}
+pub trait Ring: AbelianGroup + Multiplicative + One {}
 
 /// A trait representing a mathematical field.
 ///
@@ -44,11 +38,7 @@ macro_rules! impl_field {
     }
 
     impl $crate::group::AbelianGroup for $inner {}
-    impl $crate::ring::Ring for $inner {
-      fn one() -> Self { 1.0 }
-
-      fn zero() -> Self { 0.0 }
-    }
+    impl $crate::ring::Ring for $inner {}
     impl $crate::ring::Field for $inner {
       fn multiplicative_inverse(&self) -> Self { self.recip() }
     }
@@ -91,10 +81,18 @@ impl_field!(f64);
 /// - Natural numbers (ℕ, +, ×)
 /// - Tropical semiring (ℝ ∪ {∞}, min, +)
 /// - Probability semiring (ℝ₊, +, ×)
-pub trait Semiring: Additive + Multiplicative + Zero + One {
-  /// Returns the additive identity element of the semiring.
-  fn zero() -> Self;
+pub trait Semiring: Additive + Multiplicative + Zero + One {}
 
-  /// Returns the multiplicative identity element of the semiring.
-  fn one() -> Self;
+impl Group for Boolean {
+  fn identity() -> Self { Self(false) }
+
+  fn inverse(&self) -> Self { Self(!self.0) }
+}
+
+impl AbelianGroup for Boolean {}
+
+impl Ring for Boolean {}
+
+impl Field for Boolean {
+  fn multiplicative_inverse(&self) -> Self { *self }
 }

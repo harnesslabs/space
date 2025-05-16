@@ -35,7 +35,7 @@ where <Self as TwoSidedModule>::Ring: Field {
 pub struct Vector<const M: usize, F: Field>(pub [F; M]);
 
 impl<const M: usize, F: Field + Copy> Default for Vector<M, F> {
-  fn default() -> Self { Self([<F as Ring>::zero(); M]) }
+  fn default() -> Self { Self([F::zero(); M]) }
 }
 
 impl<const M: usize, F: Field + Copy> Add for Vector<M, F> {
@@ -97,9 +97,9 @@ impl<const M: usize, F: Field + Copy> Group for Vector<M, F> {
 }
 
 impl<const M: usize, F: Field + Copy> Zero for Vector<M, F> {
-  fn zero() -> Self { Self([<F as Ring>::zero(); M]) }
+  fn zero() -> Self { Self([F::zero(); M]) }
 
-  fn is_zero(&self) -> bool { self.0.iter().all(|x| *x == <F as Ring>::zero()) }
+  fn is_zero(&self) -> bool { self.0.iter().all(|x| *x == F::zero()) }
 }
 
 impl<const M: usize, F: Field + Copy> AbelianGroup for Vector<M, F> {}
@@ -233,14 +233,14 @@ impl<F: Field + Copy> Zero for DynVector<F> {
   fn zero() -> Self {
     Self {
       components: {
-        <F as Ring>::zero();
+        F::zero();
         vec![] as std::vec::Vec<F>
       },
       dimension:  0,
     }
   }
 
-  fn is_zero(&self) -> bool { self.components.iter().all(|x| *x == <F as Ring>::zero()) }
+  fn is_zero(&self) -> bool { self.components.iter().all(|x| *x == F::zero()) }
 }
 
 impl<F: Field + Copy> AbelianGroup for DynVector<F> {}
