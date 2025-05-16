@@ -12,8 +12,12 @@ use crate::{
   cloud::Cloud,
   filtration::Filtration,
   prelude::MetricSpace,
-  simplicial::{Simplex, SimplicialComplex}, // The output space
+  simplicial::{HomologyGroup, Simplex, SimplicialComplex}, // Added HomologyGroup
 };
+
+pub trait VROutputSpace: Send + Sync {}
+impl VROutputSpace for SimplicialComplex {}
+impl<F: Field + Copy + Sum<F> + PartialOrd + Send + Sync> VROutputSpace for HomologyGroup<F> {}
 
 /// A struct that allows construction of Vietoris-Rips complexes.
 ///
@@ -23,26 +27,18 @@ use crate::{
 /// A k-simplex `[v0, v1, ..., vk]` is included in the Vietoris-Rips complex if
 /// the distance between any pair of its vertices `(vi, vj)` is less than or equal
 /// to the threshold `epsilon`.
-pub struct VietorisRips<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> {
-  _phantom: PhantomData<[F; N]>, // To use N and F generics
+pub struct VietorisRips<const N: usize, F: Field + Copy + Sum<F> + PartialOrd, O: VROutputSpace> {
+  _phantom:      PhantomData<[F; N]>, // To use N and F generics
+  _output_space: PhantomData<O>,
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F> {
+impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd, O: VROutputSpace>
+  VietorisRips<N, F, O>
+{
   /// Creates a new `VietorisRips` constructor.
-  pub fn new() -> Self { Self { _phantom: PhantomData } }
-}
+  pub fn new() -> Self { Self { _phantom: PhantomData, _output_space: PhantomData } }
 
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Default for VietorisRips<N, F> {
-  fn default() -> Self { Self::new() }
-}
-
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration for VietorisRips<N, F> {
-  type InputSpace = Cloud<N, F>;
-  // Epsilon, the distance threshold
-  type OutputSpace = SimplicialComplex;
-  type Parameter = F;
-
-  fn build(&self, cloud: &Self::InputSpace, epsilon: Self::Parameter) -> Self::OutputSpace {
+  pub fn build_complex(&self, cloud: &Cloud<N, F>, epsilon: F) -> SimplicialComplex {
     let mut complex = SimplicialComplex::new();
     let points_vec = cloud.points_ref(); // We'll need to add this method to Cloud
 
@@ -96,18 +92,41 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration for Vieto
   }
 }
 
+impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Default
+  for VietorisRips<N, F, SimplicialComplex>
+{
+  fn default() -> Self { Self::new() }
+}
+
+impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd, O: VROutputSpace> Filtration
+  for VietorisRips<N, F, O>
+{
+  type InputSpace = Cloud<N, F>;
+  // Epsilon, the distance threshold
+  type OutputSpace = O;
+  type Parameter = F;
+
+  fn build(&self, cloud: &Self::InputSpace, epsilon: Self::Parameter) -> Self::OutputSpace {
+    let complex = self.build_complex(cloud, epsilon);
+    match self._output_space {
+      PhantomData::<SimplicialComplex> => complex,
+      _ => todo!(),
+    }
+  }
+}
+
 #[cfg(feature = "parallel")]
 impl<const N: usize, F> ParallelFiltration for VietorisRips<N, F>
 where
-  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync, // Added Send + Sync for F
-  Cloud<N, F>: Sync,                                   // Ensure Cloud is Sync
-  SimplicialComplex: Send,                             // Ensure SimplicialComplex is Send
+  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
+  Cloud<N, F>: Sync,
+  SimplicialComplex: Send,
 {
-  // build_parallel is already defined with a default implementation in the trait
 }
 
 #[cfg(test)]
 mod tests {
+  use harness_algebra::arithmetic::Boolean; // For homology coefficients
   use harness_algebra::vector::Vector;
 
   use super::*;
@@ -178,80 +197,95 @@ mod tests {
     assert_eq!(complex.simplices_by_dimension(2).unwrap()[0].vertices(), &[0, 1, 2]);
   }
 
+  #[test]
+  fn test_compute_homology_filtration_basic() {
+    let p0 = Vector([0.0, 0.0]);
+    let p1 = Vector([1.0, 0.0]);
+    let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1]);
+    let vr_builder = VietorisRips::<2, f64>::new();
+
+    let epsilons = vec![0.5, 1.5]; // Epsilon_0: 2 components, Epsilon_1: 1 component
+    let max_dim = 1;
+
+    let homology_results =
+      vr_builder.compute_homology_filtration::<Boolean>(&cloud, epsilons.clone(), max_dim);
+
+    assert_eq!(homology_results.len(), 2);
+
+    // Check results for epsilon = 0.5
+    let (eps0, hg_eps0) = &homology_results[0];
+    assert_eq!(*eps0, 0.5);
+    assert_eq!(hg_eps0.len(), max_dim + 1, "Expected H0 and H1");
+
+    // H0 for epsilon = 0.5 (two points, no edge)
+    let h0_eps0 = &hg_eps0[0];
+    assert_eq!(h0_eps0.dimension, 0);
+    assert_eq!(h0_eps0.betti_number, 2, "H0(eps=0.5): Expected 2 connected components");
+
+    // H1 for epsilon = 0.5
+    let h1_eps0 = &hg_eps0[1];
+    assert_eq!(h1_eps0.dimension, 1);
+    assert_eq!(h1_eps0.betti_number, 0, "H1(eps=0.5): Expected 0 1-cycles");
+
+    // Check results for epsilon = 1.5 (two points, one edge -> one component)
+    let (eps1, hg_eps1) = &homology_results[1];
+    assert_eq!(*eps1, 1.5);
+    assert_eq!(hg_eps1.len(), max_dim + 1);
+
+    // H0 for epsilon = 1.5
+    let h0_eps1 = &hg_eps1[0];
+    assert_eq!(h0_eps1.dimension, 0);
+    assert_eq!(h0_eps1.betti_number, 1, "H0(eps=1.5): Expected 1 connected component");
+
+    // H1 for epsilon = 1.5
+    let h1_eps1 = &hg_eps1[1];
+    assert_eq!(h1_eps1.dimension, 1);
+    assert_eq!(h1_eps1.betti_number, 0, "H1(eps=1.5): Expected 0 1-cycles (edge is contractible)");
+  }
+
   #[cfg(feature = "parallel")]
   #[test]
-  fn test_vietoris_rips_parallel() {
-    use crate::filtration::ParallelFiltration; // Ensure trait is in scope
+  fn test_compute_homology_filtration_parallel_triangle() {
+    // This test runs only if 'parallel' feature is enabled.
+    // It implicitly uses build_parallel inside compute_homology_filtration.
+    // use crate::filtration::ParallelFiltration; // Not strictly needed here if only using the new
+    // method
 
     let p0 = Vector([0.0, 0.0]);
     let p1 = Vector([1.0, 0.0]);
-    let p2 = Vector([2.0, 0.0]);
-    let p3 = Vector([0.5, 0.866]); // Forms a triangle with p0, p1 if epsilon is right
+    let p2 = Vector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
 
-    let cloud = Cloud::new(vec![p0, p1, p2, p3]);
+    let cloud = Cloud::new(vec![p0, p1, p2]);
     let vr_builder = VietorisRips::<2, f64>::new();
+    // Distances: d(p0,p1)=1, d(p0,p2)=1, d(p1,p2)=1
+    let epsilons = vec![0.5, 1.1];
+    // eps=0.5: 3 points (3 components in H0)
+    // eps=1.1: All edges [0,1],[1,2],[0,2] exist (all distances are 1.0 <= 1.1).
+    //          VR complex includes the 2-simplex [0,1,2] because all pairwise distances are <= 1.1.
+    //          So, it's a filled triangle. H0=1, H1=0, H2=0.
+    let max_dim = 2;
 
-    let epsilons = vec![0.5, 1.1, 2.1]; // Three different epsilon values
+    let homology_results =
+      vr_builder.compute_homology_filtration::<Boolean>(&cloud, epsilons.clone(), max_dim);
 
-    let complexes = vr_builder.build_parallel(&cloud, epsilons);
+    assert_eq!(homology_results.len(), 2);
 
-    assert_eq!(complexes.len(), 3);
+    // Results for epsilon = 0.5
+    let (eps0_val, hg_eps0) = &homology_results[0];
+    assert_eq!(*eps0_val, 0.5);
+    assert_eq!(hg_eps0.len(), max_dim + 1);
+    assert_eq!(hg_eps0[0].betti_number, 3, "H0(eps=0.5) for triangle points"); // H0: 3 components
+    assert_eq!(hg_eps0[1].betti_number, 0, "H1(eps=0.5) for triangle points"); // H1: 0 holes
+    assert_eq!(hg_eps0[2].betti_number, 0, "H2(eps=0.5) for triangle points"); // H2: 0 voids
 
-    // Complex 0 (epsilon = 0.5): Only vertices
-    let complex0 = &complexes[0];
-    assert_eq!(complex0.simplices_by_dimension(0).unwrap().len(), 4); // 4 points
-    assert!(complex0.simplices_by_dimension(1).is_none()); // No edges
-
-    // Complex 1 (epsilon = 1.1):
-    // Edges: [0,1], [1,2], [0,3], [1,3]
-    // 0-1: dist 1.0
-    // 1-2: dist 1.0
-    // 0-3: dist 1.0
-    // 1-3: dist 1.0
-    // Triangle: [0,1,3]
-    let complex1 = &complexes[1];
-    assert_eq!(complex1.simplices_by_dimension(0).unwrap().len(), 4);
-    assert_eq!(
-      complex1.simplices_by_dimension(1).unwrap().len(),
-      4,
-      "Expected 4 edges for eps=1.1"
-    );
-    assert_eq!(
-      complex1.simplices_by_dimension(2).unwrap().len(),
-      1,
-      "Expected 1 triangle for eps=1.1"
-    ); // [0,1,3]
-    assert!(
-      complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [0, 1, 3]
-        || complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [0, 1, 2]
-        || complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [0, 2, 3]
-        || complex1.simplices_by_dimension(2).unwrap()[0].vertices() == [1, 2, 3],
-      "Triangle [0,1,3] should exist"
-    );
-
-    // Complex 2 (epsilon = 2.1):
-    // All points are connected to all other points.
-    // Should form a tetrahedron if we were in 3D, here it will be a full 3-simplex (K4)
-    // 4 vertices (0-simplices)
-    // 6 edges (1-simplices: (0,1), (0,2), (0,3), (1,2), (1,3), (2,3))
-    // 4 triangles (2-simplices: (0,1,2), (0,1,3), (0,2,3), (1,2,3))
-    // 1 tetrahedron (3-simplex: (0,1,2,3))
-    let complex2 = &complexes[2];
-    assert_eq!(complex2.simplices_by_dimension(0).unwrap().len(), 4);
-    assert_eq!(
-      complex2.simplices_by_dimension(1).unwrap().len(),
-      6,
-      "Expected 6 edges for eps=2.1"
-    );
-    assert_eq!(
-      complex2.simplices_by_dimension(2).unwrap().len(),
-      4,
-      "Expected 4 triangles for eps=2.1"
-    );
-    assert_eq!(
-      complex2.simplices_by_dimension(3).unwrap().len(),
-      1,
-      "Expected 1 3-simplex (tetrahedron) for eps=2.1"
-    );
+    // Results for epsilon = 1.1 (filled triangle)
+    let (eps1_val, hg_eps1) = &homology_results[1];
+    assert_eq!(*eps1_val, 1.1);
+    assert_eq!(hg_eps1.len(), max_dim + 1);
+    assert_eq!(hg_eps1[0].betti_number, 1, "H0(eps=1.1) for filled triangle"); // H0: 1 component
+    assert_eq!(hg_eps1[1].betti_number, 0, "H1(eps=1.1) for filled triangle"); // H1: 0 holes
+    assert_eq!(hg_eps1[2].betti_number, 0, "H2(eps=1.1) for filled triangle"); // H2: 0 voids (it's
+                                                                               // a 2-simplex, not
+                                                                               // hollow)
   }
 }

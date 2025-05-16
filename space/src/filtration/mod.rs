@@ -24,6 +24,21 @@ pub trait Filtration {
   /// # Returns
   /// The constructed output space.
   fn build(&self, input: &Self::InputSpace, param: Self::Parameter) -> Self::OutputSpace;
+
+  /// Builds the output space in serial for multiple parameters.
+  ///
+  /// # Arguments
+  /// * `input`: A reference to the input space.
+  /// * `param`: A vector of parameters to build the output space for.
+  ///
+  /// # Returns
+  fn build_serial(
+    &self,
+    input: &Self::InputSpace,
+    param: Vec<Self::Parameter>,
+  ) -> Vec<Self::OutputSpace> {
+    param.into_iter().map(|p| self.build(input, p)).collect()
+  }
 }
 
 #[cfg(feature = "parallel")] use rayon::prelude::*;
