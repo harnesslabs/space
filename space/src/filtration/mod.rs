@@ -11,9 +11,11 @@ pub trait Filtration {
   /// The type of the input space (e.g., a point cloud).
   type InputSpace;
   /// The type of the parameter used for filtering (e.g., a distance epsilon).
-  type Parameter;
+  type InputParameter;
   /// The type of the output space (e.g., a simplicial complex).
   type OutputSpace;
+  /// The type of the output parameter (e.g., the dimension of the homology group).
+  type OutputParameter;
 
   /// Constructs an output space from the input space using the given parameter.
   ///
@@ -23,7 +25,12 @@ pub trait Filtration {
   ///
   /// # Returns
   /// The constructed output space.
-  fn build(&self, input: &Self::InputSpace, param: Self::Parameter) -> Self::OutputSpace;
+  fn build(
+    &self,
+    input: &Self::InputSpace,
+    input_param: Self::InputParameter,
+    output_param: &Self::OutputParameter,
+  ) -> Self::OutputSpace;
 
   /// Builds the output space in serial for multiple parameters.
   ///
@@ -35,9 +42,10 @@ pub trait Filtration {
   fn build_serial(
     &self,
     input: &Self::InputSpace,
-    param: Vec<Self::Parameter>,
+    input_param: Vec<Self::InputParameter>,
+    output_param: &Self::OutputParameter,
   ) -> Vec<Self::OutputSpace> {
-    param.into_iter().map(|p| self.build(input, p)).collect()
+    input_param.into_iter().map(|p| self.build(input, p, output_param)).collect()
   }
 }
 
@@ -49,8 +57,9 @@ pub trait ParallelFiltration: Filtration
 where
   Self: Sync,
   Self::InputSpace: Sync,
-  Self::Parameter: Send,
-  Self::OutputSpace: Send, {
+  Self::InputParameter: Send,
+  Self::OutputSpace: Send,
+  Self::OutputParameter: Send + Sync, {
   /// Builds the output space in parallel for multiple parameters.
   ///
   /// # Arguments
@@ -61,8 +70,9 @@ where
   fn build_parallel(
     &self,
     input: &Self::InputSpace,
-    param: Vec<Self::Parameter>,
+    input_param: Vec<Self::InputParameter>,
+    output_param: &Self::OutputParameter,
   ) -> Vec<Self::OutputSpace> {
-    param.into_par_iter().map(|p| self.build(input, p)).collect()
+    input_param.into_par_iter().map(|p| self.build(input, p, output_param)).collect()
   }
 }

@@ -1,7 +1,11 @@
 // space/src/vietoris_rips.rs
 //! Implements the Vietoris-Rips complex construction.
 
-use std::{iter::Sum, marker::PhantomData};
+use std::{
+  collections::{HashMap, HashSet},
+  iter::Sum,
+  marker::PhantomData,
+};
 
 use harness_algebra::ring::Field;
 use itertools::Itertools;
@@ -15,10 +19,6 @@ use crate::{
   simplicial::{HomologyGroup, Simplex, SimplicialComplex}, // Added HomologyGroup
 };
 
-pub trait VROutputSpace: Send + Sync {}
-impl VROutputSpace for SimplicialComplex {}
-impl<F: Field + Copy + Sum<F> + PartialOrd + Send + Sync> VROutputSpace for HomologyGroup<F> {}
-
 /// A struct that allows construction of Vietoris-Rips complexes.
 ///
 /// It implements the `Filtration` trait, taking a `Cloud` of points and a distance
@@ -27,17 +27,16 @@ impl<F: Field + Copy + Sum<F> + PartialOrd + Send + Sync> VROutputSpace for Homo
 /// A k-simplex `[v0, v1, ..., vk]` is included in the Vietoris-Rips complex if
 /// the distance between any pair of its vertices `(vi, vj)` is less than or equal
 /// to the threshold `epsilon`.
-pub struct VietorisRips<const N: usize, F: Field + Copy + Sum<F> + PartialOrd, O: VROutputSpace> {
+pub struct VietorisRips<const N: usize, F, O> {
   _phantom:      PhantomData<[F; N]>, // To use N and F generics
   _output_space: PhantomData<O>,
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd, O: VROutputSpace>
-  VietorisRips<N, F, O>
-{
-  /// Creates a new `VietorisRips` constructor.
+impl<const N: usize, F, O> VietorisRips<N, F, O> {
   pub fn new() -> Self { Self { _phantom: PhantomData, _output_space: PhantomData } }
+}
 
+impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, SimplicialComplex> {
   pub fn build_complex(&self, cloud: &Cloud<N, F>, epsilon: F) -> SimplicialComplex {
     let mut complex = SimplicialComplex::new();
     let points_vec = cloud.points_ref(); // We'll need to add this method to Cloud
@@ -92,31 +91,30 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd, O: VROutputSpace>
   }
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Default
-  for VietorisRips<N, F, SimplicialComplex>
-{
+impl<const N: usize, F> Default for VietorisRips<N, F, SimplicialComplex> {
   fn default() -> Self { Self::new() }
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd, O: VROutputSpace> Filtration
-  for VietorisRips<N, F, O>
+impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration
+  for VietorisRips<N, F, SimplicialComplex>
 {
+  type InputParameter = F;
   type InputSpace = Cloud<N, F>;
-  // Epsilon, the distance threshold
-  type OutputSpace = O;
-  type Parameter = F;
+  type OutputParameter = ();
+  type OutputSpace = SimplicialComplex;
 
-  fn build(&self, cloud: &Self::InputSpace, epsilon: Self::Parameter) -> Self::OutputSpace {
-    let complex = self.build_complex(cloud, epsilon);
-    match self._output_space {
-      PhantomData::<SimplicialComplex> => complex,
-      _ => todo!(),
-    }
+  fn build(
+    &self,
+    cloud: &Self::InputSpace,
+    epsilon: Self::InputParameter,
+    _output_param: &(),
+  ) -> Self::OutputSpace {
+    self.build_complex(cloud, epsilon)
   }
 }
 
 #[cfg(feature = "parallel")]
-impl<const N: usize, F> ParallelFiltration for VietorisRips<N, F>
+impl<const N: usize, F> ParallelFiltration for VietorisRips<N, F, SimplicialComplex>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
   Cloud<N, F>: Sync,
@@ -124,18 +122,56 @@ where
 {
 }
 
+impl<const N: usize, F, R> Filtration for VietorisRips<N, F, HomologyGroup<R>>
+where
+  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
+  R: Field + Copy + Send + Sync,
+  Cloud<N, F>: Sync,
+  SimplicialComplex: Send,
+{
+  type InputParameter = F;
+  type InputSpace = Cloud<N, F>;
+  type OutputParameter = HashSet<usize>;
+  type OutputSpace = HashMap<usize, HomologyGroup<R>>;
+
+  fn build(
+    &self,
+    input: &Self::InputSpace,
+    param: Self::InputParameter,
+    output_param: &Self::OutputParameter,
+  ) -> Self::OutputSpace {
+    let complex = VietorisRips::<N, F, SimplicialComplex>::new().build_complex(input, param);
+
+    let mut homology_groups = HashMap::new();
+    for dim in output_param {
+      let homology_group = complex.compute_homology(*dim);
+      homology_groups.insert(*dim, homology_group);
+    }
+    homology_groups
+  }
+}
+
+#[cfg(feature = "parallel")]
+impl<const N: usize, F> ParallelFiltration for VietorisRips<N, F, HomologyGroup<F>>
+where
+  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
+  Cloud<N, F>: Sync,
+  HomologyGroup<F>: Send,
+{
+}
+
 #[cfg(test)]
 mod tests {
-  use harness_algebra::arithmetic::Boolean; // For homology coefficients
-  use harness_algebra::vector::Vector;
+  // For homology coefficients
+  use harness_algebra::{arithmetic::Boolean, modular, prime_field, vector::Vector};
 
   use super::*;
 
   #[test]
   fn test_vietoris_rips_empty_cloud() {
     let cloud: Cloud<2, f64> = Cloud::new(vec![]);
-    let vr = VietorisRips::<2, f64>::new();
-    let complex = vr.build(&cloud, 0.5);
+    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
+    let complex = vr.build(&cloud, 0.5, &());
     assert!(complex.simplices_by_dimension(0).is_none());
   }
 
@@ -143,8 +179,8 @@ mod tests {
   fn test_vietoris_rips_single_point() {
     let points = vec![Vector([0.0, 0.0])];
     let cloud = Cloud::new(points);
-    let vr = VietorisRips::<2, f64>::new();
-    let complex = vr.build(&cloud, 0.5);
+    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
+    let complex = vr.build(&cloud, 0.5, &());
 
     let simplices_dim_0 = complex.simplices_by_dimension(0);
     assert_eq!(simplices_dim_0.unwrap().len(), 1);
@@ -157,15 +193,15 @@ mod tests {
     let p1 = Vector([0.0, 0.0]);
     let p2 = Vector([1.0, 0.0]);
     let cloud = Cloud::new(vec![p1, p2]);
-    let vr = VietorisRips::<2, f64>::new();
+    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
 
     // Epsilon too small for an edge
-    let complex_no_edge = vr.build(&cloud, 0.5); // distance is 1.0
+    let complex_no_edge = vr.build(&cloud, 0.5, &()); // distance is 1.0
     assert_eq!(complex_no_edge.simplices_by_dimension(0).unwrap().len(), 2);
     assert!(complex_no_edge.simplices_by_dimension(1).is_none());
 
     // Epsilon large enough for an edge
-    let complex_with_edge = vr.build(&cloud, 1.5);
+    let complex_with_edge = vr.build(&cloud, 1.5, &());
     assert_eq!(complex_with_edge.simplices_by_dimension(0).unwrap().len(), 2);
     let simplices_dim_1 = complex_with_edge.simplices_by_dimension(1);
     assert_eq!(simplices_dim_1.unwrap().len(), 1);
@@ -179,7 +215,7 @@ mod tests {
     let p2 = Vector([0.5, 0.866]); // Equilateral triangle, side length 1
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
-    let vr = VietorisRips::<2, f64>::new();
+    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
 
     // Distances: d(p0,p1)=1, d(p0,p2) approx 1, d(p1,p2) approx 1
     // Norm of p0-p1: (-1)^2 + 0^2 = 1
@@ -189,7 +225,7 @@ mod tests {
     // Epsilon just enough for edges, not for triangle (if strict definition used sometimes, but
     // here diameter based) Here, if all edges are present, the triangle [0,1,2] will be added
     // by `join_simplex` for the 2-simplex.
-    let complex = vr.build(&cloud, 1.1);
+    let complex = vr.build(&cloud, 1.1, &());
 
     assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3);
     assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3);
@@ -197,18 +233,20 @@ mod tests {
     assert_eq!(complex.simplices_by_dimension(2).unwrap()[0].vertices(), &[0, 1, 2]);
   }
 
+  modular!(Mod7, u32, 7);
+  prime_field!(Mod7);
+
   #[test]
   fn test_compute_homology_filtration_basic() {
     let p0 = Vector([0.0, 0.0]);
     let p1 = Vector([1.0, 0.0]);
     let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1]);
-    let vr_builder = VietorisRips::<2, f64>::new();
+    let vr_builder = VietorisRips::<2, f64, HomologyGroup<Mod7>>::new();
 
     let epsilons = vec![0.5, 1.5]; // Epsilon_0: 2 components, Epsilon_1: 1 component
-    let max_dim = 1;
+    let dims = HashSet::from([0, 1]);
 
-    let homology_results =
-      vr_builder.compute_homology_filtration::<Boolean>(&cloud, epsilons.clone(), max_dim);
+    let homology_results = vr_builder.build_serial(&cloud, epsilons.clone(), &dims);
 
     assert_eq!(homology_results.len(), 2);
 
