@@ -69,7 +69,7 @@ use crate::ring::Field;
 /// ],]);
 ///
 /// // Example with f64
-/// let mut matrix_f64 = vec![vec![1.0, 2.0, 1.0], vec![2.0, 4.0, 0.0], vec![3.0, 6.0, 0.0]];
+/// let mut matrix_f64 = vec![vec![1.0_f64, 2.0, 1.0], vec![2.0, 4.0, 0.0], vec![3.0, 6.0, 0.0]];
 /// let rank_f64 = column_gaussian_elimination(&mut matrix_f64);
 /// assert_eq!(rank_f64, 2);
 /// // Expected column echelon form (one possibility for f64):
@@ -223,7 +223,7 @@ pub fn column_gaussian_elimination<F: Field + Copy>(matrix: &mut [Vec<F>]) -> us
 ///
 /// // Example with f64
 /// let mut matrix_f64 =
-///   vec![vec![1.0, 2.0, -1.0, 3.0], vec![2.0, 4.0, -2.0, 7.0], vec![0.0, 1.0, 2.0, 1.0]];
+///   vec![vec![1.0_f64, 2.0, -1.0, 3.0], vec![2.0, 4.0, -2.0, 7.0], vec![0.0, 1.0, 2.0, 1.0]];
 /// let (rank_f64, pivots_f64) = row_gaussian_elimination(&mut matrix_f64);
 /// assert_eq!(rank_f64, 3);
 /// // Expected pivot columns might be [0, 1, 3] or similar depending on exact RREF steps.
