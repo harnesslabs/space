@@ -3,7 +3,7 @@
 //! This module provides implementations of common linear algebra algorithms,
 //! particularly focusing on Gaussian elimination. These functions are generic
 //! and can operate on matrices whose elements are from any type that implements
-//! the [`Field`](crate::ring::Field) trait and is `Copy`.
+//! the [`Field`] trait and is [`Copy`].
 //!
 //! Common field types used with this module include:
 //! - Standard floating-point numbers: `f64`, `f32`.
@@ -35,9 +35,8 @@ use crate::ring::Field;
 ///
 /// # Arguments
 ///
-/// * `matrix`: A mutable slice of vectors, representing the matrix. Each `Vec<F>` is a row. The
-///   matrix elements must be of a type `F` that implements [`Field`](crate::ring::Field) and
-///   `Copy`.
+/// * `matrix`: A mutable slice of vectors, representing the matrix. Each [`Vec<F>`] is a row. The
+///   matrix elements must be of a type `F` that implements [`Field`] and [`Copy`].
 ///
 /// # Returns
 ///
@@ -181,9 +180,8 @@ pub fn column_gaussian_elimination<F: Field + Copy>(matrix: &mut [Vec<F>]) -> us
 ///
 /// # Arguments
 ///
-/// * `matrix`: A mutable slice of vectors, representing the matrix. Each `Vec<F>` is a row. The
-///   matrix elements must be of a type `F` that implements [`Field`](crate::ring::Field) and
-///   `Copy`.
+/// * `matrix`: A mutable slice of vectors, representing the matrix. Each [`Vec<F>`] is a row. The
+///   matrix elements must be of a type `F` that implements [`Field`] and [`Copy`].
 ///
 /// # Returns
 ///
@@ -493,10 +491,10 @@ mod tests {
     // [[1.0, 2.0], [0.0, 0.0], [0.0, 0.0]]
     assert!((matrix[0][0] - 1.0f64).abs() < 1e-9);
     assert!((matrix[0][1] - 2.0f64).abs() < 1e-9); // R0 can remain [1,2] if C2 depends on C1
-    for r_idx in 1..matrix.len() {
+    (1..matrix.len()).for_each(|r_idx| {
       assert!(matrix[r_idx][0].abs() < 1e-9);
       assert!(matrix[r_idx][1].abs() < 1e-9);
-    }
+    });
 
     // The previous, more complex assertions for this test case regarding the matrix state
     // can be simplified if we just check the rank and general structure.

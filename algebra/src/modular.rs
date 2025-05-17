@@ -86,7 +86,8 @@ macro_rules! modular {
       pub fn new(value: $inner) -> Self { Self(value % Self::MODULUS) }
 
       /// Returns the value of this modular number.
-      pub fn value(&self) -> $inner { self.0 }
+      #[allow(dead_code)]
+      pub const fn value(&self) -> $inner { self.0 }
     }
 
     impl num_traits::Zero for $name {

@@ -34,10 +34,8 @@
 //! ## Usage
 //!
 //! This module provides the [`VietorisRips`] struct, which implements the
-//! [`Filtration`](crate::filtration::Filtration) trait. It takes a [`Cloud`](crate::cloud::Cloud)
-//! of points and an `epsilon` value to produce a
-//! [`SimplicialComplex`](crate::simplicial::SimplicialComplex) or, optionally,
-//! [`HomologyGroup`](crate::simplicial::HomologyGroup)s for specified dimensions.
+//! [`Filtration`] trait. It takes a [`Cloud`] of points and an `epsilon` value to produce a
+//! [`SimplicialComplex`] or, optionally, [`HomologyGroup`]s for specified dimensions.
 //!
 //! ```rust
 //! use harness_algebra::vector::Vector;
@@ -65,7 +63,7 @@
 //! ```
 //!
 //! When the `"parallel"` feature is enabled, this module also provides implementations for
-//! [`ParallelFiltration`](crate::filtration::ParallelFiltration) to leverage multi-core processing
+//! [`ParallelFiltration`] to leverage multi-core processing
 //! for building the filtration and computing homology.
 
 use std::{

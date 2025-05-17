@@ -36,9 +36,9 @@
 //!     - $Z_k(X; F) = \ker \partial_k$ is the group of $k$-cycles (chains whose boundary is zero).
 //!     - $B_k(X; F) = \text{im } \partial_{k+1}$ is the group of $k$-boundaries (chains that are
 //!       boundaries of $(k+1)$-chains).
-//!   Homology groups are important topological invariants that capture information about the
-//! \"holes\"   of different dimensions in a space. The rank of $H_k(X; F)$ is called the $k$-th
-//! Betti number, $b_k$.
+//!   - Homology groups are important topological invariants that capture information about the
+//!     \"holes\" of different dimensions in a space. The rank of $H_k(X; F)$ is called the $k$-th
+//!     Betti number, $b_k$.
 //!
 //! ## Features
 //!
@@ -47,10 +47,9 @@
 //! - Implementation of [`Chain`] arithmetic (addition).
 //! - Standard boundary operator $\partial$ for [`Chain`]s.
 //! - Calculation of homology groups [`HomologyGroup<F>`] using Gaussian elimination over a generic
-//!   [`Field`](harness_algebra::ring::Field) `F`. This involves:
+//!   [`Field`] `F`. This involves:
 //!     - Constructing boundary matrices.
-//!     - Computing kernel and image bases of these matrices using
-//!       [`row_gaussian_elimination`](harness_algebra::linear::row_gaussian_elimination).
+//!     - Computing kernel and image bases of these matrices using [`row_gaussian_elimination`].
 //!
 //! ## Usage Example
 //!
@@ -97,7 +96,7 @@ use num_traits::{One, Zero};
 /// - A 1-simplex (dimension 1) is a line segment.
 /// - A 2-simplex (dimension 2) is a triangle.
 /// - A 3-simplex (dimension 3) is a tetrahedron.
-/// And so on for higher dimensions.
+/// - ... and so on for higher dimensions.
 ///
 /// In this implementation, vertices are represented by `usize` indices and are always stored in a
 /// sorted vector to ensure a canonical representation for each simplex.
@@ -154,22 +153,22 @@ impl Simplex {
   /// Returns the dimension of the simplex.
   ///
   /// The dimension $k$ is equal to the number of vertices minus one.
-  pub fn dimension(&self) -> usize { self.dimension }
+  pub const fn dimension(&self) -> usize { self.dimension }
 
   /// Computes all $(k-1)$-dimensional faces of this $k$-simplex.
   ///
   /// A face is obtained by removing one vertex from the simplex's vertex set.
   /// For example:
-  /// - The faces of a 2-simplex (triangle) $[v_0, v_1, v_2]$ are its three 1-simplices (edges):
-  ///   $[v_1, v_2]$, $[v_0, v_2]$, and $[v_0, v_1]$.
-  /// - The faces of a 1-simplex (edge) $[v_0, v_1]$ are its two 0-simplices (vertices): $[v_1]$ and
-  ///   $[v_0]$.
+  /// - The faces of a 2-simplex (triangle) `[v_0, v_1, v_2]` are its three 1-simplices (edges):
+  ///   `[v_1, v_2]`, `[v_0, v_2]`, and `[v_0, v_1]`.
+  /// - The faces of a 1-simplex (edge) `[v_0, v_1]` are its two 0-simplices (vertices): `[v_1]` and
+  ///   `[v_0]`.
   /// - A 0-simplex has no faces (its dimension is -1, typically considered an empty set of faces).
   ///
   /// # Returns
-  /// A `Vec<Simplex>` containing all $(k-1)$-dimensional faces. If the simplex is 0-dimensional,
+  /// A [`Vec<Simplex>`] containing all $(k-1)$-dimensional faces. If the simplex is 0-dimensional,
   /// an empty vector is returned as it has no $( -1)$-dimensional faces in the typical sense.
-  pub fn faces(&self) -> Vec<Simplex> {
+  pub fn faces(&self) -> Vec<Self> {
     self
       .vertices
       .clone()
@@ -236,8 +235,8 @@ impl SimplicialComplex {
   /// [`SimplicialComplex::compute_homology()`] which uses [`Chain::boundary()`].
   ///
   /// # Type Parameters
-  /// * `R`: The coefficient ring type, which must implement `Clone`, `Neg<Output = R>`, `Add<Output
-  ///   = R>`, `Zero`, and `One`.
+  /// * `R`: The coefficient ring type, which must implement [`Clone`], [`Neg<Output = R>`],
+  ///   [`Add<Output = R>`], [`Zero`], and [`One`].
   ///
   /// # Arguments
   /// * `dimension`: The dimension $d$ of simplices for which to compute this specific boundary sum.
@@ -275,12 +274,14 @@ impl SimplicialComplex {
   /// * `dimension`: The dimension of the simplices to retrieve.
   ///
   /// # Returns
-  /// An `Option<&[Simplex]>`: `Some` containing a slice of [`Simplex`] objects if simplices of that
-  /// dimension exist, otherwise `None`.
+  /// An `Option<&[Simplex]>` containing a slice of [`Simplex`] objects if simplices of that
+  /// dimension exist, otherwise [`None`].
   pub fn simplices_by_dimension(&self, dimension: usize) -> Option<&[Simplex]> {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
+  // TODO (autoparallel): This is a bit of a mess. We should clean it up.
+  #[allow(clippy::too_many_lines)]
   /// Computes the $k$-th homology group $H_k(K; F)$ of the simplicial complex $K$
   /// with coefficients in a specified field $F$.
   ///
@@ -295,16 +296,15 @@ impl SimplicialComplex {
   ///    $(k+1)$-simplices ($S_{k+1}$).
   /// 2. Constructing boundary matrices for $\partial_k: C_k \to C_{k-1}$ and $\partial_{k+1}:
   ///    C_{k+1} \to C_k$.
-  /// 3. Using [`row_gaussian_elimination`](harness_algebra::linear::row_gaussian_elimination) to
-  ///    find the rank and bases for the kernel (cycles $Z_k = \ker \partial_k$) and image
-  ///    (boundaries $B_k = \text{im } \partial_{k+1}$).
+  /// 3. Using [`row_gaussian_elimination`] to find the rank and bases for the kernel (cycles $Z_k =
+  ///    \ker \partial_k$) and image (boundaries $B_k = \text{im } \partial_{k+1}$).
   /// 4. The homology group $H_k = Z_k / B_k$. The Betti number ($b_k$) is $\text{rank}(H_k) =
   ///    \dim(Z_k) - \dim(B_k)$.
   ///
   /// # Type Parameters
-  /// * `F`: The coefficient field. Must implement [`Field`](harness_algebra::ring::Field) and
-  ///   `Copy`. Common choices include `f64`, `Boolean` (for $\mathbb{Z}/2\mathbb{Z}$), or modular
-  ///   fields like $\mathbb{Z}/p\mathbb{Z}$ for prime $p$.
+  /// * `F`: The coefficient field. Must implement [`Field`] and [`Copy`]. Common choices include
+  ///   [`f64`], [`Boolean`](harness_algebra::arithmetic::Boolean) (for $\mathbb{Z}/2\mathbb{Z}$),
+  ///   or modular fields like $\mathbb{Z}/p\mathbb{Z}$ for prime $p$.
   ///
   /// # Arguments
   /// * `k`: The dimension of the homology group to compute (e.g., 0 for $H_0$, 1 for $H_1$).
@@ -366,14 +366,11 @@ impl SimplicialComplex {
         .iter()
         .map(|v| Chain::from_simplex_and_coeff(v.clone(), <F as One>::one()))
         .collect();
-      let s1_for_b0 = match self.simplices_by_dimension(1) {
-        Some(s) => {
-          let mut sorted_s = s.to_vec();
-          sorted_s.sort_unstable();
-          sorted_s
-        },
-        None => Vec::new(),
-      };
+      let s1_for_b0 = self.simplices_by_dimension(1).map_or_else(Vec::new, |s| {
+        let mut sorted_s = s.to_vec();
+        sorted_s.sort_unstable();
+        sorted_s
+      });
       let b0_gens = if s1_for_b0.is_empty() || vertices.is_empty() {
         Vec::new()
       } else {
@@ -402,22 +399,16 @@ impl SimplicialComplex {
       },
       _ => return HomologyGroup::trivial(k),
     };
-    let s_km1 = match self.simplices_by_dimension(k - 1) {
-      Some(s) => {
-        let mut ss = s.to_vec();
-        ss.sort_unstable();
-        ss
-      },
-      None => Vec::new(),
-    };
-    let s_kp1 = match self.simplices_by_dimension(k + 1) {
-      Some(s) => {
-        let mut ss = s.to_vec();
-        ss.sort_unstable();
-        ss
-      },
-      None => Vec::new(),
-    };
+    let s_km1 = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
+      let mut ss = s.to_vec();
+      ss.sort_unstable();
+      ss
+    });
+    let s_kp1 = self.simplices_by_dimension(k + 1).map_or_else(Vec::new, |s| {
+      let mut ss = s.to_vec();
+      ss.sort_unstable();
+      ss
+    });
     let ck_basis: Vec<Chain<F>> =
       s_k.iter().map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one())).collect();
 
@@ -436,7 +427,7 @@ impl SimplicialComplex {
     let z_k_gens = if s_k.is_empty() {
       Vec::new()
     } else if s_km1.is_empty() {
-      ck_basis.clone()
+      ck_basis
     } else {
       let mut mat_dk = get_boundary_matrix(&s_k, &s_km1);
       let (_, p_cols) = row_gaussian_elimination(&mut mat_dk);
@@ -449,11 +440,11 @@ impl SimplicialComplex {
     let sk_map: std::collections::HashMap<Simplex, usize> =
       s_k.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
     let mut quot_mat_cols = Vec::new();
-    for ch in b_k_gens.iter() {
+    for ch in &b_k_gens {
       quot_mat_cols.push(chain_to_coeff_vector(ch, &sk_map, s_k.len()));
     }
     let num_b = quot_mat_cols.len();
-    for ch in z_k_gens.iter() {
+    for ch in &z_k_gens {
       quot_mat_cols.push(chain_to_coeff_vector(ch, &sk_map, s_k.len()));
     }
 
@@ -463,17 +454,17 @@ impl SimplicialComplex {
         betti_number:        z_k_gens.len(),
         cycle_generators:    z_k_gens.clone(),
         boundary_generators: b_k_gens,
-        homology_generators: z_k_gens.clone(),
+        homology_generators: z_k_gens,
       };
     }
 
     let mut q_mat = vec![vec![<F as Zero>::zero(); quot_mat_cols.len()]; s_k.len()];
     if !s_k.is_empty() {
-      for r in 0..s_k.len() {
-        for c in 0..quot_mat_cols.len() {
+      (0..s_k.len()).for_each(|r| {
+        (0..quot_mat_cols.len()).for_each(|c| {
           q_mat[r][c] = quot_mat_cols[c][r];
-        }
-      }
+        });
+      });
     }
 
     let (_, p_cols_q) = row_gaussian_elimination(&mut q_mat);
@@ -515,7 +506,7 @@ pub struct Chain<R> {
 
 impl<R> Chain<R> {
   /// Creates a new, empty chain (representing the zero chain).
-  pub fn new() -> Self { Self { simplices: vec![], coefficients: vec![] } }
+  pub const fn new() -> Self { Self { simplices: vec![], coefficients: vec![] } }
 
   /// Creates a new chain consisting of a single `simplex` with the given `coeff`.
   ///
@@ -680,8 +671,8 @@ pub enum Permutation {
 }
 
 /// Computes the sign (even or odd) of a permutation by counting the number of inversions.
-/// An inversion is a pair of elements $(item[i], item[j])$ such that $i < j$ but $item[i] >
-/// item[j]$.
+/// An inversion is a pair of elements `(item[i], item[j])` such that `i < j` but `item[i] >
+/// item[j]`.
 ///
 /// # Arguments
 /// * `item`: A slice of ordered items (e.g., vertex indices of a simplex before sorting).
@@ -715,7 +706,7 @@ pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
 /// # Type Parameters
 /// * `R`: The coefficient type, which **must be a field** for the current computation methods (due
 ///   to reliance on Gaussian elimination which requires multiplicative inverses). It should
-///   implement [`Field`](harness_algebra::ring::Field).
+///   implement [`Field`].
 #[derive(Debug, Clone)]
 pub struct HomologyGroup<R: Field> {
   /// The dimension $k$ for which this homology group $H_k$ is computed.
@@ -738,7 +729,7 @@ impl<R: Field> HomologyGroup<R> {
   /// Creates a new, trivial homology group for a given `dimension`.
   /// A trivial group has Betti number 0 and no generators.
   /// This is used when, for example, there are no $k$-simplices to form $k$-chains.
-  pub fn trivial(dimension: usize) -> Self {
+  pub const fn trivial(dimension: usize) -> Self {
     Self {
       dimension,
       betti_number: 0,
@@ -768,7 +759,7 @@ impl<R: Field> HomologyGroup<R> {
 ///   RREF.
 ///
 /// # Type Parameters
-/// * `F`: The coefficient field, must implement [`Field`](harness_algebra::ring::Field) and `Copy`.
+/// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
 ///
 /// # Returns
 /// A `Vec<Chain<F>>` where each chain is a generator for the kernel.
@@ -806,7 +797,7 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
     // Let the main loop handle it: if all columns are free, it will generate all basis elements.
   }
 
-  let num_cols = if !row_echelon_matrix.is_empty() { row_echelon_matrix[0].len() } else { 0 };
+  let num_cols = if row_echelon_matrix.is_empty() { 0 } else { row_echelon_matrix[0].len() };
   if num_cols == 0 && column_basis_elements.is_empty() {
     return Vec::new();
   }
@@ -844,8 +835,7 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
       // `row_echelon_matrix` still has all original rows, but non-pivot rows are zero or become
       // zero relevant to pivots.
 
-      let mut temp_p_idx = 0; // index into pivot_cols vector
-      for r_idx in 0..pivot_cols.len() {
+      (0..pivot_cols.len()).for_each(|r_idx| {
         // Iterate over actual pivot rows by their index in pivot_cols
         let pivot_row_actual_index = r_idx; // In reduced row echelon form, pivot r is in row r.
                                             // The way `row_gaussian_elimination` is written, it processes row by row.
@@ -858,7 +848,7 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
           generator_coeffs[pivot_col_for_this_row] =
             -row_echelon_matrix[pivot_row_actual_index][j_col];
         }
-      }
+      });
 
       let mut gen_chain = Chain::new();
       for (idx, coeff) in generator_coeffs.iter().enumerate() {
@@ -879,8 +869,8 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
           let mut single_term_chain = column_basis_elements[idx].clone();
           // We need to scale single_term_chain by *coeff.
           // A simple way for now, if we assume Field allows it:
-          for c in single_term_chain.coefficients.iter_mut() {
-            *c = *c * (*coeff); // Assumes coeff is F, c is F.
+          for c in &mut single_term_chain.coefficients {
+            *c *= *coeff; // Assumes coeff is F, c is F.
           }
           if !coeff.is_zero() {
             // Re-check after potential multiplication if coeff was complex.
@@ -912,7 +902,7 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
 ///   RREF of the original matrix.
 ///
 /// # Type Parameters
-/// * `F`: The coefficient field, must implement [`Field`](harness_algebra::ring::Field) and `Copy`.
+/// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
 ///
 /// # Returns
 /// A `Vec<Chain<F>>` where each chain is a generator for the image.
@@ -933,7 +923,7 @@ pub fn image_basis_from_row_echelon<F: Field + Copy>(
 // Helper function to convert a Chain to a coefficient vector relative to a basis of simplices.
 // This is an internal utility function used during the construction of boundary matrices.
 // It projects a chain onto a vector representation given a specific ordered basis of simplices.
-pub(super) fn chain_to_coeff_vector<F: Field + Copy>(
+fn chain_to_coeff_vector<F: Field + Copy>(
   chain: &Chain<F>,
   basis_simplices_map: &HashMap<Simplex, usize>, // Map simplex to its index in the basis
   basis_size: usize,
@@ -941,12 +931,8 @@ pub(super) fn chain_to_coeff_vector<F: Field + Copy>(
   let mut vector = vec![<F as Zero>::zero(); basis_size];
   for (i, simplex) in chain.simplices.iter().enumerate() {
     if let Some(&idx) = basis_simplices_map.get(simplex) {
-      // In Z2, the coefficient is either 0 or 1.
-      // If the simplex is in the chain, its coefficient is effectively Z2(1)
-      // (assuming chain.coefficients[i] is Z2::one()).
-      // Chain addition takes care of summing coefficients.
       if !chain.coefficients[i].is_zero() {
-        vector[idx] = vector[idx] + chain.coefficients[i]; // Add in Z2
+        vector[idx] += chain.coefficients[i];
       }
     }
   }
@@ -971,7 +957,7 @@ pub(super) fn chain_to_coeff_vector<F: Field + Copy>(
 ///   $(k-1)$-chain group $C_{k-1}$.
 ///
 /// # Type Parameters
-/// * `F`: The coefficient field, must implement [`Field`](harness_algebra::ring::Field) and `Copy`.
+/// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
 ///
 /// # Returns
 /// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have

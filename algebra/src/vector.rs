@@ -8,7 +8,7 @@ use crate::{
   arithmetic::{Add, AddAssign, Additive, Mul, Neg, Sub, SubAssign, Zero},
   group::{AbelianGroup, Group},
   module::{LeftModule, RightModule, TwoSidedModule},
-  ring::{Field, Ring},
+  ring::Field,
 };
 
 /// A trait representing a vector space over a field.
