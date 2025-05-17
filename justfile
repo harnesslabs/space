@@ -138,6 +138,10 @@ docs:
     @just header "Building and opening cargo docs"
     cargo doc --workspace --no-deps --open
 
+doc-check:
+    @just header "Checking cargo docs"
+    RUSTDOCFLAGS="-D warnings" cargo doc --no-deps --all-features
+
 # Show your relevant environment information
 info:
     @just header "Environment Information"
@@ -158,6 +162,7 @@ ci:
     just run-single-check "Clippy" "cargo clippy --workspace --all-targets --all-features -- --deny warnings" || ERROR=1; \
     just run-single-check "Clippy WASM" "cargo clippy --workspace --target wasm32-unknown-unknown --all-features -- --deny warnings" || ERROR=1; \
     just run-single-check "Test suite" "cargo test --verbose --workspace" || ERROR=1; \
+    just run-single-check "Doc check" "RUSTDOCFLAGS=\"-D warnings\" cargo doc --no-deps --all-features" || ERROR=1; \
     just run-single-check "Unused dependencies" "cargo +nightly udeps --workspace" || ERROR=1; \
     just run-single-check "Semver compatibility" "cargo semver-checks check-release --workspace" || ERROR=1; \
     printf "\n{{bold}}CI Summary:{{reset}}\n"; \
