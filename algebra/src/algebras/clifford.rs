@@ -79,6 +79,8 @@
 
 use std::fmt::{Debug, Display, Formatter};
 
+use num_traits::One;
+
 use crate::{
   algebras::Algebra,
   arithmetic::{
@@ -86,7 +88,7 @@ use crate::{
   },
   group::{AbelianGroup, Group},
   module::{LeftModule, RightModule, TwoSidedModule},
-  ring::{Field, Ring},
+  ring::Field,
   vector::{Vector, VectorSpace},
 };
 
@@ -145,7 +147,7 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   /// assert_eq!(q.evaluate(&v), 1.0 + 4.0 - 9.0); // 1*1² + 1*2² + (-1)*3²
   /// ```
   pub fn evaluate(&self, v: &Vector<N, F>) -> F {
-    let mut result = <F as Ring>::zero();
+    let mut result = F::zero();
     for i in 0..N {
       result += self.coefficients.0[i] * v.0[i] * v.0[i];
     }
@@ -265,7 +267,7 @@ where [(); 1 << N]:
     let bit_position = Self::blade_indices_to_bit(&indices);
 
     let mut value = Vector::<{ 1 << N }, F>::zero();
-    value.0[bit_position] = F::one();
+    value.0[bit_position] = <F as One>::one();
 
     CliffordAlgebraElement { value, quadratic_form: Some(&self.quadratic_form) }
   }

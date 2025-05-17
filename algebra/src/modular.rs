@@ -86,7 +86,8 @@ macro_rules! modular {
       pub fn new(value: $inner) -> Self { Self(value % Self::MODULUS) }
 
       /// Returns the value of this modular number.
-      pub fn value(&self) -> $inner { self.0 }
+      #[allow(dead_code)]
+      pub const fn value(&self) -> $inner { self.0 }
     }
 
     impl num_traits::Zero for $name {
@@ -157,10 +158,10 @@ macro_rules! modular {
     }
 
     impl $crate::group::AbelianGroup for $name {}
-    impl $crate::ring::Ring for $name {
-      fn one() -> Self { Self(1) }
+    impl $crate::ring::Ring for $name {}
 
-      fn zero() -> Self { Self(0) }
+    impl From<$inner> for $name {
+      fn from(value: $inner) -> Self { Self::new(value) }
     }
   };
 }
@@ -236,7 +237,11 @@ macro_rules! prime_field {
 
 #[cfg(test)]
 mod tests {
-  use crate::{group::Group, ring::Ring};
+  // TODO: I really need to re-export these traits in a prelude.
+  use crate::{
+    arithmetic::{One, Zero},
+    group::Group,
+  };
 
   modular!(Mod7, u32, 7);
   prime_field!(Mod7);
