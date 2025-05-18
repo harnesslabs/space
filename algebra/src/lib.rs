@@ -51,7 +51,7 @@ pub mod groups;
 pub mod linear;
 pub mod modules;
 pub mod rings;
-pub mod vector;
+pub mod tensors;
 
 pub use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
@@ -66,9 +66,9 @@ pub mod prelude {
     groups::{AbelianGroup, Group, NonAbelianGroup},
     modules::{
       LeftModule, LeftSemimodule, RightModule, RightSemimodule, TwoSidedModule, TwoSidedSemimodule,
+      VectorSpace,
     },
     rings::{Field, Ring},
-    vector::VectorSpace,
     Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, One, Sub, SubAssign, Zero,
   };
 }

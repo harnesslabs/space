@@ -41,7 +41,7 @@
 
 use std::iter::Sum;
 
-use harness_algebra::{ring::Field, vector::Vector};
+use harness_algebra::{rings::Field, vector::Vector};
 
 use crate::{
   definitions::{MetricSpace, NormedSpace},

@@ -87,7 +87,7 @@ use crate::{
   groups::{AbelianGroup, Group},
   modules::{LeftModule, RightModule, TwoSidedModule},
   rings::Field,
-  vector::{Vector, VectorSpace},
+  tensors::fixed::FixedVector,
 };
 
 /// A quadratic form on a vector space, represented in diagonal form.
@@ -106,7 +106,7 @@ use crate::{
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct QuadraticForm<F: Field, const N: usize> {
-  coefficients: Vector<N, F>,
+  coefficients: FixedVector<N, F>,
 }
 
 impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
@@ -123,7 +123,7 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   ///
   /// let q = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
   /// ```
-  pub const fn new(coefficients: Vector<N, F>) -> Self { Self { coefficients } }
+  pub const fn new(coefficients: FixedVector<N, F>) -> Self { Self { coefficients } }
 
   /// Evaluates the quadratic form at a given vector.
   ///
@@ -144,7 +144,7 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   /// let v = Vector::<3, f64>([1.0, 2.0, 3.0]);
   /// assert_eq!(q.evaluate(&v), 1.0 + 4.0 - 9.0); // 1*1² + 1*2² + (-1)*3²
   /// ```
-  pub fn evaluate(&self, v: &Vector<N, F>) -> F {
+  pub fn evaluate(&self, v: &FixedVector<N, F>) -> F {
     let mut result = F::zero();
     for i in 0..N {
       result += self.coefficients.0[i] * v.0[i] * v.0[i];
@@ -221,7 +221,10 @@ where [(); 1 << N]:
   /// let algebra = CliffordAlgebra::new(QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0])));
   /// let element = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
   /// ```
-  pub const fn element(&self, value: Vector<{ 1 << N }, F>) -> CliffordAlgebraElement<'_, F, N> {
+  pub const fn element(
+    &self,
+    value: FixedVector<{ 1 << N }, F>,
+  ) -> CliffordAlgebraElement<'_, F, N> {
     CliffordAlgebraElement { value, quadratic_form: Some(&self.quadratic_form) }
   }
 
@@ -264,7 +267,7 @@ where [(); 1 << N]:
     // Convert indices to bit position using our helper function
     let bit_position = Self::blade_indices_to_bit(&indices);
 
-    let mut value = Vector::<{ 1 << N }, F>::zero();
+    let mut value = FixedVector::<{ 1 << N }, F>::zero();
     value.0[bit_position] = <F as One>::one();
 
     CliffordAlgebraElement { value, quadratic_form: Some(&self.quadratic_form) }
@@ -338,7 +341,7 @@ fn binomial(n: usize, k: usize) -> usize {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CliffordAlgebraElement<'a, F: Field, const N: usize>
 where [(); 1 << N]: {
-  value:          Vector<{ 1 << N }, F>,
+  value:          FixedVector<{ 1 << N }, F>,
   quadratic_form: Option<&'a QuadraticForm<F, N>>,
 }
 
@@ -393,7 +396,7 @@ where [(); 1 << N]:
     assert_eq!(self.quadratic_form, other.quadratic_form);
     let quadratic_form = self.quadratic_form.expect("Both elements must have a bilinear space");
 
-    let mut result = Vector::<{ 1 << N }, F>::zero();
+    let mut result = FixedVector::<{ 1 << N }, F>::zero();
 
     // For each non-zero component in the first element
     for i in 0..(1 << N) {
@@ -480,7 +483,7 @@ impl<F: Field + Copy + Debug, const N: usize> Multiplicative for CliffordAlgebra
 impl<F: Field + Copy + Debug, const N: usize> Zero for CliffordAlgebraElement<'_, F, N>
 where [(); 1 << N]:
 {
-  fn zero() -> Self { Self { value: Vector::<{ 1 << N }, F>::zero(), quadratic_form: None } }
+  fn zero() -> Self { Self { value: FixedVector::<{ 1 << N }, F>::zero(), quadratic_form: None } }
 
   fn is_zero(&self) -> bool { self.value.is_zero() }
 }
@@ -490,7 +493,10 @@ impl<F: Field + Copy + Debug, const N: usize> Group for CliffordAlgebraElement<'
 where [(); 1 << N]:
 {
   fn identity() -> Self {
-    CliffordAlgebraElement { value: Vector::<{ 1 << N }, F>::zero(), quadratic_form: None }
+    CliffordAlgebraElement {
+      value:          FixedVector::<{ 1 << N }, F>::zero(),
+      quadratic_form: None,
+    }
   }
 
   fn inverse(&self) -> Self { Self { value: -self.value, quadratic_form: self.quadratic_form } }
@@ -782,26 +788,26 @@ mod tests {
   use super::*;
 
   fn clifford_algebra_non_euclidean() -> CliffordAlgebra<f64, 3> {
-    let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+    let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
     CliffordAlgebra::new(quadratic_form)
   }
 
   fn clifford_algebra_euclidean() -> CliffordAlgebra<f64, 3> {
-    let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, 1.0]));
+    let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, 1.0]));
     CliffordAlgebra::new(quadratic_form)
   }
 
   #[test]
   fn test_display_order() {
     let algebra = clifford_algebra_non_euclidean();
-    let one = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    let e0 = algebra.element(Vector::<8, f64>([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    let e1 = algebra.element(Vector::<8, f64>([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    let e2 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
-    let e01 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
-    let e02 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
-    let e12 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
-    let e012 = algebra.element(Vector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
+    let one = algebra.element(FixedVector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e0 = algebra.element(FixedVector::<8, f64>([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e1 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e2 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
+    let e01 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
+    let e02 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
+    let e12 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
+    let e012 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
 
     let sum = one + 2.0 * e0 + 3.0 * e1 + 4.0 * e2 + 5.0 * e01 + 6.0 * e02 + 7.0 * e12 + 8.0 * e012;
     assert_eq!(format!("{sum}"), "1 + 2e₀ + 3e₁ + 4e₂ + 5e₀‚₁ + 6e₀‚₂ + 7e₁‚₂ + 8e₀‚₁‚₂");
@@ -886,7 +892,7 @@ mod tests {
   #[test]
   fn test_mul_scalar() {
     let algebra = clifford_algebra_non_euclidean();
-    let one = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let one = algebra.element(FixedVector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
 

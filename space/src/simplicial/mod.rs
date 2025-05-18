@@ -82,7 +82,7 @@ use std::{
   ops::{Add, Neg},
 };
 
-use harness_algebra::{linear::row_gaussian_elimination, ring::Field};
+use harness_algebra::{linear::row_gaussian_elimination, rings::Field};
 use itertools::Itertools;
 use num_traits::{One, Zero};
 

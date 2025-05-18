@@ -7,7 +7,7 @@
 //!
 //! Common field types used with this module include:
 //! - Standard floating-point numbers: `f64`, `f32`.
-//! - Boolean values: [`Boolean`](crate::arithmetic::Boolean), representing the field
+//! - Boolean values: [`Boolean`](crate::algebras::boolean::Boolean), representing the field
 //!   $\\mathbb{Z}/2\\mathbb{Z}$.
 //! - Modular arithmetic types: For example, types representing $\\mathbb{Z}/p\\mathbb{Z}$ for a
 //!   prime $p$, such as the `Mod7` type used in tests (generated via macros like `modular!` and

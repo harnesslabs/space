@@ -34,7 +34,7 @@ use core::marker::PhantomData;
 use super::*;
 use crate::{
   groups::{AbelianGroup, Group},
-  rings::{Ring, Semiring},
+  rings::{Field, Ring, Semiring},
 };
 
 mod trivial;
@@ -111,4 +111,12 @@ where Self::Ring: Mul<Self> {
 pub trait TwoSidedModule: LeftModule + RightModule {
   /// The ring over which this module is defined.
   type Ring: Ring;
+}
+
+/// A trait representing a vector space over a field.
+///
+/// A vector space is a module over a field, meaning it has both addition and
+/// scalar multiplication operations, with the scalars coming from a field.
+pub trait VectorSpace: TwoSidedModule
+where <Self as TwoSidedModule>::Ring: Field {
 }

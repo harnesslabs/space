@@ -72,7 +72,7 @@ use std::{
   marker::PhantomData,
 };
 
-use harness_algebra::ring::Field;
+use harness_algebra::rings::Field;
 use itertools::Itertools;
 
 #[cfg(feature = "parallel")]

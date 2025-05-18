@@ -132,4 +132,4 @@ impl modules::TwoSidedModule for Boolean {
   type Ring = Self;
 }
 
-impl vector::VectorSpace for Boolean {}
+impl modules::VectorSpace for Boolean {}

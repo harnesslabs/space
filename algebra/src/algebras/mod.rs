@@ -24,7 +24,9 @@
 
 use super::*;
 use crate::{
-  arithmetic::Multiplicative, modules::TwoSidedModule, rings::Field, vector::VectorSpace,
+  arithmetic::Multiplicative,
+  modules::{TwoSidedModule, VectorSpace},
+  rings::Field,
 };
 
 pub mod boolean;

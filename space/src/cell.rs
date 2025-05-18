@@ -17,7 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use harness_algebra::{ring::Field, vector::DynVector};
+use harness_algebra::{rings::Field, vector::DynVector};
 
 use crate::{
   definitions::TopologicalSpace,

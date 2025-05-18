@@ -40,7 +40,7 @@ use std::{
   marker::PhantomData,
 };
 
-use harness_algebra::{ring::Field, vector::DynVector};
+use harness_algebra::{rings::Field, vector::DynVector};
 
 use crate::{
   definitions::TopologicalSpace,
