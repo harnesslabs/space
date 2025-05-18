@@ -18,7 +18,7 @@
 //! ## Modular Arithmetic
 //!
 //! ```
-//! use harness_algebra::{group::Group, modular, ring::Ring};
+//! use harness_algebra::{algebras::boolean::Boolean, modular, rings::Field};
 //!
 //! // Create a type for numbers modulo 7
 //! modular!(Mod7, u32, 7);
@@ -31,13 +31,10 @@
 //! ## Vector Spaces
 //!
 //! ```
-//! use harness_algebra::{
-//!   ring::Field,
-//!   vector::{Vector, VectorSpace},
-//! };
+//! use harness_algebra::{algebras::boolean::Boolean, rings::Field, tensors::fixed::FixedVector};
 //!
-//! let v1 = Vector::<3, f64>([1.0, 2.0, 3.0]);
-//! let v2 = Vector::<3, f64>([4.0, 5.0, 6.0]);
+//! let v1 = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
+//! let v2 = FixedVector::<3, f64>([4.0, 5.0, 6.0]);
 //! let sum = v1 + v2;
 //! ```
 
@@ -47,10 +44,64 @@
 
 pub mod algebras;
 pub mod arithmetic;
-pub mod group;
-pub mod linear;
-pub mod modular;
-pub mod module;
-pub mod ring;
-pub mod semimodule;
-pub mod vector;
+pub mod groups;
+pub mod modules;
+pub mod rings;
+pub mod tensors;
+
+pub use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+
+pub use num_traits::{One, Zero};
+
+pub use crate::arithmetic::{Additive, Multiplicative};
+
+pub mod prelude {
+  //! # Prelude Module
+  //!
+  //! This module re-exports the most commonly used types, traits, and operations from the
+  //! algebra crate for convenient importing.
+  //!
+  //! ## Purpose
+  //!
+  //! The prelude pattern allows users to import multiple commonly used items with a single
+  //! import statement, reducing boilerplate and improving code readability.
+  //!
+  //! ## Contents
+  //!
+  //! The prelude includes:
+  //!
+  //! - Core algebraic structures: [`Algebra`], [`Group`], [`Ring`], [`Field`], [`VectorSpace`]
+  //! - Behavioral traits: [`Additive`], [`Multiplicative`]
+  //! - Group variants: [`AbelianGroup`], [`NonAbelianGroup`]
+  //! - Module types: [`LeftModule`], [`RightModule`], [`TwoSidedModule`]
+  //! - Semimodule types: [`LeftSemimodule`], [`RightSemimodule`], [`TwoSidedSemimodule`]
+  //! - Fundamental operators: [`Add`], [`Mul`], [`Sub`], [`Div`] and their assignment variants
+  //! - Identity concepts: [`Zero`], [`One`], [`Neg`]
+  //!
+  //! ## Usage
+  //!
+  //! ```
+  //! // Import everything from the prelude
+  //! use harness_algebra::prelude::*;
+  //! ```
+
+  pub use crate::{
+    algebras::Algebra,
+    arithmetic::{Additive, Multiplicative},
+    groups::{AbelianGroup, Group, NonAbelianGroup},
+    modules::{
+      LeftModule, LeftSemimodule, RightModule, RightSemimodule, TwoSidedModule, TwoSidedSemimodule,
+      VectorSpace,
+    },
+    rings::{Field, Ring},
+    Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, One, Sub, SubAssign, Zero,
+  };
+}
+
+#[cfg(test)]
+mod fixtures {
+  use crate::{modular, prime_field};
+
+  modular!(Mod7, u32, 7);
+  prime_field!(Mod7);
+}

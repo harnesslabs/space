@@ -40,7 +40,7 @@ use std::{
   marker::PhantomData,
 };
 
-use harness_algebra::{ring::Field, vector::DynVector};
+use harness_algebra::{rings::Field, tensors::dynamic::vector::DynamicVector};
 
 use crate::{
   definitions::TopologicalSpace,
@@ -140,9 +140,9 @@ pub trait Section<T: TopologicalSpace>: PartialEq {
 }
 
 impl<F: Field + Copy, V: PartialOrd + Eq + Hash + Clone, S: BuildHasher + Default>
-  Section<Graph<V, Undirected>> for HashMap<GraphPoint<V>, DynVector<F>, S>
+  Section<Graph<V, Undirected>> for HashMap<GraphPoint<V>, DynamicVector<F>, S>
 {
-  type Stalk = DynVector<F>;
+  type Stalk = DynamicVector<F>;
 
   fn evaluate(&self, point: &GraphPoint<V>) -> Option<Self::Stalk> { self.get(point).cloned() }
 
@@ -193,8 +193,8 @@ impl<F: Field + Copy, V: PartialOrd + Eq + Hash + Clone> GraphSheaf<F, V> {
 impl<F: Field + Copy, V: PartialOrd + Eq + Hash + Clone> Presheaf<Graph<V, Undirected>>
   for GraphSheaf<F, V>
 {
-  type Data = DynVector<F>;
-  type Section = HashMap<GraphPoint<V>, DynVector<F>>;
+  type Data = DynamicVector<F>;
+  type Section = HashMap<GraphPoint<V>, DynamicVector<F>>;
 
   fn restrict(
     &self,
@@ -263,7 +263,7 @@ mod tests {
   }
 
   // Helper to create DynVector from a slice of values
-  fn create_vector(values: &[f64]) -> DynVector<f64> { DynVector::from(values) }
+  fn create_vector(values: &[f64]) -> DynamicVector<f64> { DynamicVector::from(values) }
 
   #[test]
   fn test_restriction_single_point() {
@@ -481,7 +481,7 @@ mod tests {
     let sheaf = create_test_sheaf();
 
     // Attempt to glue an empty list of sections
-    let sections: Vec<HashMap<GraphPoint<usize>, DynVector<f64>>> = vec![];
+    let sections: Vec<HashMap<GraphPoint<usize>, DynamicVector<f64>>> = vec![];
     let glued = sheaf.glue(&sections);
 
     // The gluing should fail (can't glue nothing)

@@ -51,10 +51,8 @@
 
 use std::fmt::Debug;
 
-use crate::{
-  arithmetic::{Add, AddAssign, Additive, Mul, MulAssign, Multiplicative, One, Zero},
-  ring::Semiring,
-};
+use super::*;
+use crate::rings::Semiring;
 
 /// An element of the tropical algebra.
 ///

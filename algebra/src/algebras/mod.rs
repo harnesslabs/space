@@ -21,10 +21,19 @@
 //!
 //! - [`clifford`]: Implementation of Clifford algebras, which are useful for geometric computations
 //!   and transformations in n-dimensional spaces.
+//! - [`boolean`]: Implementation of Boolean algebra, which is useful for logical operations and
+//!   boolean logic.
 
-use crate::{arithmetic::Multiplicative, module::TwoSidedModule, ring::Field, vector::VectorSpace};
+use super::*;
+use crate::{
+  arithmetic::Multiplicative,
+  modules::{TwoSidedModule, VectorSpace},
+  rings::Field,
+};
 
+pub mod boolean;
 pub mod clifford;
+
 /// Trait defining the requirements for an algebra.
 ///
 /// An algebra is a vector space equipped with a bilinear product that satisfies:

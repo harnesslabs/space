@@ -3,10 +3,8 @@
 //! This module provides traits and implementations for ring theory concepts,
 //! including both general rings and fields (which are special types of rings).
 
-use crate::{
-  arithmetic::{Additive, Boolean, Div, DivAssign, Multiplicative, One, Zero},
-  group::{AbelianGroup, Group},
-};
+use super::*;
+use crate::groups::AbelianGroup;
 
 /// A trait representing a mathematical ring.
 ///
@@ -31,15 +29,15 @@ pub trait Field: Ring + Div + DivAssign {
 
 macro_rules! impl_field {
   ($inner:ty) => {
-    impl $crate::group::Group for $inner {
+    impl $crate::groups::Group for $inner {
       fn identity() -> Self { 0.0 }
 
       fn inverse(&self) -> Self { -self }
     }
 
-    impl $crate::group::AbelianGroup for $inner {}
-    impl $crate::ring::Ring for $inner {}
-    impl $crate::ring::Field for $inner {
+    impl $crate::groups::AbelianGroup for $inner {}
+    impl $crate::rings::Ring for $inner {}
+    impl $crate::rings::Field for $inner {
       fn multiplicative_inverse(&self) -> Self { self.recip() }
     }
   };
@@ -82,17 +80,3 @@ impl_field!(f64);
 /// - Tropical semiring (ℝ ∪ {∞}, min, +)
 /// - Probability semiring (ℝ₊, +, ×)
 pub trait Semiring: Additive + Multiplicative + Zero + One {}
-
-impl Group for Boolean {
-  fn identity() -> Self { Self(false) }
-
-  fn inverse(&self) -> Self { Self(!self.0) }
-}
-
-impl AbelianGroup for Boolean {}
-
-impl Ring for Boolean {}
-
-impl Field for Boolean {
-  fn multiplicative_inverse(&self) -> Self { *self }
-}

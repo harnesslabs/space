@@ -49,12 +49,13 @@
 //! - Calculation of homology groups [`HomologyGroup<F>`] using Gaussian elimination over a generic
 //!   [`Field`] `F`. This involves:
 //!     - Constructing boundary matrices.
-//!     - Computing kernel and image bases of these matrices using [`row_gaussian_elimination`].
+//!     - Computing kernel and image bases of these matrices using
+//!       [`DynamicDenseMatrix::row_echelon_form`].
 //!
 //! ## Usage Example
 //!
 //! ```rust
-//! use harness_algebra::arithmetic::Boolean;
+//! use harness_algebra::algebras::boolean::Boolean;
 //! use harness_space::simplicial::{Simplex, SimplicialComplex}; // For Z/2Z coefficients
 //!
 //! // Create a simplicial complex representing a hollow triangle (cycle C3)
@@ -82,7 +83,13 @@ use std::{
   ops::{Add, Neg},
 };
 
-use harness_algebra::{linear::row_gaussian_elimination, ring::Field};
+use harness_algebra::{
+  rings::Field,
+  tensors::dynamic::{
+    matrix::{DynamicDenseMatrix, RowMajor},
+    vector::DynamicVector,
+  },
+};
 use itertools::Itertools;
 use num_traits::{One, Zero};
 
@@ -296,15 +303,15 @@ impl SimplicialComplex {
   ///    $(k+1)$-simplices ($S_{k+1}$).
   /// 2. Constructing boundary matrices for $\partial_k: C_k \to C_{k-1}$ and $\partial_{k+1}:
   ///    C_{k+1} \to C_k$.
-  /// 3. Using [`row_gaussian_elimination`] to find the rank and bases for the kernel (cycles $Z_k =
-  ///    \ker \partial_k$) and image (boundaries $B_k = \text{im } \partial_{k+1}$).
+  /// 3. Using [`DynamicDenseMatrix::row_echelon_form`] to find the rank and bases for the kernel
+  ///    (cycles $Z_k = \ker \partial_k$) and image (boundaries $B_k = \text{im } \partial_{k+1}$).
   /// 4. The homology group $H_k = Z_k / B_k$. The Betti number ($b_k$) is $\text{rank}(H_k) =
   ///    \dim(Z_k) - \dim(B_k)$.
   ///
   /// # Type Parameters
   /// * `F`: The coefficient field. Must implement [`Field`] and [`Copy`]. Common choices include
-  ///   [`f64`], [`Boolean`](harness_algebra::arithmetic::Boolean) (for $\mathbb{Z}/2\mathbb{Z}$),
-  ///   or modular fields like $\mathbb{Z}/p\mathbb{Z}$ for prime $p$.
+  ///   [`f64`], [`Boolean`](harness_algebra::algebras::boolean::Boolean) (for
+  ///   $\mathbb{Z}/2\mathbb{Z}$), or modular fields like $\mathbb{Z}/p\mathbb{Z}$ for prime $p$.
   ///
   /// # Arguments
   /// * `k`: The dimension of the homology group to compute (e.g., 0 for $H_0$, 1 for $H_1$).
@@ -362,10 +369,8 @@ impl SimplicialComplex {
           }
         }
       }
-      let z0_gens: Vec<Chain<F>> = vertices
-        .iter()
-        .map(|v| Chain::from_simplex_and_coeff(v.clone(), <F as One>::one()))
-        .collect();
+      let z0_gens: Vec<Chain<F>> =
+        vertices.iter().map(|v| Chain::from_simplex_and_coeff(v.clone(), F::one())).collect();
       let s1_for_b0 = self.simplices_by_dimension(1).map_or_else(Vec::new, |s| {
         let mut sorted_s = s.to_vec();
         sorted_s.sort_unstable();
@@ -374,13 +379,17 @@ impl SimplicialComplex {
       let b0_gens = if s1_for_b0.is_empty() || vertices.is_empty() {
         Vec::new()
       } else {
-        let mut mat_d1 = get_boundary_matrix(&s1_for_b0, &vertices);
-        let (_, p_cols_d1) = row_gaussian_elimination(&mut mat_d1);
+        let mut mat_d1: DynamicDenseMatrix<F, RowMajor> =
+          get_boundary_matrix(&s1_for_b0, &vertices);
+        let mat_d1_result = mat_d1.row_echelon_form();
         let d_s1_chains: Vec<Chain<F>> = s1_for_b0
           .iter()
-          .map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one()).boundary())
+          .map(|s| Chain::from_simplex_and_coeff(s.clone(), F::one()).boundary())
           .collect();
-        image_basis_from_row_echelon(&mat_d1, &d_s1_chains, &p_cols_d1)
+        image_basis_from_row_echelon(
+          &d_s1_chains,
+          &mat_d1_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
+        )
       };
       return HomologyGroup {
         dimension:           0,
@@ -415,13 +424,16 @@ impl SimplicialComplex {
     let b_k_gens = if s_kp1.is_empty() || s_k.is_empty() {
       Vec::new()
     } else {
-      let mut mat_dkp1 = get_boundary_matrix(&s_kp1, &s_k);
-      let (_, p_cols) = row_gaussian_elimination(&mut mat_dkp1);
+      let mut mat_dkp1: DynamicDenseMatrix<F, RowMajor> = get_boundary_matrix(&s_kp1, &s_k);
+      let mat_dkp1_result = mat_dkp1.row_echelon_form();
       let d_skp1_chains: Vec<Chain<F>> = s_kp1
         .iter()
         .map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one()).boundary())
         .collect();
-      image_basis_from_row_echelon(&mat_dkp1, &d_skp1_chains, &p_cols)
+      image_basis_from_row_echelon(
+        &d_skp1_chains,
+        &mat_dkp1_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
+      )
     };
 
     let z_k_gens = if s_k.is_empty() {
@@ -430,8 +442,12 @@ impl SimplicialComplex {
       ck_basis
     } else {
       let mut mat_dk = get_boundary_matrix(&s_k, &s_km1);
-      let (_, p_cols) = row_gaussian_elimination(&mut mat_dk);
-      kernel_basis_from_row_echelon(&mat_dk, &ck_basis, &p_cols)
+      let mat_dk_result = mat_dk.row_echelon_form();
+      kernel_basis_from_row_echelon(
+        &mat_dk,
+        &ck_basis,
+        &mat_dk_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
+      )
     };
 
     if s_k.is_empty() {
@@ -458,16 +474,14 @@ impl SimplicialComplex {
       };
     }
 
-    let mut q_mat = vec![vec![<F as Zero>::zero(); quot_mat_cols.len()]; s_k.len()];
+    let mut q_mat = DynamicDenseMatrix::<F, RowMajor>::new();
     if !s_k.is_empty() {
-      (0..s_k.len()).for_each(|r| {
-        (0..quot_mat_cols.len()).for_each(|c| {
-          q_mat[r][c] = quot_mat_cols[c][r];
-        });
-      });
+      for c in quot_mat_cols {
+        q_mat.append_column(&c);
+      }
     }
 
-    let (_, p_cols_q) = row_gaussian_elimination(&mut q_mat);
+    let p_cols_q = q_mat.row_echelon_form().pivots.iter().map(|p| p.col).collect::<Vec<_>>();
     let mut h_k_gens = Vec::new();
     for &p_idx in &p_cols_q {
       if p_idx >= num_b {
@@ -772,11 +786,11 @@ impl<R: Field> HomologyGroup<R> {
 /// within the `single_term_chain`. This assumes that `Chain::add` correctly combines these scaled
 /// chains. A more robust `Chain` API might include explicit scalar multiplication.
 pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
-  row_echelon_matrix: &[Vec<F>],
+  row_echelon_matrix: &DynamicDenseMatrix<F, RowMajor>,
   column_basis_elements: &[Chain<F>],
   pivot_cols: &[usize],
 ) -> Vec<Chain<F>> {
-  if row_echelon_matrix.is_empty() || row_echelon_matrix[0].is_empty() {
+  if row_echelon_matrix.num_rows() == 0 {
     if column_basis_elements.is_empty() {
       return Vec::new();
     }
@@ -797,7 +811,7 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
     // Let the main loop handle it: if all columns are free, it will generate all basis elements.
   }
 
-  let num_cols = if row_echelon_matrix.is_empty() { 0 } else { row_echelon_matrix[0].len() };
+  let num_cols = if row_echelon_matrix.num_rows() == 0 { 0 } else { row_echelon_matrix.num_cols() };
   if num_cols == 0 && column_basis_elements.is_empty() {
     return Vec::new();
   }
@@ -844,9 +858,9 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
 
         // We need to ensure row_echelon_matrix[pivot_row_actual_index] is the correct row.
         // The RRE matrix has its pivots matrix[r_idx][pivot_cols[r_idx]] = 1.
-        if !row_echelon_matrix[pivot_row_actual_index][j_col].is_zero() {
+        if !row_echelon_matrix.get_component(pivot_row_actual_index, j_col).is_zero() {
           generator_coeffs[pivot_col_for_this_row] =
-            -row_echelon_matrix[pivot_row_actual_index][j_col];
+            -*row_echelon_matrix.get_component(pivot_row_actual_index, j_col);
         }
       });
 
@@ -907,7 +921,6 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
 /// # Returns
 /// A `Vec<Chain<F>>` where each chain is a generator for the image.
 pub fn image_basis_from_row_echelon<F: Field + Copy>(
-  _row_echelon_matrix: &[Vec<F>], // Matrix itself not strictly needed if we have pivot_cols
   column_basis_elements: &[Chain<F>],
   pivot_cols: &[usize],
 ) -> Vec<Chain<F>> {
@@ -927,12 +940,12 @@ fn chain_to_coeff_vector<F: Field + Copy>(
   chain: &Chain<F>,
   basis_simplices_map: &HashMap<Simplex, usize>, // Map simplex to its index in the basis
   basis_size: usize,
-) -> Vec<F> {
-  let mut vector = vec![<F as Zero>::zero(); basis_size];
+) -> DynamicVector<F> {
+  let mut vector = DynamicVector::<F>::new(vec![<F as Zero>::zero(); basis_size]);
   for (i, simplex) in chain.simplices.iter().enumerate() {
     if let Some(&idx) = basis_simplices_map.get(simplex) {
       if !chain.coefficients[i].is_zero() {
-        vector[idx] += chain.coefficients[i];
+        vector.set_component(idx, chain.coefficients[i]);
       }
     }
   }
@@ -966,30 +979,20 @@ fn chain_to_coeff_vector<F: Field + Copy>(
 pub fn get_boundary_matrix<F: Field + Copy>(
   ordered_k_simplices: &[Simplex],   // Basis for C_k (domain)
   ordered_km1_simplices: &[Simplex], // Basis for C_{k-1} (codomain)
-) -> Vec<Vec<F>> {
-  if ordered_k_simplices.is_empty() {
-    // No k-simplices, so map is from a zero space. Matrix has 0 columns.
-    // Number of rows is |S_{k-1}|.
-    return vec![vec![]; ordered_km1_simplices.len()];
-  }
-  if ordered_km1_simplices.is_empty() {
-    // Map is to a zero space (C_{k-1} is trivial).
-    // Matrix has |S_k| columns and 0 rows.
-    // Each column is empty.
-    // However, conventionally, this matrix would have 0 rows and |S_k| columns.
-    return vec![Vec::new(); ordered_k_simplices.len()];
+) -> DynamicDenseMatrix<F, RowMajor> {
+  if ordered_k_simplices.is_empty() || ordered_km1_simplices.is_empty() {
+    return DynamicDenseMatrix::<F, RowMajor>::new();
   }
 
   let num_rows = ordered_km1_simplices.len();
-  let num_cols = ordered_k_simplices.len();
 
-  let mut matrix = vec![vec![<F as Zero>::zero(); num_cols]; num_rows];
+  let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
 
   // Create a map for quick lookup of (k-1)-simplex indices
   let km1_simplex_to_idx: HashMap<Simplex, usize> =
     ordered_km1_simplices.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
 
-  for (j, k_simplex) in ordered_k_simplices.iter().enumerate() {
+  for k_simplex in ordered_k_simplices {
     // For each k-simplex, compute its boundary.
     // The boundary is a (k-1)-chain.
     let boundary_chain =
@@ -997,9 +1000,7 @@ pub fn get_boundary_matrix<F: Field + Copy>(
 
     // Convert this boundary_chain into a column vector for the matrix.
     let col_vector = chain_to_coeff_vector(&boundary_chain, &km1_simplex_to_idx, num_rows);
-    for i in 0..num_rows {
-      matrix[i][j] = col_vector[i];
-    }
+    matrix.append_column(&col_vector);
   }
   matrix
 }

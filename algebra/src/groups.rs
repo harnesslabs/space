@@ -3,7 +3,7 @@
 //! This module provides traits and implementations for group theory concepts,
 //! including both Abelian (commutative) and non-Abelian groups.
 
-use crate::arithmetic::{Additive, Div, DivAssign, Multiplicative, Neg, One, Sub, SubAssign, Zero};
+use super::*;
 
 /// A trait representing a mathematical group.
 ///

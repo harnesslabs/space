@@ -15,12 +15,12 @@
 //! ## Example
 //!
 //! ```
-//! use harness_algebra::vector::Vector;
+//! use harness_algebra::tensors::fixed::FixedVector;
 //! use harness_space::{cloud::Cloud, prelude::*};
 //!
 //! // Create two 2D vectors
-//! let v1 = Vector([1.0, 2.0]);
-//! let v2 = Vector([3.0, 4.0]);
+//! let v1 = FixedVector([1.0, 2.0]);
+//! let v2 = FixedVector([3.0, 4.0]);
 //!
 //! // Create a cloud containing these vectors
 //! let cloud = Cloud::new(vec![v1, v2]);
@@ -41,7 +41,7 @@
 
 use std::iter::Sum;
 
-use harness_algebra::{ring::Field, vector::Vector};
+use harness_algebra::{rings::Field, tensors::fixed::FixedVector};
 
 use crate::{
   definitions::{MetricSpace, NormedSpace},
@@ -60,7 +60,7 @@ use crate::{
 /// as well as metric and normed space functionalities.
 #[derive(Debug, Clone)]
 pub struct Cloud<const N: usize, F: Field> {
-  points: Vec<Vector<N, F>>,
+  points: Vec<FixedVector<N, F>>,
 }
 
 impl<F: Field, const N: usize> Cloud<N, F> {
@@ -69,10 +69,10 @@ impl<F: Field, const N: usize> Cloud<N, F> {
   /// # Arguments
   ///
   /// * `points`: A `HashSet` of `Vector<N, F>` representing the points in the cloud.
-  pub fn new(points: Vec<Vector<N, F>>) -> Self { Self { points } }
+  pub fn new(points: Vec<FixedVector<N, F>>) -> Self { Self { points } }
 
   /// Returns a reference to the points in the cloud.
-  pub fn points_ref(&self) -> &Vec<Vector<N, F>> { &self.points }
+  pub fn points_ref(&self) -> &Vec<FixedVector<N, F>> { &self.points }
 }
 
 // impl<F: Field + Copy, const N: usize> Set for Cloud<N, F> {
@@ -95,7 +95,7 @@ impl<F: Field, const N: usize> Cloud<N, F> {
 // }
 
 impl<const N: usize, F: Field + Copy + Sum<F>> Collection for Cloud<N, F> {
-  type Point = Vector<N, F>;
+  type Point = FixedVector<N, F>;
 
   fn contains(&self, point: &Self::Point) -> bool { self.points.contains(point) }
 
@@ -126,13 +126,11 @@ impl<const N: usize, F: Field + Copy + Sum<F>> NormedSpace for Cloud<N, F> {
 mod tests {
   #![allow(clippy::float_cmp)]
 
-  use harness_algebra::vector::Vector;
-
   use super::*;
 
-  fn create_test_vector1() -> Vector<2, f64> { Vector([1.0, 2.0]) }
+  fn create_test_vector1() -> FixedVector<2, f64> { FixedVector([1.0, 2.0]) }
 
-  fn create_test_vector2() -> Vector<2, f64> { Vector([3.0, 4.0]) }
+  fn create_test_vector2() -> FixedVector<2, f64> { FixedVector([3.0, 4.0]) }
 
   #[test]
   fn test_new_cloud() {
@@ -151,7 +149,7 @@ mod tests {
 
   #[test]
   fn test_is_empty() {
-    let points: Vec<Vector<2, f64>> = Vec::new();
+    let points: Vec<FixedVector<2, f64>> = Vec::new();
     let cloud = Cloud::new(points);
     assert!(cloud.is_empty());
 

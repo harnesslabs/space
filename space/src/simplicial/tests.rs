@@ -2,7 +2,7 @@
 
 use std::fmt::Debug;
 
-use harness_algebra::{arithmetic::Boolean, modular, prime_field, ring::Field};
+use harness_algebra::{algebras::boolean::Boolean, modular, prime_field, rings::Field};
 
 use super::*; // Make sure Mod7 is in scope here
 

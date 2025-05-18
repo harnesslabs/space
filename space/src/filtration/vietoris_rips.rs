@@ -38,7 +38,7 @@
 //! [`SimplicialComplex`] or, optionally, [`HomologyGroup`]s for specified dimensions.
 //!
 //! ```rust
-//! use harness_algebra::vector::Vector;
+//! use harness_algebra::tensors::fixed::FixedVector;
 //! use harness_space::{
 //!   cloud::Cloud,
 //!   filtration::{vietoris_rips::VietorisRips, Filtration},
@@ -46,9 +46,9 @@
 //! };
 //!
 //! // Example: Create a cloud of 3 points forming a triangle
-//! let p0 = Vector([0.0, 0.0]);
-//! let p1 = Vector([1.0, 0.0]);
-//! let p2 = Vector([0.5, 0.866]); // Approx. equilateral triangle
+//! let p0 = FixedVector([0.0, 0.0]);
+//! let p1 = FixedVector([1.0, 0.0]);
+//! let p2 = FixedVector([0.5, 0.866]); // Approx. equilateral triangle
 //! let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1, p2]);
 //!
 //! // Create a VietorisRips builder for SimplicialComplex output
@@ -72,7 +72,7 @@ use std::{
   marker::PhantomData,
 };
 
-use harness_algebra::ring::Field;
+use harness_algebra::rings::Field;
 use itertools::Itertools;
 
 #[cfg(feature = "parallel")]
@@ -328,7 +328,9 @@ where
 #[cfg(test)]
 mod tests {
   // For homology coefficients
-  use harness_algebra::{arithmetic::Boolean, modular, prime_field, vector::Vector};
+  use harness_algebra::{
+    algebras::boolean::Boolean, modular, prime_field, tensors::fixed::FixedVector,
+  };
 
   use super::*;
 
@@ -342,7 +344,7 @@ mod tests {
 
   #[test]
   fn test_vietoris_rips_single_point() {
-    let points = vec![Vector([0.0, 0.0])];
+    let points = vec![FixedVector([0.0, 0.0])];
     let cloud = Cloud::new(points);
     let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
     let complex = vr.build(&cloud, 0.5, &());
@@ -355,8 +357,8 @@ mod tests {
 
   #[test]
   fn test_vietoris_rips_two_points() {
-    let p1 = Vector([0.0, 0.0]);
-    let p2 = Vector([1.0, 0.0]);
+    let p1 = FixedVector([0.0, 0.0]);
+    let p2 = FixedVector([1.0, 0.0]);
     let cloud = Cloud::new(vec![p1, p2]);
     let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
 
@@ -375,9 +377,9 @@ mod tests {
 
   #[test]
   fn test_vietoris_rips_triangle() {
-    let p0 = Vector([0.0, 0.0]);
-    let p1 = Vector([1.0, 0.0]);
-    let p2 = Vector([0.5, 0.866]); // Equilateral triangle, side length 1
+    let p0 = FixedVector([0.0, 0.0]);
+    let p1 = FixedVector([1.0, 0.0]);
+    let p2 = FixedVector([0.5, 0.866]); // Equilateral triangle, side length 1
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
     let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
@@ -403,8 +405,8 @@ mod tests {
 
   #[test]
   fn test_compute_homology_filtration_basic() {
-    let p0 = Vector([0.0, 0.0]);
-    let p1 = Vector([1.0, 0.0]);
+    let p0 = FixedVector([0.0, 0.0]);
+    let p1 = FixedVector([1.0, 0.0]);
     let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1]);
     let vr_builder = VietorisRips::<2, f64, HomologyGroup<Mod7>>::new();
 
@@ -457,9 +459,9 @@ mod tests {
     // It implicitly uses build_parallel from the ParallelFiltration trait.
     use crate::filtration::ParallelFiltration; // Make sure trait is in scope
 
-    let p0 = Vector([0.0, 0.0]);
-    let p1 = Vector([1.0, 0.0]);
-    let p2 = Vector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
+    let p0 = FixedVector([0.0, 0.0]);
+    let p1 = FixedVector([1.0, 0.0]);
+    let p2 = FixedVector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
     let vr_builder = VietorisRips::<2, f64, HomologyGroup<Boolean>>::new();
