@@ -18,7 +18,7 @@
 //!   reduced row echelon form).
 //! - [`column_gaussian_elimination`]: Transforms a matrix into a column echelon form using row
 //!   operations.
-use crate::ring::Field;
+use crate::rings::Field;
 
 /// Performs Gaussian elimination on a matrix to bring it to column echelon form
 /// using row operations. The matrix is modified in place.
@@ -303,10 +303,7 @@ pub fn row_gaussian_elimination<F: Field + Copy>(matrix: &mut [Vec<F>]) -> (usiz
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::{arithmetic::Boolean, modular, prime_field};
-
-  modular!(Mod7, u32, 7);
-  prime_field!(Mod7);
+  use crate::{algebras::boolean::Boolean, fixtures::Mod7};
 
   // Helper function to create a matrix of Booleans
   fn bool_matrix(data: Vec<Vec<bool>>) -> Vec<Vec<Boolean>> {
@@ -735,6 +732,6 @@ mod tests {
     // Rank = 1
     let rank = column_gaussian_elimination(&mut matrix);
     assert_eq!(rank, 1);
-    assert_eq!(matrix, mod7_matrix(vec![vec![Mod7::new(1).0], vec![Mod7::new(0).0]]));
+    assert_eq!(matrix, mod7_matrix(vec![vec![Mod7::new(1).value()], vec![Mod7::new(0).value()],]));
   }
 }

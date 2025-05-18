@@ -22,9 +22,14 @@
 //! - [`clifford`]: Implementation of Clifford algebras, which are useful for geometric computations
 //!   and transformations in n-dimensional spaces.
 
-use crate::{arithmetic::Multiplicative, module::TwoSidedModule, ring::Field, vector::VectorSpace};
+use super::*;
+use crate::{
+  arithmetic::Multiplicative, modules::TwoSidedModule, rings::Field, vector::VectorSpace,
+};
 
+pub mod boolean;
 pub mod clifford;
+
 /// Trait defining the requirements for an algebra.
 ///
 /// An algebra is a vector space equipped with a bilinear product that satisfies:

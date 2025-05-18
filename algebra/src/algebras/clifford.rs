@@ -81,14 +81,12 @@ use std::fmt::{Debug, Display, Formatter};
 
 use num_traits::One;
 
+use super::*;
 use crate::{
   algebras::Algebra,
-  arithmetic::{
-    Add, AddAssign, Additive, Mul, MulAssign, Multiplicative, Neg, Sub, SubAssign, Zero,
-  },
-  group::{AbelianGroup, Group},
-  module::{LeftModule, RightModule, TwoSidedModule},
-  ring::Field,
+  groups::{AbelianGroup, Group},
+  modules::{LeftModule, RightModule, TwoSidedModule},
+  rings::Field,
   vector::{Vector, VectorSpace},
 };
 

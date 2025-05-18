@@ -86,7 +86,6 @@ macro_rules! modular {
       pub fn new(value: $inner) -> Self { Self(value % Self::MODULUS) }
 
       /// Returns the value of this modular number.
-      #[allow(dead_code)]
       pub const fn value(&self) -> $inner { self.0 }
     }
 
@@ -151,14 +150,14 @@ macro_rules! modular {
     impl $crate::arithmetic::Additive for $name {}
     impl $crate::arithmetic::Multiplicative for $name {}
 
-    impl $crate::group::Group for $name {
+    impl $crate::groups::Group for $name {
       fn identity() -> Self { Self(0) }
 
       fn inverse(&self) -> Self { Self(Self::MODULUS - self.0) }
     }
 
-    impl $crate::group::AbelianGroup for $name {}
-    impl $crate::ring::Ring for $name {}
+    impl $crate::groups::AbelianGroup for $name {}
+    impl $crate::rings::Ring for $name {}
 
     impl From<$inner> for $name {
       fn from(value: $inner) -> Self { Self::new(value) }
@@ -213,7 +212,7 @@ macro_rules! prime_field {
     }
 
     impl std::ops::Div for $inner
-    where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
+    where [(); $crate::arithmetic::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
     {
       type Output = Self;
 
@@ -222,13 +221,13 @@ macro_rules! prime_field {
     }
 
     impl std::ops::DivAssign for $inner
-    where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
+    where [(); $crate::arithmetic::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
     {
       fn div_assign(&mut self, rhs: Self) { *self = *self / rhs; }
     }
 
-    impl $crate::ring::Field for $inner
-    where [(); $crate::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
+    impl $crate::rings::Field for $inner
+    where [(); $crate::arithmetic::modular::is_prime(<$inner>::MODULUS) as usize - 1]:
     {
       fn multiplicative_inverse(&self) -> Self { self.multiplicative_inverse() }
     }
@@ -240,7 +239,7 @@ mod tests {
   // TODO: I really need to re-export these traits in a prelude.
   use crate::{
     arithmetic::{One, Zero},
-    group::Group,
+    groups::Group,
   };
 
   modular!(Mod7, u32, 7);

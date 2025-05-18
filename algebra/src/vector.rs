@@ -4,11 +4,11 @@
 //! which are modules over fields. It includes a concrete implementation of
 //! a fixed-size vector type.
 
+use super::*;
 use crate::{
-  arithmetic::{Add, AddAssign, Additive, Mul, Neg, Sub, SubAssign, Zero},
-  group::{AbelianGroup, Group},
-  module::{LeftModule, RightModule, TwoSidedModule},
-  ring::Field,
+  groups::{AbelianGroup, Group},
+  modules::{LeftModule, RightModule, TwoSidedModule},
+  rings::Field,
 };
 
 /// A trait representing a vector space over a field.
