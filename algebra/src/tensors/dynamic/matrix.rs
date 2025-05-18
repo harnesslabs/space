@@ -2,6 +2,20 @@ use std::{fmt::Debug, marker::PhantomData};
 
 use super::{vector::DynamicVector, *};
 
+// Struct to store pivot coordinates
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PivotInfo {
+  pub row: usize,
+  pub col: usize,
+}
+
+// Struct to store the result of row echelon form computation
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct RowEchelonOutput {
+  pub rank:   usize,
+  pub pivots: Vec<PivotInfo>,
+}
+
 // Sealed trait pattern to prevent external implementations of MatrixOrientation
 mod sealed {
   pub trait Sealed {}
@@ -163,15 +177,16 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
     DynamicDenseMatrix { components: self.components, orientation: PhantomData }
   }
 
-  pub fn row_echelon_form(&mut self) -> usize {
+  pub fn row_echelon_form(&mut self) -> RowEchelonOutput {
     let matrix = self.components.components_mut();
     if matrix.is_empty() || matrix[0].dimension() == 0 {
-      return 0;
+      return RowEchelonOutput { rank: 0, pivots: Vec::new() };
     }
     let rows = matrix.len();
     let cols = matrix[0].dimension();
     let mut lead = 0; // current pivot column
     let mut rank = 0;
+    let mut pivots = Vec::new();
 
     for r in 0..rows {
       if lead >= cols {
@@ -184,11 +199,13 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
           i = r;
           lead += 1;
           if lead == cols {
-            return rank;
+            return RowEchelonOutput { rank, pivots };
           }
         }
       }
       matrix.swap(i, r);
+
+      pivots.push(PivotInfo { row: r, col: lead });
 
       let pivot_val = *matrix[r].get_component(lead);
       // For a field, a non-zero pivot_val is expected here.
@@ -219,7 +236,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
       lead += 1;
       rank += 1;
     }
-    rank
+    RowEchelonOutput { rank, pivots }
   }
 }
 
@@ -343,16 +360,17 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
     DynamicDenseMatrix { components: self.components, orientation: PhantomData }
   }
 
-  pub fn row_echelon_form(&mut self) -> usize {
+  pub fn row_echelon_form(&mut self) -> RowEchelonOutput {
     let matrix = self.components.components_mut();
     if matrix.is_empty() || matrix[0].dimension() == 0 {
-      return 0;
+      return RowEchelonOutput { rank: 0, pivots: Vec::new() };
     }
     let num_actual_cols = matrix.len();
     let num_actual_rows = matrix[0].dimension();
 
     let mut pivot_row_idx = 0;
     let mut rank = 0;
+    let mut pivots = Vec::new();
 
     for pivot_col_idx in 0..num_actual_cols {
       if pivot_row_idx >= num_actual_rows {
@@ -367,14 +385,19 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
       }
 
       if i_search_row < num_actual_rows {
+        // Found a pivot in this column
         if i_search_row != pivot_row_idx {
+          // Swap rows to bring pivot to pivot_row_idx
           for k_col in 0..num_actual_cols {
+            // Iterate through all columns to swap elements
             let temp = *matrix[k_col].get_component(i_search_row);
             let val_at_pivot_row = *matrix[k_col].get_component(pivot_row_idx);
             matrix[k_col].set_component(i_search_row, val_at_pivot_row);
             matrix[k_col].set_component(pivot_row_idx, temp);
           }
         }
+
+        pivots.push(PivotInfo { row: pivot_row_idx, col: pivot_col_idx });
 
         let pivot_val = *matrix[pivot_col_idx].get_component(pivot_row_idx);
 
@@ -404,7 +427,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
         rank += 1;
       }
     }
-    rank
+    RowEchelonOutput { rank, pivots }
   }
 }
 
@@ -657,10 +680,9 @@ mod tests {
     m.append_row(DynamicVector::new(vec![1.0, 2.0, 3.0]));
     m.append_row(DynamicVector::new(vec![4.0, 5.0, 6.0]));
     m.append_row(DynamicVector::new(vec![7.0, 8.0, 9.0]));
-    let rank = m.row_echelon_form();
-    assert_eq!(rank, 2);
-
-    dbg!(&m);
+    let result = m.row_echelon_form();
+    assert_eq!(result.rank, 2);
+    assert_eq!(result.pivots, vec![PivotInfo { row: 0, col: 0 }, PivotInfo { row: 1, col: 1 }]);
 
     assert_eq!(m.num_rows(), 3);
     assert_eq!(m.num_cols(), 3);
@@ -682,10 +704,9 @@ mod tests {
     m.append_column(DynamicVector::new(vec![1.0, 2.0, 3.0]));
     m.append_column(DynamicVector::new(vec![4.0, 5.0, 6.0]));
     m.append_column(DynamicVector::new(vec![7.0, 8.0, 9.0]));
-    let rank = m.row_echelon_form();
-    assert_eq!(rank, 2);
-
-    dbg!(&m);
+    let result = m.row_echelon_form();
+    assert_eq!(result.rank, 2);
+    assert_eq!(result.pivots, vec![PivotInfo { row: 0, col: 0 }, PivotInfo { row: 1, col: 1 }]);
 
     assert_eq!(m.num_rows(), 3);
     assert_eq!(m.num_cols(), 3);
