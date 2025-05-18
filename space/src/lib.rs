@@ -1,15 +1,17 @@
 #![doc = include_str!("../README.md")]
 #![warn(missing_docs)]
 
-pub mod cell;
 pub mod cloud;
+pub mod complexes;
 pub mod definitions;
 pub mod filtration;
 pub mod graph;
+pub mod homology;
 pub mod lattice;
 pub mod set;
 pub mod sheaf;
-pub mod simplicial;
+
+use harness_algebra::prelude::*;
 
 pub mod prelude {
   //! The prelude for the `space` crate.

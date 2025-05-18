@@ -79,9 +79,9 @@ use itertools::Itertools;
 use crate::filtration::ParallelFiltration;
 use crate::{
   cloud::Cloud,
+  complexes::simplicial::{HomologyGroup, Simplex, SimplicialComplex},
   filtration::Filtration,
   prelude::MetricSpace,
-  simplicial::{HomologyGroup, Simplex, SimplicialComplex},
 };
 
 /// A struct that allows construction of Vietoris-Rips complexes.
