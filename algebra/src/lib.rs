@@ -48,7 +48,6 @@
 pub mod algebras;
 pub mod arithmetic;
 pub mod groups;
-pub mod linear;
 pub mod modules;
 pub mod rings;
 pub mod tensors;
