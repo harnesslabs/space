@@ -86,6 +86,7 @@ macro_rules! modular {
       pub fn new(value: $inner) -> Self { Self(value % Self::MODULUS) }
 
       /// Returns the value of this modular number.
+      #[allow(unused)]
       pub const fn value(&self) -> $inner { self.0 }
     }
 
@@ -236,7 +237,6 @@ macro_rules! prime_field {
 
 #[cfg(test)]
 mod tests {
-  // TODO: I really need to re-export these traits in a prelude.
   use crate::{
     arithmetic::{One, Zero},
     groups::Group,

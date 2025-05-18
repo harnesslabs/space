@@ -1,3 +1,53 @@
+//! # Boolean Algebra Module
+//!
+//! This module provides an implementation of the Boolean field GF(2) through a wrapper
+//! around Rust's `bool` type.
+//!
+//! ## Mathematical Structure
+//!
+//! The Boolean field consists of two elements:
+//! - `false` (0): The additive identity
+//! - `true` (1): The multiplicative identity
+//!
+//! Operations are defined as:
+//! - Addition: Exclusive OR (XOR) operation
+//! - Multiplication: Logical AND operation
+//! - Negation: Identity operation (x = -x in GF(2))
+//! - Multiplicative inverse: Identity for non-zero elements
+//!
+//! ## Algebraic Properties
+//!
+//! The implementation satisfies multiple algebraic structures:
+//! - Field: A complete algebraic field with addition and multiplication
+//! - Abelian Group: Under addition with identity element `false`
+//! - Vector Space: Over itself as the scalar field
+//!
+//! ## Applications
+//!
+//! Boolean algebra has numerous applications in:
+//! - Digital circuit design
+//! - Logic operations
+//! - Cryptography (especially in finite field arithmetic)
+//! - Error correction codes
+//!
+//! ## Example
+//!
+//! ```
+//! use harness_algebra::algebras::boolean::Boolean;
+//!
+//! // Create Boolean values
+//! let a = Boolean(true); // 1
+//! let b = Boolean(false); // 0
+//!
+//! // Addition (XOR)
+//! assert_eq!(a + a, Boolean(false)); // 1 + 1 = 0
+//! assert_eq!(a + b, Boolean(true)); // 1 + 0 = 1
+//!
+//! // Multiplication (AND)
+//! assert_eq!(a * b, Boolean(false)); // 1 * 0 = 0
+//! assert_eq!(a * a, Boolean(true)); // 1 * 1 = 1
+//! ```
+
 use super::*;
 
 /// A wrapper around `bool` that implements algebraic operations.
@@ -29,6 +79,14 @@ use super::*;
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct Boolean(pub bool);
+
+impl From<bool> for Boolean {
+  fn from(b: bool) -> Self { Self(b) }
+}
+
+impl From<Boolean> for bool {
+  fn from(b: Boolean) -> Self { b.0 }
+}
 
 impl One for Boolean {
   fn one() -> Self { Self(true) }

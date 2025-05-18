@@ -1,18 +1,86 @@
+//! # Dynamic Matrix Module
+//!
+//! This module provides a flexible implementation of matrices with dynamically determined
+//! dimensions.
+//!
+//! ## Mathematical Background
+//!
+//! A matrix is a rectangular array of elements arranged in rows and columns. For a matrix $A$
+//! with $m$ rows and $n$ columns, we write $A \in F^{m \times n}$ where $F$ is the field of
+//! the matrix elements.
+//!
+//! ### Matrix Operations
+//!
+//! Matrices support various operations including:
+//!
+//! - **Transposition**: For a matrix $A$, its transpose $A^T$ has elements $A^T_{ij} = A_{ji}$
+//! - **Row Echelon Form**: A matrix is in row echelon form when:
+//!   - All rows consisting entirely of zeros are at the bottom
+//!   - The leading coefficient (pivot) of each non-zero row is to the right of the pivot in the row
+//!     above
+//!   - All entries in a column below a pivot are zeros
+//!
+//! ## Storage Orientations
+//!
+//! This implementation supports two matrix storage orientations:
+//!
+//! - **Row major**: Elements are stored row by row (each row is contiguous in memory)
+//! - **Column major**: Elements are stored column by column (each column is contiguous in memory)
+//!
+//! ## Examples
+//!
+//! ```
+//! use harness_algebra::{
+//!   prelude::*,
+//!   tensors::dynamic::{
+//!     matrix::{DynamicDenseMatrix, RowMajor},
+//!     vector::DynamicVector,
+//!   },
+//! };
+//!
+//! // Create a row-major matrix
+//! let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
+//!
+//! // Add rows to the matrix
+//! let row1 = DynamicVector::from([1.0, 2.0, 3.0]);
+//! let row2 = DynamicVector::from([4.0, 5.0, 6.0]);
+//! matrix.append_row(row1);
+//! matrix.append_row(row2);
+//!
+//! // Access elements
+//! let element = matrix.get_component(0, 1); // Gets element at row 0, column 1
+//! assert_eq!(*element, 2.0);
+//!
+//! // Transform to row echelon form
+//! let result = matrix.row_echelon_form();
+//! ```
+
 use std::{fmt::Debug, marker::PhantomData};
 
 use super::{vector::DynamicVector, *};
 
-// Struct to store pivot coordinates
+/// Information about a pivot (non-zero entry) in a matrix.
+///
+/// When a matrix is transformed to row echelon form, pivots are the leading
+/// non-zero entries in each row. This struct stores the row and column indices
+/// of each pivot.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PivotInfo {
+  /// The row index of the pivot
   pub row: usize,
+  /// The column index of the pivot
   pub col: usize,
 }
 
-// Struct to store the result of row echelon form computation
+/// Result of transforming a matrix to row echelon form.
+///
+/// This struct contains information about the rank of the matrix
+/// and the positions of all pivots found during the transformation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RowEchelonOutput {
+  /// The rank of the matrix (number of linearly independent rows/columns)
   pub rank:   usize,
+  /// Positions of pivot elements in the row echelon form
   pub pivots: Vec<PivotInfo>,
 }
 
@@ -24,48 +92,110 @@ mod sealed {
 }
 
 /// A marker trait for matrix storage orientation (RowMajor or ColumnMajor).
+///
 /// This trait is sealed, meaning only types defined in this crate can implement it.
+/// The orientation determines how matrix elements are stored in memory, which affects
+/// the performance characteristics of different operations.
 pub trait MatrixOrientation: sealed::Sealed {}
 
 /// Marker type for row-major matrix storage.
+///
 /// In row-major storage, elements of a row are contiguous in memory.
+/// This is efficient for operations that access elements row by row.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct RowMajor;
 impl MatrixOrientation for RowMajor {}
 
 /// Marker type for column-major matrix storage.
+///
 /// In column-major storage, elements of a column are contiguous in memory.
+/// This is efficient for operations that access elements column by column.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct ColumnMajor;
 impl MatrixOrientation for ColumnMajor {}
 
-/// A dynamically-sized matrix (typically with components from a field `F`).
+/// A dynamically-sized matrix with elements from a field `F`.
 ///
-/// The dimensions can be determined at runtime, making it flexible for various applications.
-/// The matrix can be either RowMajor or ColumnMajor, specified by the `O` type parameter.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+/// ## Mathematical Representation
+///
+/// For a matrix $A \in F^{m \times n}$, the elements are represented as:
+///
+/// $$ A = \begin{pmatrix}
+/// a_{11} & a_{12} & \cdots & a_{1n} \\
+/// a_{21} & a_{22} & \cdots & a_{2n} \\
+/// \vdots & \vdots & \ddots & \vdots \\
+/// a_{m1} & a_{m2} & \cdots & a_{mn}
+/// \end{pmatrix} $$
+///
+/// ## Storage Implementation
+///
+/// The storage orientation is determined by the type parameter `O`, which can be either
+/// `RowMajor` or `ColumnMajor`. This affects the internal representation and the performance
+/// characteristics of different operations:
+///
+/// - For `RowMajor`: Data is stored as a vector of row vectors
+/// - For `ColumnMajor`: Data is stored as a vector of column vectors
+///
+/// ## Usage Notes
+///
+/// Operations that align with the storage orientation (e.g., row operations on a row-major matrix)
+/// will generally be more efficient than those that don't.
+#[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct DynamicDenseMatrix<F, O: MatrixOrientation = RowMajor> {
-  /// For RowMajor: components is a DynamicVector of rows (each row is a DynamicVector<F>).
-  /// For ColumnMajor: components is a DynamicVector of columns (each col is a DynamicVector<F>).
+  /// For [`RowMajor`]: `components` is a [`DynamicVector`] of rows (each row is a
+  /// [`DynamicVector<F>`]).
+  /// For [`ColumnMajor`]: `components` is a [`DynamicVector`] of columns (each col is a
+  /// [`DynamicVector<F>`]).
   components:  DynamicVector<DynamicVector<F>>,
+  /// The orientation of the matrix
   orientation: PhantomData<O>,
 }
 
 impl<F, O: MatrixOrientation> DynamicDenseMatrix<F, O> {
-  /// Creates a new, empty DynamicMatrix with the specified orientation.
-  pub fn new() -> Self {
+  /// Creates a new, empty `DynamicDenseMatrix` with the specified orientation.
+  ///
+  /// This constructor initializes a matrix with zero rows and zero columns.
+  ///
+  /// # Returns
+  ///
+  /// A new empty matrix with the orientation specified by the type parameter `O`.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_algebra::tensors::dynamic::matrix::{ColumnMajor, DynamicDenseMatrix, RowMajor};
+  ///
+  /// // Create an empty row-major matrix of f64 values
+  /// let row_major: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+  ///
+  /// // Create an empty column-major matrix of f64 values
+  /// let col_major: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+  /// ```
+  pub const fn new() -> Self {
     Self { components: DynamicVector::new(Vec::new()), orientation: PhantomData }
   }
 }
 
 impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   /// Returns the number of rows in the matrix.
-  pub fn num_rows(&self) -> usize {
+  ///
+  /// For a row-major matrix, this is the number of row vectors stored.
+  ///
+  /// # Returns
+  ///
+  /// The number of rows in the matrix
+  pub const fn num_rows(&self) -> usize {
     self.components.dimension() // Outer vector stores rows
   }
 
   /// Returns the number of columns in the matrix.
+  ///
+  /// For a row-major matrix, this is the length of the first row vector (if any).
   /// Assumes a non-ragged matrix if rows > 0.
+  ///
+  /// # Returns
+  ///
+  /// The number of columns in the matrix
   pub fn num_cols(&self) -> usize {
     if self.components.dimension() == 0 {
       0
@@ -75,30 +205,82 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   }
 
   /// Appends a new column to the matrix.
-  /// The column's length must match the number of existing rows.
-  pub fn append_column(&mut self, column: DynamicVector<F>) {
+  ///
+  /// If the matrix is empty, the column's elements become singleton rows.
+  /// Otherwise, each element of the column is appended to the corresponding row.
+  ///
+  /// # Arguments
+  ///
+  /// * `column` - The column vector to append
+  ///
+  /// # Panics
+  ///
+  /// Panics if the column's length doesn't match the number of existing rows (when the matrix is
+  /// not empty).
+  ///
+  /// # Warning
+  ///
+  /// For a row-major matrix, this operation requires updating every row vector.
+  /// If you're building a matrix primarily by adding columns, consider using
+  /// a column-major matrix for better performance.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_algebra::tensors::dynamic::{
+  ///   matrix::{DynamicDenseMatrix, RowMajor},
+  ///   vector::DynamicVector,
+  /// };
+  ///
+  /// let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
+  ///
+  /// // Add a column to the empty matrix (will create rows)
+  /// let col = DynamicVector::from([1.0, 2.0]);
+  /// matrix.append_column(&col);
+  ///
+  /// // Add another column
+  /// let col2 = DynamicVector::from([3.0, 4.0]);
+  /// matrix.append_column(&col2);
+  /// ```
+  pub fn append_column(&mut self, column: &DynamicVector<F>) {
     let num_r = self.num_rows();
     if num_r == 0 {
-      // Matrix is empty, this column defines the rows and the first column
       if column.dimension() == 0 {
-        return; // Appending an empty column to an empty matrix results in an empty matrix
+        return;
       }
-      // Each element of the input column becomes a new row with one element.
       for i in 0..column.dimension() {
         self.components.components_mut().push(DynamicVector::new(vec![*column.get_component(i)]));
       }
     } else {
       assert_eq!(num_r, column.dimension(), "Column length must match the number of rows");
       for i in 0..num_r {
-        // self.components.components is Vec<DynamicVector<F>> (rows)
-        // Each self.components.components[i] is a DynamicVector<F> (a row)
-        // We need to append to its internal Vec<F>.
         self.components.components_mut()[i].append(*column.get_component(i));
       }
     }
   }
 
   /// Returns a new DynamicVector representing the column at the given index.
+  ///
+  /// For a row-major matrix, this requires extracting the element at position `index`
+  /// from each row vector.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the column to retrieve (0-based)
+  ///
+  /// # Returns
+  ///
+  /// A new DynamicVector containing the elements of the specified column
+  ///
+  /// # Panics
+  ///
+  /// Panics if the column index is out of bounds.
+  ///
+  /// # Warning
+  ///
+  /// For a row-major matrix, this is a more expensive operation as it requires
+  /// reading from each row vector. If you need to access columns frequently,
+  /// consider using a column-major matrix instead.
   pub fn get_column(&self, index: usize) -> DynamicVector<F> {
     let num_r = self.num_rows();
     if num_r == 0 {
@@ -113,8 +295,23 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   }
 
   /// Sets the column at the given index with the provided DynamicVector.
-  /// The column's length must match the number of existing rows.
-  pub fn set_column(&mut self, index: usize, column: DynamicVector<F>) {
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the column to set (0-based)
+  /// * `column` - The new column vector
+  ///
+  /// # Panics
+  ///
+  /// - Panics if the column index is out of bounds
+  /// - Panics if the column's length doesn't match the number of rows
+  ///
+  /// # Warning
+  ///
+  /// For a row-major matrix, this is a more expensive operation as it requires
+  /// updating every row vector. If you need to modify columns frequently,
+  /// consider using a column-major matrix instead.
+  pub fn set_column(&mut self, index: usize, column: &DynamicVector<F>) {
     let num_r = self.num_rows();
     assert_eq!(num_r, column.dimension(), "New column length must match the number of rows");
     if num_r == 0 {
@@ -127,7 +324,32 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   }
 
   /// Appends a new row to the matrix.
-  /// If the matrix is not empty, the new row's length must match the number of existing columns.
+  ///
+  /// # Arguments
+  ///
+  /// * `row` - The row vector to append
+  ///
+  /// # Panics
+  ///
+  /// Panics if the row's length doesn't match the number of existing columns (when the matrix is
+  /// not empty).
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_algebra::tensors::dynamic::{
+  ///   matrix::{DynamicDenseMatrix, RowMajor},
+  ///   vector::DynamicVector,
+  /// };
+  ///
+  /// let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
+  ///
+  /// // Add rows to the matrix
+  /// let row1 = DynamicVector::from([1.0, 2.0, 3.0]);
+  /// let row2 = DynamicVector::from([4.0, 5.0, 6.0]);
+  /// matrix.append_row(row1);
+  /// matrix.append_row(row2);
+  /// ```
   pub fn append_row(&mut self, row: DynamicVector<F>) {
     if self.num_rows() > 0 {
       assert_eq!(
@@ -140,16 +362,39 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   }
 
   /// Returns a reference to the row at the given index.
+  ///
+  /// For a row-major matrix, this directly accesses the stored row vector.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the row to retrieve (0-based)
+  ///
+  /// # Returns
+  ///
+  /// A reference to the row vector at the specified index
+  ///
+  /// # Panics
+  ///
+  /// Panics if the row index is out of bounds.
   pub fn get_row(&self, index: usize) -> &DynamicVector<F> {
     assert!(index < self.num_rows(), "Row index out of bounds");
     &self.components.components()[index]
   }
 
   /// Sets the row at the given index with the provided DynamicVector.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the row to set (0-based)
+  /// * `row` - The new row vector
+  ///
+  /// # Panics
+  ///
+  /// - Panics if the row index is out of bounds
+  /// - Panics if the row's length doesn't match the number of columns
   pub fn set_row(&mut self, index: usize, row: DynamicVector<F>) {
     assert!(index < self.num_rows(), "Row index out of bounds");
     if self.num_rows() > 0 {
-      // Or check if self.components.dimension() > 0 before num_cols()
       assert_eq!(
         self.num_cols(),
         row.dimension(),
@@ -160,23 +405,87 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   }
 
   /// Returns the component at the given row and column.
+  ///
+  /// # Arguments
+  ///
+  /// * `row` - The row index (0-based)
+  /// * `col` - The column index (0-based)
+  ///
+  /// # Returns
+  ///
+  /// A reference to the component at the specified position
+  ///
+  /// # Panics
+  ///
+  /// Panics if either the row or column index is out of bounds.
   pub fn get_component(&self, row: usize, col: usize) -> &F {
     assert!(row < self.num_rows(), "Row index out of bounds");
-    assert!(col < self.num_cols(), "Column index out of bounds"); // Relies on num_cols correctly assessing based on first row
+    assert!(col < self.num_cols(), "Column index out of bounds");
     self.components.components()[row].get_component(col)
   }
 
   /// Sets the component at the given row and column to the given value.
+  ///
+  /// # Arguments
+  ///
+  /// * `row` - The row index (0-based)
+  /// * `col` - The column index (0-based)
+  /// * `value` - The value to set at the specified position
+  ///
+  /// # Panics
+  ///
+  /// Panics if either the row or column index is out of bounds.
   pub fn set_component(&mut self, row: usize, col: usize, value: F) {
     assert!(row < self.num_rows(), "Row index out of bounds");
     assert!(col < self.num_cols(), "Column index out of bounds");
     self.components.components_mut()[row].set_component(col, value);
   }
 
+  /// Converts this row-major matrix to a column-major matrix by transposing it.
+  ///
+  /// The transpose of a matrix $A$ is denoted $A^T$ and has entries $A^T_{ij} = A_{ji}$.
+  ///
+  /// # Returns
+  ///
+  /// A new column-major matrix that is the transpose of this matrix
   pub fn transpose(self) -> DynamicDenseMatrix<F, ColumnMajor> {
     DynamicDenseMatrix { components: self.components, orientation: PhantomData }
   }
 
+  /// Transforms this matrix into row echelon form using Gaussian elimination.
+  ///
+  /// Row echelon form has the following properties:
+  /// - All rows consisting entirely of zeros are at the bottom
+  /// - The leading coefficient (pivot) of each non-zero row is to the right of the pivot in the row
+  ///   above
+  /// - All entries in a column below a pivot are zeros
+  ///
+  /// This method performs in-place transformation of the matrix.
+  ///
+  /// # Returns
+  ///
+  /// A `RowEchelonOutput` containing the rank of the matrix and the positions of all pivots
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_algebra::tensors::dynamic::{
+  ///   matrix::{DynamicDenseMatrix, RowMajor},
+  ///   vector::DynamicVector,
+  /// };
+  ///
+  /// let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
+  /// // Add some rows
+  /// matrix.append_row(DynamicVector::from([1.0, 2.0, 3.0]));
+  /// matrix.append_row(DynamicVector::from([4.0, 5.0, 6.0]));
+  /// matrix.append_row(DynamicVector::from([7.0, 8.0, 9.0]));
+  ///
+  /// // Transform to row echelon form
+  /// let result = matrix.row_echelon_form();
+  ///
+  /// // The result contains the rank and pivot positions
+  /// assert_eq!(result.rank, 2); // The matrix has rank 2
+  /// ```
   pub fn row_echelon_form(&mut self) -> RowEchelonOutput {
     let matrix = self.components.components_mut();
     if matrix.is_empty() || matrix[0].dimension() == 0 {
@@ -208,24 +517,19 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
       pivots.push(PivotInfo { row: r, col: lead });
 
       let pivot_val = *matrix[r].get_component(lead);
-      // For a field, a non-zero pivot_val is expected here.
-      // The Field trait should provide inverse. Panicking if not found for a non-zero element is
-      // acceptable.
       let inv_pivot = pivot_val.multiplicative_inverse();
 
-      // Normalize pivot row: matrix[r][j] = matrix[r][j] * inv_pivot
       for j in lead..cols {
         let val = *matrix[r].get_component(j);
         matrix[r].set_component(j, val * inv_pivot);
       }
 
-      // Eliminate other rows: matrix[i] = matrix[i] - factor * matrix[r]
       for i_row in 0..rows {
         if i_row != r {
-          let factor = *matrix[i_row].get_component(lead); // factor is a copy
+          let factor = *matrix[i_row].get_component(lead);
           if !factor.is_zero() {
             for j_col in lead..cols {
-              let val_r_j_col = *matrix[r].get_component(j_col); // Read from pivot row (r)
+              let val_r_j_col = *matrix[r].get_component(j_col);
               let term = factor * val_r_j_col;
               let val_i_row_j_col = *matrix[i_row].get_component(j_col); // Read from current row (i_row)
               matrix[i_row].set_component(j_col, val_i_row_j_col - term);
@@ -242,28 +546,60 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
 
 impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   /// Returns the number of rows in the matrix.
-  /// For ColumnMajor, this is the dimension of the first column vector (if any).
+  ///
+  /// For a column-major matrix, this is the dimension of the first column vector (if any).
+  ///
+  /// # Returns
+  ///
+  /// The number of rows in the matrix
   pub fn num_rows(&self) -> usize {
     if self.components.dimension() == 0 {
-      // No columns
       0
     } else {
-      // All columns should have the same number of rows (length)
       self.components.components()[0].dimension()
     }
   }
 
   /// Returns the number of columns in the matrix.
-  /// For ColumnMajor, this is the number of column vectors stored.
-  pub fn num_cols(&self) -> usize {
-    self.components.dimension() // Outer vector stores columns
-  }
+  ///
+  /// For a column-major matrix, this is the number of column vectors stored.
+  ///
+  /// # Returns
+  ///
+  /// The number of columns in the matrix
+  pub const fn num_cols(&self) -> usize { self.components.dimension() }
 
   /// Appends a new column to the matrix.
-  /// If the matrix is not empty, the new column's length must match the number of existing rows.
+  ///
+  /// For a column-major matrix, this is an efficient operation since columns are stored directly.
+  ///
+  /// # Arguments
+  ///
+  /// * `column` - The column vector to append
+  ///
+  /// # Panics
+  ///
+  /// Panics if the column's length doesn't match the number of existing rows (when the matrix is
+  /// not empty).
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use harness_algebra::tensors::dynamic::{
+  ///   matrix::{ColumnMajor, DynamicDenseMatrix},
+  ///   vector::DynamicVector,
+  /// };
+  ///
+  /// let mut matrix = DynamicDenseMatrix::<f64, ColumnMajor>::new();
+  ///
+  /// // Add columns to the matrix
+  /// let col1 = DynamicVector::from([1.0, 2.0, 3.0]);
+  /// let col2 = DynamicVector::from([4.0, 5.0, 6.0]);
+  /// matrix.append_column(col1);
+  /// matrix.append_column(col2);
+  /// ```
   pub fn append_column(&mut self, column: DynamicVector<F>) {
     if self.num_cols() > 0 {
-      // Matrix is not empty
       assert_eq!(
         self.num_rows(),
         column.dimension(),
@@ -274,16 +610,41 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 
   /// Returns a reference to the column at the given index.
+  ///
+  /// For a column-major matrix, this is an efficient operation since columns are stored directly.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the column to retrieve (0-based)
+  ///
+  /// # Returns
+  ///
+  /// A reference to the column vector at the specified index
+  ///
+  /// # Panics
+  ///
+  /// Panics if the column index is out of bounds.
   pub fn get_column(&self, index: usize) -> &DynamicVector<F> {
     assert!(index < self.num_cols(), "Column index out of bounds");
     &self.components.components()[index]
   }
 
   /// Sets the column at the given index with the provided DynamicVector.
+  ///
+  /// For a column-major matrix, this is an efficient operation since columns are stored directly.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the column to set (0-based)
+  /// * `column` - The new column vector
+  ///
+  /// # Panics
+  ///
+  /// - Panics if the column index is out of bounds
+  /// - Panics if the column's length doesn't match the number of rows
   pub fn set_column(&mut self, index: usize, column: DynamicVector<F>) {
     assert!(index < self.num_cols(), "Column index out of bounds");
     if self.num_cols() > 0 {
-      // Or check self.components.dimension() > 0
       assert_eq!(
         self.num_rows(),
         column.dimension(),
@@ -294,15 +655,26 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 
   /// Appends a new row to the matrix.
-  /// The row's length must match the number of existing columns.
-  pub fn append_row(&mut self, row: DynamicVector<F>) {
+  ///
+  /// # Arguments
+  ///
+  /// * `row` - The row vector to append
+  ///
+  /// # Panics
+  ///
+  /// Panics if the row's length doesn't match the number of existing columns.
+  ///
+  /// # Warning
+  ///
+  /// For a column-major matrix, this is a more expensive operation as it requires
+  /// updating every column vector. If you need to add many rows, consider using
+  /// a row-major matrix or building the matrix from columns instead.
+  pub fn append_row(&mut self, row: &DynamicVector<F>) {
     let num_c = self.num_cols();
     if num_c == 0 {
-      // Matrix is empty, this row defines the columns and the first row
       if row.dimension() == 0 {
-        return; // Appending an empty row to an empty matrix results in an empty matrix
+        return;
       }
-      // Each element of the input row becomes a new column with one element.
       for i in 0..row.dimension() {
         self.components.components_mut().push(DynamicVector::new(vec![*row.get_component(i)]));
       }
@@ -315,6 +687,24 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 
   /// Returns a new DynamicVector representing the row at the given index.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the row to retrieve (0-based)
+  ///
+  /// # Returns
+  ///
+  /// A new DynamicVector containing the elements of the specified row
+  ///
+  /// # Panics
+  ///
+  /// Panics if the row index is out of bounds.
+  ///
+  /// # Warning
+  ///
+  /// For a column-major matrix, this is a more expensive operation as it requires
+  /// reading from each column vector. If you need to access rows frequently,
+  /// consider using a row-major matrix instead.
   pub fn get_row(&self, index: usize) -> DynamicVector<F> {
     let num_c = self.num_cols();
     if num_c == 0 {
@@ -329,20 +719,49 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 
   /// Sets the row at the given index with the provided DynamicVector.
-  /// The row's length must match the number of existing columns.
-  pub fn set_row(&mut self, index: usize, row: DynamicVector<F>) {
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the row to set (0-based)
+  /// * `row` - The new row vector
+  ///
+  /// # Panics
+  ///
+  /// - Panics if the row index is out of bounds
+  /// - Panics if the row's length doesn't match the number of columns
+  ///
+  /// # Warning
+  ///
+  /// For a column-major matrix, this is a more expensive operation as it requires
+  /// updating every column vector. If you need to modify rows frequently,
+  /// consider using a row-major matrix instead.
+  pub fn set_row(&mut self, index: usize, row: &DynamicVector<F>) {
     let num_c = self.num_cols();
     assert_eq!(num_c, row.dimension(), "New row length must match the number of columns");
     if num_c == 0 {
       return; // If no columns, setting an empty row to an empty matrix is fine.
     }
     assert!(index < self.num_rows(), "Row index out of bounds");
+
     for i in 0..num_c {
       self.components.components_mut()[i].set_component(index, *row.get_component(i));
     }
   }
 
   /// Returns the component at the given row and column.
+  ///
+  /// # Arguments
+  ///
+  /// * `row` - The row index (0-based)
+  /// * `col` - The column index (0-based)
+  ///
+  /// # Returns
+  ///
+  /// A reference to the component at the specified position
+  ///
+  /// # Panics
+  ///
+  /// Panics if either the row or column index is out of bounds.
   pub fn get_component(&self, row: usize, col: usize) -> &F {
     assert!(col < self.num_cols(), "Column index out of bounds");
     assert!(row < self.num_rows(), "Row index out of bounds");
@@ -350,16 +769,52 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 
   /// Sets the component at the given row and column to the given value.
+  ///
+  /// # Arguments
+  ///
+  /// * `row` - The row index (0-based)
+  /// * `col` - The column index (0-based)
+  /// * `value` - The value to set at the specified position
+  ///
+  /// # Panics
+  ///
+  /// Panics if either the row or column index is out of bounds.
   pub fn set_component(&mut self, row: usize, col: usize, value: F) {
     assert!(col < self.num_cols(), "Column index out of bounds");
     assert!(row < self.num_rows(), "Row index out of bounds");
     self.components.components_mut()[col].set_component(row, value);
   }
 
+  /// Converts this column-major matrix to a row-major matrix by transposing it.
+  ///
+  /// The transpose of a matrix $A$ is denoted $A^T$ and has entries $A^T_{ij} = A_{ji}$.
+  ///
+  /// # Returns
+  ///
+  /// A new row-major matrix that is the transpose of this matrix
   pub fn transpose(self) -> DynamicDenseMatrix<F, RowMajor> {
     DynamicDenseMatrix { components: self.components, orientation: PhantomData }
   }
 
+  /// Transforms this matrix into row echelon form using Gaussian elimination.
+  ///
+  /// Row echelon form has the following properties:
+  /// - All rows consisting entirely of zeros are at the bottom
+  /// - The leading coefficient (pivot) of each non-zero row is to the right of the pivot in the row
+  ///   above
+  /// - All entries in a column below a pivot are zeros
+  ///
+  /// This method performs in-place transformation of the matrix.
+  ///
+  /// # Returns
+  ///
+  /// A `RowEchelonOutput` containing the rank of the matrix and the positions of all pivots
+  ///
+  /// # Warning
+  ///
+  /// While the algorithm for row echelon form works for column-major matrices,
+  /// it may be less efficient than for row-major matrices since row operations
+  /// require accessing multiple column vectors.
   pub fn row_echelon_form(&mut self) -> RowEchelonOutput {
     let matrix = self.components.components_mut();
     if matrix.is_empty() || matrix[0].dimension() == 0 {
@@ -388,13 +843,13 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
         // Found a pivot in this column
         if i_search_row != pivot_row_idx {
           // Swap rows to bring pivot to pivot_row_idx
-          for k_col in 0..num_actual_cols {
+          (0..num_actual_cols).for_each(|k_col| {
             // Iterate through all columns to swap elements
             let temp = *matrix[k_col].get_component(i_search_row);
             let val_at_pivot_row = *matrix[k_col].get_component(pivot_row_idx);
             matrix[k_col].set_component(i_search_row, val_at_pivot_row);
             matrix[k_col].set_component(pivot_row_idx, temp);
-          }
+          });
         }
 
         pivots.push(PivotInfo { row: pivot_row_idx, col: pivot_col_idx });
@@ -403,23 +858,23 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
 
         if !pivot_val.is_zero() {
           let inv_pivot_val = pivot_val.multiplicative_inverse();
-          for k_col in pivot_col_idx..num_actual_cols {
+          (pivot_col_idx..num_actual_cols).for_each(|k_col| {
             let current_val = *matrix[k_col].get_component(pivot_row_idx);
             matrix[k_col].set_component(pivot_row_idx, current_val * inv_pivot_val);
-          }
+          });
         }
 
         for k_row in 0..num_actual_rows {
           if k_row != pivot_row_idx {
             let factor = *matrix[pivot_col_idx].get_component(k_row);
             if !factor.is_zero() {
-              for j_col_elim in pivot_col_idx..num_actual_cols {
+              (pivot_col_idx..num_actual_cols).for_each(|j_col_elim| {
                 let val_from_pivot_row_at_j_col = *matrix[j_col_elim].get_component(pivot_row_idx);
                 let term_to_subtract = factor * val_from_pivot_row_at_j_col;
                 let current_val_in_k_row_at_j_col = *matrix[j_col_elim].get_component(k_row);
                 matrix[j_col_elim]
                   .set_component(k_row, current_val_in_k_row_at_j_col - term_to_subtract);
-              }
+              });
             }
           }
         }
@@ -486,7 +941,7 @@ mod tests {
     // Append first column to empty matrix
     let c0_data = vec![1.0, 2.0];
     let c0 = DynamicVector::new(c0_data.clone());
-    m.append_column(c0.clone());
+    m.append_column(&c0);
     assert_eq!(m.num_rows(), 2);
     assert_eq!(m.num_cols(), 1);
     assert_eq!(m.get_column(0).components(), &c0_data);
@@ -496,7 +951,7 @@ mod tests {
     // Append second column
     let c1_data = vec![3.0, 4.0];
     let c1 = DynamicVector::new(c1_data.clone());
-    m.append_column(c1.clone());
+    m.append_column(&c1);
     assert_eq!(m.num_rows(), 2);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_column(1).components(), &c1_data);
@@ -506,7 +961,7 @@ mod tests {
     // Set a column
     let c_new_data = vec![5.0, 6.0];
     let c_new = DynamicVector::new(c_new_data.clone());
-    m.set_column(0, c_new.clone());
+    m.set_column(0, &c_new);
     assert_eq!(m.num_rows(), 2);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_column(0).components(), &c_new_data);
@@ -549,7 +1004,7 @@ mod tests {
     // Append first row to empty matrix
     let r0_data = vec![1.0, 2.0];
     let r0 = DynamicVector::new(r0_data.clone());
-    m.append_row(r0.clone());
+    m.append_row(&r0);
     assert_eq!(m.num_rows(), 1);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_row(0).components(), &r0_data);
@@ -559,7 +1014,7 @@ mod tests {
     // Append second row
     let r1_data = vec![3.0, 4.0];
     let r1 = DynamicVector::new(r1_data.clone());
-    m.append_row(r1.clone());
+    m.append_row(&r1);
     assert_eq!(m.num_rows(), 2);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_row(1).components(), &r1_data);
@@ -569,7 +1024,7 @@ mod tests {
     // Set a row
     let r_new_data = vec![5.0, 6.0];
     let r_new = DynamicVector::new(r_new_data.clone());
-    m.set_row(0, r_new.clone());
+    m.set_row(0, &r_new);
     assert_eq!(m.num_rows(), 2);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_row(0).components(), &r_new_data);
@@ -638,8 +1093,8 @@ mod tests {
   #[should_panic]
   fn test_append_column_mismatch_rows_row_major() {
     let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_column(DynamicVector::new(vec![1.0, 2.0]));
-    m.append_column(DynamicVector::new(vec![3.0])); // Should panic
+    m.append_column(&DynamicVector::new(vec![1.0, 2.0]));
+    m.append_column(&DynamicVector::new(vec![3.0])); // Should panic
   }
 
   #[test]
@@ -654,8 +1109,8 @@ mod tests {
   #[should_panic]
   fn test_set_column_mismatch_rows_row_major() {
     let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_column(DynamicVector::new(vec![1.0]));
-    m.set_column(0, DynamicVector::new(vec![3.0, 4.0, 5.0])); // Should panic
+    m.append_column(&DynamicVector::new(vec![1.0]));
+    m.set_column(0, &DynamicVector::new(vec![3.0, 4.0, 5.0])); // Should panic
   }
 
   #[test]
@@ -670,8 +1125,8 @@ mod tests {
   #[should_panic]
   fn test_append_row_mismatch_cols_col_major() {
     let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::new(vec![1.0, 2.0]));
-    m.append_row(DynamicVector::new(vec![3.0])); // Should panic
+    m.append_row(&DynamicVector::new(vec![1.0, 2.0]));
+    m.append_row(&DynamicVector::new(vec![3.0])); // Should panic
   }
 
   #[test]

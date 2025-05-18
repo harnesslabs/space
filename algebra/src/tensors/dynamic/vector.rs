@@ -1,50 +1,216 @@
+//! # Dynamic Vector Module
+//!
+//! This module provides a flexible implementation of vectors with dynamically determined
+//! dimensions.
+//!
+//! ## Mathematical Background
+//!
+//! A vector space $V$ over a field $F$ is a set equipped with operations of addition and scalar
+//! multiplication that satisfy the vector space axioms. This implementation represents elements of
+//! $V$ as an ordered collection of components from the field $F$.
+//!
+//! For any two vectors $\mathbf{u}, \mathbf{v} \in V$ and scalar $\alpha \in F$:
+//!
+//! - Vector addition: $\mathbf{u} + \mathbf{v} = (u_1 + v_1, u_2 + v_2, \ldots, u_n + v_n)$
+//! - Scalar multiplication: $\alpha\mathbf{v} = (\alpha v_1, \alpha v_2, \ldots, \alpha v_n)$
+//! - Additive inverse (negation): $-\mathbf{v} = (-v_1, -v_2, \ldots, -v_n)$
+//!
+//! ## Zero Vector Handling
+//!
+//! This implementation represents the zero vector as an empty vector with no components.
+//! Any vector with all components equal to zero is also considered a zero vector.
+//!
+//! ## Features
+//!
+//! - Generic implementation that works with any field type
+//! - Support for vector arithmetic operations (+, -, *, scalar multiplication)
+//! - Efficient component access and modification
+//! - Implements algebraic traits like `Zero`, `Group`, and `VectorSpace`
+//!
+//! ## Examples
+//!
+//! ```
+//! use harness_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
+//!
+//! // Create a vector with components [1, 2, 3]
+//! let vec1 = DynamicVector::<f64>::from([1.0, 2.0, 3.0]);
+//!
+//! // Create the zero vector
+//! let zero = DynamicVector::<f64>::zero();
+//!
+//! // Vector addition
+//! let vec2 = DynamicVector::<f64>::from([4.0, 5.0, 6.0]);
+//! let sum = vec1.clone() + vec2;
+//!
+//! // Scalar multiplication
+//! let scaled = vec1 * 2.0;
+//! ```
+
 // TODO (autoparallel): We could use `MaybeUninit` to avoid the `Vec` allocation especially in the
 // zero case.
 
+// TODO (autoparallel): We could also have this be generic over an inner vector too and use
+// `smallvec` and `tinyvec` if need be.
+
 use super::*;
 
-/// A dynamically-sized vector (typically with components from a field `F`).
+/// # Dynamic Vector
 ///
-/// The dimension can be determined at runtime, making it flexible for various applications.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+/// A dynamically-sized vector implementation for n-dimensional vector spaces.
+///
+/// ## Mathematical Background
+///
+/// A vector space $V$ over a field $F$ is a set equipped with operations of addition and scalar
+/// multiplication that satisfy the vector space axioms. This implementation represents elements of
+/// $V$ as an ordered collection of components from the field $F$.
+///
+/// For any two vectors $\mathbf{u}, \mathbf{v} \in V$ and scalar $\alpha \in F$:
+///
+/// - Vector addition: $\mathbf{u} + \mathbf{v} = (u_1 + v_1, u_2 + v_2, \ldots, u_n + v_n)$
+/// - Scalar multiplication: $\alpha\mathbf{v} = (\alpha v_1, \alpha v_2, \ldots, \alpha v_n)$
+/// - Additive inverse (negation): $-\mathbf{v} = (-v_1, -v_2, \ldots, -v_n)$
+///
+/// ## Zero Vector Handling
+///
+/// This implementation represents the zero vector as an empty vector with no components.
+/// Any vector with all components equal to zero is also considered a zero vector.
+///
+/// ## Examples
+///
+/// ```
+/// use harness_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
+///
+/// // Create a vector with components [1, 2, 3]
+/// let vec1 = DynamicVector::<f64>::from([1.0, 2.0, 3.0]);
+///
+/// // Create the zero vector
+/// let zero = DynamicVector::<f64>::zero();
+///
+/// // Vector addition
+/// let vec2 = DynamicVector::<f64>::from([4.0, 5.0, 6.0]);
+/// let sum = vec1.clone() + vec2;
+///
+/// // Scalar multiplication
+/// let scaled = vec1 * 2.0;
+/// ```
+#[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DynamicVector<F> {
   components: Vec<F>,
 }
 
 impl<F> DynamicVector<F> {
-  pub fn new(components: Vec<F>) -> Self { Self { components } }
+  /// Creates a new `DynamicVector` from a vector of components.
+  ///
+  /// # Arguments
+  ///
+  /// * `components` - A vector containing the components of the dynamic vector
+  ///
+  /// # Returns
+  ///
+  /// A new `DynamicVector` instance with the given components
+  pub const fn new(components: Vec<F>) -> Self { Self { components } }
 
-  pub fn dimension(&self) -> usize { self.components.len() }
+  /// Returns the dimension (number of components) of the vector.
+  ///
+  /// For the zero vector (empty components), the dimension is 0.
+  pub const fn dimension(&self) -> usize { self.components.len() }
 
+  /// Returns a reference to the components of the vector.
+  ///
+  /// This allows read-only access to the underlying data.
   pub fn components(&self) -> &[F] { &self.components }
 
-  pub fn components_mut(&mut self) -> &mut Vec<F> { &mut self.components }
+  /// Returns a mutable reference to the components of the vector.
+  ///
+  /// This allows direct modification of the underlying data.
+  pub const fn components_mut(&mut self) -> &mut Vec<F> { &mut self.components }
 
+  /// Gets a reference to the component at the specified index.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the component to retrieve
+  ///
+  /// # Returns
+  ///
+  /// A reference to the component at the specified index
+  ///
+  /// # Panics
+  ///
+  /// Panics if the index is out of bounds.
   pub fn get_component(&self, index: usize) -> &F { &self.components[index] }
 
+  /// Sets the component at the specified index to the given value.
+  ///
+  /// # Arguments
+  ///
+  /// * `index` - The index of the component to set
+  /// * `value` - The value to set at the specified index
+  ///
+  /// # Panics
+  ///
+  /// Panics if the index is out of bounds.
   pub fn set_component(&mut self, index: usize, value: F) { self.components[index] = value }
 
+  /// Appends a value to the end of the vector, increasing its dimension by 1.
+  ///
+  /// # Arguments
+  ///
+  /// * `value` - The value to append to the vector
   pub fn append(&mut self, value: F) { self.components.push(value) }
 
+  /// Removes the last component from the vector and returns it.
+  ///
+  /// # Returns
+  ///
+  /// The last component of the vector wrapped in `Some`, or `None` if the vector is empty.
   pub fn pop(&mut self) -> Option<F> { self.components.pop() }
 }
 
 impl<F: Field> From<Vec<F>> for DynamicVector<F> {
+  /// Creates a new `DynamicVector` from a `Vec<F>`.
+  ///
+  /// # Arguments
+  ///
+  /// * `components` - A vector containing the components
   fn from(components: Vec<F>) -> Self { Self { components } }
 }
 
 impl<const M: usize, F: Field + Copy> From<[F; M]> for DynamicVector<F> {
+  /// Creates a new `DynamicVector` from a fixed-size array of components.
+  ///
+  /// # Arguments
+  ///
+  /// * `components` - An array of components
   fn from(components: [F; M]) -> Self { Self { components: components.to_vec() } }
 }
 
 impl<F: Field + Clone> From<&[F]> for DynamicVector<F> {
+  /// Creates a new `DynamicVector` from a slice of components.
+  ///
+  /// # Arguments
+  ///
+  /// * `components` - A slice of components
   fn from(components: &[F]) -> Self { Self { components: components.to_vec() } }
 }
 
-// TODO: This does handle the zero case but this is clunky as fuck and I hate it.
+// TODO (autoparallel): This does handle the zero case but this is clunky as fuck and I hate it.
 impl<F: Field + Copy> Add for DynamicVector<F> {
   type Output = Self;
 
+  /// Adds two vectors component-wise.
+  ///
+  /// # Arguments
+  ///
+  /// * `other` - The vector to add to this vector
+  ///
+  /// # Returns
+  ///
+  /// A new vector representing the sum of the two vectors
+  ///
+  /// # Panics
+  ///
+  /// Panics if the vectors have different dimensions.
   fn add(self, other: Self) -> Self::Output {
     assert_eq!(self.components.len(), other.components.len());
     let mut sum = Self { components: vec![F::zero(); self.components.len()] };
@@ -56,12 +222,26 @@ impl<F: Field + Copy> Add for DynamicVector<F> {
 }
 
 impl<F: Field + Copy> AddAssign for DynamicVector<F> {
+  /// Adds another vector to this vector in-place.
+  ///
+  /// # Arguments
+  ///
+  /// * `rhs` - The vector to add to this vector
+  ///
+  /// # Panics
+  ///
+  /// Panics if the vectors have different dimensions.
   fn add_assign(&mut self, rhs: Self) { *self = self.clone() + rhs }
 }
 
 impl<F: Field + Copy> Neg for DynamicVector<F> {
   type Output = Self;
 
+  /// Negates this vector, returning a vector with all components negated.
+  ///
+  /// # Returns
+  ///
+  /// A new vector representing the negation of this vector
   fn neg(self) -> Self::Output {
     let mut neg = Self { components: vec![F::zero(); self.components.len()] };
     for i in 0..self.components.len() {
@@ -74,6 +254,15 @@ impl<F: Field + Copy> Neg for DynamicVector<F> {
 impl<F: Field + Copy> Mul<F> for DynamicVector<F> {
   type Output = Self;
 
+  /// Multiplies this vector by a scalar.
+  ///
+  /// # Arguments
+  ///
+  /// * `scalar` - The scalar to multiply by
+  ///
+  /// # Returns
+  ///
+  /// A new vector representing the product of this vector and the scalar
   fn mul(self, scalar: F) -> Self::Output {
     let mut scalar_multiple = Self { components: vec![F::zero(); self.components.len()] };
     for i in 0..self.components.len() {
@@ -86,24 +275,54 @@ impl<F: Field + Copy> Mul<F> for DynamicVector<F> {
 impl<F: Field + Copy> Sub for DynamicVector<F> {
   type Output = Self;
 
+  /// Subtracts another vector from this vector.
+  ///
+  /// # Arguments
+  ///
+  /// * `other` - The vector to subtract from this vector
+  ///
+  /// # Returns
+  ///
+  /// A new vector representing the difference between the two vectors
+  ///
+  /// # Panics
+  ///
+  /// Panics if the vectors have different dimensions.
   fn sub(self, other: Self) -> Self::Output { self + -other }
 }
 
 impl<F: Field + Copy> SubAssign for DynamicVector<F> {
+  /// Subtracts another vector from this vector in-place.
+  ///
+  /// # Arguments
+  ///
+  /// * `rhs` - The vector to subtract from this vector
+  ///
+  /// # Panics
+  ///
+  /// Panics if the vectors have different dimensions.
   fn sub_assign(&mut self, rhs: Self) { *self = self.clone() - rhs }
 }
 
 impl<F: Field + Copy> Additive for DynamicVector<F> {}
 
 impl<F: Field + Copy> Group for DynamicVector<F> {
+  /// Returns the identity element for vector addition (the zero vector).
   fn identity() -> Self { Self::zero() }
 
+  /// Returns the additive inverse of this vector.
   fn inverse(&self) -> Self { -self.clone() }
 }
 
 impl<F: Field + Copy> Zero for DynamicVector<F> {
+  /// Returns the zero vector (empty vector with no components).
   fn zero() -> Self { Self { components: vec![] } }
 
+  /// Checks if this vector is the zero vector.
+  ///
+  /// A vector is considered zero if either:
+  /// 1. It has no components (empty vector)
+  /// 2. All of its components are equal to the zero element of the field
   fn is_zero(&self) -> bool {
     self.components.iter().all(|x| *x == F::zero()) || self.components.is_empty()
   }
@@ -182,7 +401,7 @@ mod tests {
   fn test_addition_with_zero_vector_implicit_panics() {
     let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
     let zero_vec: DynamicVector<Mod7> = DynamicVector::zero();
-    let _sum = vec1 + zero_vec; // Panics because vec1.len (2) != zero_vec.len (0)
+    let _ = vec1 + zero_vec; // Panics because vec1.len (2) != zero_vec.len (0)
   }
 
   #[test]
@@ -190,7 +409,7 @@ mod tests {
   fn test_addition_different_dimensions_panic() {
     let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
     let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(1), Mod7::from(1)]);
-    let _sum = vec1 + vec2; // Should panic
+    let _ = vec1 + vec2; // Should panic
   }
 
   #[test]
@@ -230,7 +449,7 @@ mod tests {
   fn test_subtraction_different_dimensions_panic() {
     let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
     let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1)]);
-    let _diff = vec1 - vec2;
+    let _ = vec1 - vec2;
   }
 
   #[test]

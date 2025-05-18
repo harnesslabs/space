@@ -1,3 +1,48 @@
+//! # Trivial Module
+//!
+//! This module provides an implementation of a trivial module over an arbitrary ring.
+//!
+//! ## Mathematical Background
+//!
+//! In abstract algebra, a trivial module is a module that contains exactly one element:
+//! the zero element. All operations on this element return the zero element itself:
+//!
+//! - Addition: $0 + 0 = 0$
+//! - Negation: $-0 = 0$
+//! - Scalar multiplication: $r \cdot 0 = 0$ for any ring element $r$
+//!
+//! ## Properties
+//!
+//! The trivial module satisfies all module axioms in the simplest possible way:
+//!
+//! - It forms an abelian group under addition (with only one element)
+//! - Scalar multiplication is distributive over addition
+//! - Scalar multiplication is compatible with ring multiplication
+//!
+//! ## Use Cases
+//!
+//! The trivial module serves several purposes:
+//!
+//! - As a base case in recursive constructions and mathematical proofs
+//! - To represent the kernel or image of certain module homomorphisms
+//! - For testing module-related algorithms with the simplest possible input
+//! - As a terminal object in the category of R-modules
+//!
+//! ## Example
+//!
+//! ```
+//! use harness_algebra::{modules::trivial::TrivialModule, prelude::*};
+//!
+//! // Create a trivial module over the integers
+//! let m1: TrivialModule<i32> = TrivialModule::zero();
+//! let m2: TrivialModule<i32> = TrivialModule::zero();
+//!
+//! // All operations return the same element
+//! assert_eq!(m1 + m2, m1);
+//! assert_eq!(m1 * 42, m1);
+//! assert_eq!(-m1, m1);
+//! ```
+
 use super::*;
 
 /// A trivial module over a ring.

@@ -30,7 +30,12 @@ pub mod primitive;
 ///
 ///  # Examples
 /// - All primitive numeric types implement this trait
-/// - [`Boolean`] type implements this trait using bitwise [`std::ops::BitXor`]
+/// - [`Boolean`](crate::algebras::boolean::Boolean) type implements this trait using bitwise
+///   [`std::ops::BitXor`]
+/// - Using the [`modular!`] macro, you can define a modular arithmetic type and it will implement
+///   this trait.
+/// - Using the [`prime_field!`] macro, you can define a prime field type and it will implement this
+///   trait.
 pub trait Additive: Add<Output = Self> + AddAssign + PartialEq + Sized {}
 
 /// A trait for types that support multiplication operations.
@@ -43,7 +48,12 @@ pub trait Additive: Add<Output = Self> + AddAssign + PartialEq + Sized {}
 ///
 /// # Examples
 /// - All primitive numeric types implement this trait
-/// - [`Boolean`] type implements this trait using bitwise [`std::ops::BitAnd`]
+/// - [`Boolean`](crate::algebras::boolean::Boolean) type implements this trait using bitwise
+///   [`std::ops::BitAnd`]
+/// - Using the [`modular!`] macro, you can define a modular arithmetic type and it will implement
+///   this trait.
+/// - Using the [`prime_field!`] macro, you can define a prime field type and it will implement this
+///   trait.
 pub trait Multiplicative: Mul<Output = Self> + MulAssign + PartialEq + Sized {}
 
 /// Trait for types that have a concept of positive infinity.

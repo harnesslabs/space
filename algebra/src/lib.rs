@@ -56,6 +56,35 @@ pub use num_traits::{One, Zero};
 pub use crate::arithmetic::{Additive, Multiplicative};
 
 pub mod prelude {
+  //! # Prelude Module
+  //!
+  //! This module re-exports the most commonly used types, traits, and operations from the
+  //! algebra crate for convenient importing.
+  //!
+  //! ## Purpose
+  //!
+  //! The prelude pattern allows users to import multiple commonly used items with a single
+  //! import statement, reducing boilerplate and improving code readability.
+  //!
+  //! ## Contents
+  //!
+  //! The prelude includes:
+  //!
+  //! - Core algebraic structures: [`Algebra`], [`Group`], [`Ring`], [`Field`], [`VectorSpace`]
+  //! - Behavioral traits: [`Additive`], [`Multiplicative`]
+  //! - Group variants: [`AbelianGroup`], [`NonAbelianGroup`]
+  //! - Module types: [`LeftModule`], [`RightModule`], [`TwoSidedModule`]
+  //! - Semimodule types: [`LeftSemimodule`], [`RightSemimodule`], [`TwoSidedSemimodule`]
+  //! - Fundamental operators: [`Add`], [`Mul`], [`Sub`], [`Div`] and their assignment variants
+  //! - Identity concepts: [`Zero`], [`One`], [`Neg`]
+  //!
+  //! ## Usage
+  //!
+  //! ```
+  //! // Import everything from the prelude
+  //! use harness_algebra::prelude::*;
+  //! ```
+
   pub use crate::{
     algebras::Algebra,
     arithmetic::{Additive, Multiplicative},

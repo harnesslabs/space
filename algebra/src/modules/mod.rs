@@ -26,8 +26,8 @@
 //!
 //! # Module Structure
 //!
-//! - [`Semimodule`]: Main trait for semimodule structures
-//! - [`tropical`]: Implementation of tropical algebra as a semimodule
+//! - [`trivial`]: Trivial semimodule
+//! - [`tropical`]: Semimodule over the tropical semiring
 
 use core::marker::PhantomData;
 
@@ -37,8 +37,8 @@ use crate::{
   rings::{Field, Ring, Semiring},
 };
 
-mod trivial;
-mod tropical;
+pub mod trivial;
+pub mod tropical;
 
 /// A left semimodule over a semiring.
 ///

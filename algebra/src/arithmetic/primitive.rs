@@ -1,3 +1,23 @@
+//! # Primitive Types Implementation
+//!
+//! This module implements the algebraic traits from the crate for Rust's primitive numeric types.
+//!
+//! ## Implementations
+//!
+//! - `Additive`: Implemented for all primitive numeric types, indicating they form an additive
+//!   structure
+//! - `Multiplicative`: Implemented for all primitive numeric types, indicating they form a
+//!   multiplicative structure
+//! - `Infinity`: Implemented for floating point types (f32, f64), providing access to their
+//!   infinity values
+//!
+//! These trait implementations allow primitive types to be used directly with the algebraic
+//! abstractions defined in this crate, enabling seamless integration between Rust's built-in
+//! types and the algebraic structures defined in this library.
+//!
+//! No additional methods are needed as Rust's primitive types already implement the required
+//! operations (`Add`, `Mul`, etc.) with the correct semantics.
+
 use super::*;
 
 // Implement Additive for all primitive numeric types
@@ -38,9 +58,9 @@ impl Multiplicative for f64 {}
 
 // Implement Infinity for float primitive numeric types
 impl Infinity for f32 {
-  const INFINITY: Self = f32::INFINITY;
+  const INFINITY: Self = Self::INFINITY;
 }
 
 impl Infinity for f64 {
-  const INFINITY: Self = f64::INFINITY;
+  const INFINITY: Self = Self::INFINITY;
 }

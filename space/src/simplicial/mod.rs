@@ -49,7 +49,8 @@
 //! - Calculation of homology groups [`HomologyGroup<F>`] using Gaussian elimination over a generic
 //!   [`Field`] `F`. This involves:
 //!     - Constructing boundary matrices.
-//!     - Computing kernel and image bases of these matrices using [`row_gaussian_elimination`].
+//!     - Computing kernel and image bases of these matrices using
+//!       [`DynamicDenseMatrix::row_echelon_form`].
 //!
 //! ## Usage Example
 //!
@@ -302,15 +303,15 @@ impl SimplicialComplex {
   ///    $(k+1)$-simplices ($S_{k+1}$).
   /// 2. Constructing boundary matrices for $\partial_k: C_k \to C_{k-1}$ and $\partial_{k+1}:
   ///    C_{k+1} \to C_k$.
-  /// 3. Using [`row_gaussian_elimination`] to find the rank and bases for the kernel (cycles $Z_k =
-  ///    \ker \partial_k$) and image (boundaries $B_k = \text{im } \partial_{k+1}$).
+  /// 3. Using [`DynamicDenseMatrix::row_echelon_form`] to find the rank and bases for the kernel
+  ///    (cycles $Z_k = \ker \partial_k$) and image (boundaries $B_k = \text{im } \partial_{k+1}$).
   /// 4. The homology group $H_k = Z_k / B_k$. The Betti number ($b_k$) is $\text{rank}(H_k) =
   ///    \dim(Z_k) - \dim(B_k)$.
   ///
   /// # Type Parameters
   /// * `F`: The coefficient field. Must implement [`Field`] and [`Copy`]. Common choices include
-  ///   [`f64`], [`Boolean`](harness_algebra::arithmetic::Boolean) (for $\mathbb{Z}/2\mathbb{Z}$),
-  ///   or modular fields like $\mathbb{Z}/p\mathbb{Z}$ for prime $p$.
+  ///   [`f64`], [`Boolean`](harness_algebra::algebras::boolean::Boolean) (for
+  ///   $\mathbb{Z}/2\mathbb{Z}$), or modular fields like $\mathbb{Z}/p\mathbb{Z}$ for prime $p$.
   ///
   /// # Arguments
   /// * `k`: The dimension of the homology group to compute (e.g., 0 for $H_0$, 1 for $H_1$).
@@ -476,7 +477,7 @@ impl SimplicialComplex {
     let mut q_mat = DynamicDenseMatrix::<F, RowMajor>::new();
     if !s_k.is_empty() {
       for c in quot_mat_cols {
-        q_mat.append_column(c);
+        q_mat.append_column(&c);
       }
     }
 
@@ -991,7 +992,7 @@ pub fn get_boundary_matrix<F: Field + Copy>(
   let km1_simplex_to_idx: HashMap<Simplex, usize> =
     ordered_km1_simplices.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
 
-  for (_j, k_simplex) in ordered_k_simplices.iter().enumerate() {
+  for k_simplex in ordered_k_simplices {
     // For each k-simplex, compute its boundary.
     // The boundary is a (k-1)-chain.
     let boundary_chain =
@@ -999,7 +1000,7 @@ pub fn get_boundary_matrix<F: Field + Copy>(
 
     // Convert this boundary_chain into a column vector for the matrix.
     let col_vector = chain_to_coeff_vector(&boundary_chain, &km1_simplex_to_idx, num_rows);
-    matrix.append_column(DynamicVector::from(col_vector));
+    matrix.append_column(&col_vector);
   }
   matrix
 }

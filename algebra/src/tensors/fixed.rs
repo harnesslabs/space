@@ -1,3 +1,49 @@
+//! # Fixed Vector Module
+//!
+//! This module provides a compile-time fixed-size vector implementation over
+//! arbitrary fields.
+//!
+//! ## Mathematical Background
+//!
+//! A vector space $V$ over a field $F$ is a set equipped with operations of addition
+//! and scalar multiplication that satisfy the vector space axioms. This implementation
+//! represents elements of $V$ as fixed-length arrays of components from the field $F$.
+//!
+//! For any two vectors $\mathbf{u}, \mathbf{v} \in V$ and scalar $\alpha \in F$:
+//!
+//! - Vector addition: $\mathbf{u} + \mathbf{v} = (u_1 + v_1, u_2 + v_2, \ldots, u_n + v_n)$
+//! - Scalar multiplication: $\alpha\mathbf{v} = (\alpha v_1, \alpha v_2, \ldots, \alpha v_n)$
+//! - Additive inverse (negation): $-\mathbf{v} = (-v_1, -v_2, \ldots, -v_n)$
+//!
+//! ## Features
+//!
+//! - Dimension determined at compile-time using const generics
+//! - Efficient memory layout with stack allocation
+//! - Support for vector arithmetic operations (+, -, *, scalar multiplication)
+//! - Implements algebraic traits like `Zero`, `Group`, and `VectorSpace`
+//! - Automatic bounds checking prevention through fixed-size arrays
+//!
+//! ## Examples
+//!
+//! ```
+//! use harness_algebra::{rings::Field, tensors::fixed::FixedVector};
+//!
+//! // Create a 3D vector with f64 components
+//! let v = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
+//!
+//! // Create another vector
+//! let w = FixedVector::<3, f64>([4.0, 5.0, 6.0]);
+//!
+//! // Vector addition
+//! let sum = v + w;
+//!
+//! // Scalar multiplication
+//! let scaled = v * 2.0;
+//!
+//! // Create a zero vector
+//! let zero = FixedVector::<3, f64>::zero();
+//! ```
+
 use super::*;
 
 /// A fixed-size vector over a field.

@@ -21,6 +21,8 @@
 //!
 //! - [`clifford`]: Implementation of Clifford algebras, which are useful for geometric computations
 //!   and transformations in n-dimensional spaces.
+//! - [`boolean`]: Implementation of Boolean algebra, which is useful for logical operations and
+//!   boolean logic.
 
 use super::*;
 use crate::{
