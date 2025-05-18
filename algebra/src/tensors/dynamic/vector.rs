@@ -18,12 +18,9 @@ impl<F> DynamicVector<F> {
 
   pub fn components(&self) -> &[F] { &self.components }
 
-  pub fn components_mut(&mut self) -> &mut [F] { &mut self.components }
+  pub fn components_mut(&mut self) -> &mut Vec<F> { &mut self.components }
 
-  pub fn get_component(&self, index: usize) -> F
-  where F: Copy {
-    self.components[index]
-  }
+  pub fn get_component(&self, index: usize) -> &F { &self.components[index] }
 
   pub fn set_component(&mut self, index: usize, value: F) { self.components[index] = value }
 

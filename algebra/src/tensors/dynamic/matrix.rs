@@ -56,9 +56,6 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
     if self.components.dimension() == 0 {
       0
     } else {
-      // Get the first row and return its dimension (length)
-      // Requires access to DynamicVector::components or a method giving an inner vector by ref.
-      // Assuming self.components.components gives access to Vec<DynamicVector<F>> for RowMajor.
       self.components.components()[0].dimension()
     }
   }
@@ -74,11 +71,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
       }
       // Each element of the input column becomes a new row with one element.
       for i in 0..column.dimension() {
-        self
-          .components
-          .components_mut()
-          .to_vec()
-          .push(DynamicVector::new(vec![column.get_component(i)]));
+        self.components.components_mut().push(DynamicVector::new(vec![*column.get_component(i)]));
       }
     } else {
       assert_eq!(num_r, column.dimension(), "Column length must match the number of rows");
@@ -86,23 +79,23 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
         // self.components.components is Vec<DynamicVector<F>> (rows)
         // Each self.components.components[i] is a DynamicVector<F> (a row)
         // We need to append to its internal Vec<F>.
-        self.components.components_mut()[i].append(column.get_component(i));
+        self.components.components_mut()[i].append(*column.get_component(i));
       }
     }
   }
 
   /// Returns a new DynamicVector representing the column at the given index.
-  pub fn get_column(&self, index: usize) -> DynamicVector<F> {
+  pub fn get_column(&self, index: usize) -> &DynamicVector<F> {
     let num_r = self.num_rows();
     if num_r == 0 {
-      return DynamicVector::new(vec![]);
+      return &DynamicVector::new(vec![]);
     }
     assert!(index < self.num_cols(), "Column index out of bounds");
     let mut col_components = Vec::with_capacity(num_r);
     for i in 0..num_r {
-      col_components.push(self.components.components()[i].get_component(index));
+      col_components.push(*self.components.components()[i].get_component(index));
     }
-    DynamicVector::new(col_components)
+    &DynamicVector::new(col_components)
   }
 
   /// Sets the column at the given index with the provided DynamicVector.
@@ -115,7 +108,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
     }
     assert!(index < self.num_cols(), "Column index out of bounds");
     for i in 0..num_r {
-      self.components.components_mut()[i].set_component(index, column.get_component(i));
+      self.components.components_mut()[i].set_component(index, *column.get_component(i));
     }
   }
 
@@ -129,7 +122,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
         "New row length must match existing number of columns"
       );
     }
-    self.components.components_mut().to_vec().push(row);
+    self.components.components_mut().push(row);
   }
 
   /// Returns a reference to the row at the given index.
@@ -153,7 +146,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   }
 
   /// Returns the component at the given row and column.
-  pub fn get_component(&self, row: usize, col: usize) -> F {
+  pub fn get_component(&self, row: usize, col: usize) -> &F {
     assert!(row < self.num_rows(), "Row index out of bounds");
     assert!(col < self.num_cols(), "Column index out of bounds"); // Relies on num_cols correctly assessing based on first row
     self.components.components()[row].get_component(col)
@@ -207,7 +200,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
 
       // Normalize pivot row: matrix[r][j] = matrix[r][j] * inv_pivot
       for j in lead..cols {
-        matrix[r].set_component(j, matrix[r].get_component(j) * inv_pivot);
+        matrix[r].set_component(j, *matrix[r].get_component(j) * inv_pivot);
       }
 
       // Eliminate other rows: matrix[i] = matrix[i] - factor * matrix[r]
@@ -216,8 +209,8 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
           let factor = matrix[i_row].get_component(lead);
           if !factor.is_zero() {
             for j_col in lead..cols {
-              let term = factor * matrix[r].get_component(j_col);
-              matrix[i_row].set_component(j_col, matrix[i_row].get_component(j_col) - term);
+              let term = *factor * *matrix[r].get_component(j_col);
+              matrix[i_row].set_component(j_col, *matrix[i_row].get_component(j_col) - term);
             }
           }
         }
@@ -259,15 +252,15 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
         "New column length must match existing number of rows"
       );
     }
-    self.components.components_mut().to_vec().push(column); // Add the new column vector
+    self.components.components_mut().push(column); // Add the new column vector
   }
 
   /// Returns a new DynamicVector representing the column at the given index.
-  pub fn get_column(&self, index: usize) -> DynamicVector<F> {
+  pub fn get_column(&self, index: usize) -> &DynamicVector<F> {
     assert!(index < self.num_cols(), "Column index out of bounds");
     // For ColumnMajor, a column is directly one of the inner DynamicVectors.
     // We need to return a new owned DynamicVector, so clone its components.
-    DynamicVector::new(self.components.components()[index].components().to_vec())
+    &self.components.components()[index]
   }
 
   /// Sets the column at the given index with the provided DynamicVector.
@@ -299,30 +292,30 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
           .components
           .components_mut()
           .to_vec()
-          .push(DynamicVector::new(vec![row.get_component(i)]));
+          .push(DynamicVector::new(vec![*row.get_component(i)]));
       }
     } else {
       assert_eq!(num_c, row.dimension(), "Row length must match the number of columns");
       for i in 0..num_c {
         // self.components.components[i] is a column (DynamicVector<F>)
         // Append the i-th element of the new row to the i-th column vector.
-        self.components.components_mut()[i].components().to_vec().push(row.get_component(i));
+        self.components.components_mut()[i].components().to_vec().push(*row.get_component(i));
       }
     }
   }
 
   /// Returns a new DynamicVector representing the row at the given index.
-  pub fn get_row(&self, index: usize) -> DynamicVector<F> {
+  pub fn get_row(&self, index: usize) -> &DynamicVector<F> {
     let num_c = self.num_cols();
     if num_c == 0 {
-      return DynamicVector::new(vec![]); // No columns means no rows effectively
+      return &DynamicVector::new(vec![]);
     }
     assert!(index < self.num_rows(), "Row index out of bounds");
     let mut row_components = Vec::with_capacity(num_c);
     for i in 0..num_c {
-      row_components.push(self.components.components()[i].get_component(index));
+      row_components.push(*self.components.components()[i].get_component(index));
     }
-    DynamicVector::new(row_components)
+    &DynamicVector::new(row_components)
   }
 
   /// Sets the row at the given index with the provided DynamicVector.
@@ -335,15 +328,15 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
     }
     assert!(index < self.num_rows(), "Row index out of bounds");
     for i in 0..num_c {
-      self.components.components_mut()[i].set_component(index, row.get_component(i));
+      self.components.components_mut()[i].set_component(index, *row.get_component(i));
     }
   }
 
   /// Returns the component at the given row and column.
-  pub fn get_component(&self, row: usize, col: usize) -> F {
+  pub fn get_component(&self, row: usize, col: usize) -> &F {
     assert!(col < self.num_cols(), "Column index out of bounds");
-    assert!(row < self.num_rows(), "Row index out of bounds"); // Relies on num_rows correctly assessing based on first col
-    self.components.components()[col].get_component(row) // Access col first, then row
+    assert!(row < self.num_rows(), "Row index out of bounds");
+    self.components.components()[col].get_component(row)
   }
 
   /// Sets the component at the given row and column to the given value.
@@ -382,8 +375,8 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
         // Swap row i with pivot_row to bring pivot to matrix[pivot_row][j]
         if i != pivot_row {
           for col_idx_swap in j..cols {
-            let temp = matrix[i].get_component(col_idx_swap);
-            matrix[i].set_component(col_idx_swap, matrix[pivot_row].get_component(col_idx_swap));
+            let temp = *matrix[i].get_component(col_idx_swap);
+            matrix[i].set_component(col_idx_swap, *matrix[pivot_row].get_component(col_idx_swap));
             matrix[pivot_row].set_component(col_idx_swap, temp);
           }
         }
@@ -399,7 +392,7 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
           for col_idx_norm in j..cols {
             matrix[pivot_row].set_component(
               col_idx_norm,
-              matrix[pivot_row].get_component(col_idx_norm) * inv_pivot_val,
+              *matrix[pivot_row].get_component(col_idx_norm) * inv_pivot_val,
             );
           }
         }
@@ -414,10 +407,10 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
             if !factor.is_zero() {
               for col_idx_elim in j..cols {
                 // Iterate from the pivot column to the right
-                let term_to_subtract = factor * matrix[pivot_row].get_component(col_idx_elim);
+                let term_to_subtract = *factor * *matrix[pivot_row].get_component(col_idx_elim);
                 matrix[k].set_component(
                   col_idx_elim,
-                  matrix[k].get_component(col_idx_elim) - term_to_subtract,
+                  *matrix[k].get_component(col_idx_elim) - term_to_subtract,
                 );
               }
             }
@@ -459,19 +452,20 @@ mod tests {
     let r0 = DynamicVector::new(r0_data.clone());
     let r1 = DynamicVector::new(r1_data.clone());
 
-    m.append_row(r0.clone());
+    m.append_row(r0);
+    dbg!(&m);
     assert_eq!(m.num_rows(), 1);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_row(0).components(), &r0_data);
 
-    m.append_row(r1.clone());
+    m.append_row(r1);
     assert_eq!(m.num_rows(), 2);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_row(1).components(), &r1_data);
 
     let r_new_data = vec![Mod7::new(5), Mod7::new(6)];
     let r_new = DynamicVector::new(r_new_data.clone());
-    m.set_row(0, r_new.clone());
+    m.set_row(0, r_new);
     assert_eq!(m.num_rows(), 2);
     assert_eq!(m.num_cols(), 2);
     assert_eq!(m.get_row(0).components(), &r_new_data);
