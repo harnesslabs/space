@@ -650,4 +650,54 @@ mod tests {
     m.append_row(DynamicVector::new(vec![1.0, 2.0]));
     m.append_row(DynamicVector::new(vec![3.0])); // Should panic
   }
+
+  #[test]
+  fn test_row_echelon_form_row_major() {
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    m.append_row(DynamicVector::new(vec![1.0, 2.0, 3.0]));
+    m.append_row(DynamicVector::new(vec![4.0, 5.0, 6.0]));
+    m.append_row(DynamicVector::new(vec![7.0, 8.0, 9.0]));
+    let rank = m.row_echelon_form();
+    assert_eq!(rank, 2);
+
+    dbg!(&m);
+
+    assert_eq!(m.num_rows(), 3);
+    assert_eq!(m.num_cols(), 3);
+
+    assert_eq!(*m.get_component(0, 0), 1.0);
+    assert_eq!(*m.get_component(0, 1), 0.0);
+    assert_eq!(*m.get_component(0, 2), -1.0);
+    assert_eq!(*m.get_component(1, 0), 0.0);
+    assert_eq!(*m.get_component(1, 1), 1.0);
+    assert_eq!(*m.get_component(1, 2), 2.0);
+    assert_eq!(*m.get_component(2, 0), 0.0);
+    assert_eq!(*m.get_component(2, 1), 0.0);
+    assert_eq!(*m.get_component(2, 2), 0.0);
+  }
+
+  #[test]
+  fn test_row_echelon_form_col_major() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    m.append_column(DynamicVector::new(vec![1.0, 2.0, 3.0]));
+    m.append_column(DynamicVector::new(vec![4.0, 5.0, 6.0]));
+    m.append_column(DynamicVector::new(vec![7.0, 8.0, 9.0]));
+    let rank = m.row_echelon_form();
+    assert_eq!(rank, 2);
+
+    dbg!(&m);
+
+    assert_eq!(m.num_rows(), 3);
+    assert_eq!(m.num_cols(), 3);
+
+    assert_eq!(*m.get_component(0, 0), 1.0);
+    assert_eq!(*m.get_component(0, 1), 0.0);
+    assert_eq!(*m.get_component(0, 2), -1.0);
+    assert_eq!(*m.get_component(1, 0), 0.0);
+    assert_eq!(*m.get_component(1, 1), 1.0);
+    assert_eq!(*m.get_component(1, 2), 2.0);
+    assert_eq!(*m.get_component(2, 0), 0.0);
+    assert_eq!(*m.get_component(2, 1), 0.0);
+    assert_eq!(*m.get_component(2, 2), 0.0);
+  }
 }
