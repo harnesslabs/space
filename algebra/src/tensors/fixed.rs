@@ -26,7 +26,7 @@
 //! ## Examples
 //!
 //! ```
-//! use harness_algebra::{rings::Field, tensors::fixed::FixedVector};
+//! use harness_algebra::{prelude::*, tensors::fixed::FixedVector};
 //!
 //! // Create a 3D vector with f64 components
 //! let v = FixedVector::<3, f64>([1.0, 2.0, 3.0]);

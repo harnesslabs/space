@@ -49,7 +49,7 @@ use super::*;
 ///
 /// This is a simple implementation of a module that has only one element.
 /// It's useful as a base case or for testing purposes.
-#[derive(Clone, Copy, Default, Eq, PartialEq)]
+#[derive(Clone, Copy, Default, Eq, PartialEq, Debug)]
 pub struct TrivialModule<R> {
   pub(crate) _r: PhantomData<R>,
 }
