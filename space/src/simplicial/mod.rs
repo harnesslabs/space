@@ -54,7 +54,7 @@
 //! ## Usage Example
 //!
 //! ```rust
-//! use harness_algebra::arithmetic::Boolean;
+//! use harness_algebra::algebras::boolean::Boolean;
 //! use harness_space::simplicial::{Simplex, SimplicialComplex}; // For Z/2Z coefficients
 //!
 //! // Create a simplicial complex representing a hollow triangle (cycle C3)
@@ -368,10 +368,8 @@ impl SimplicialComplex {
           }
         }
       }
-      let z0_gens: Vec<Chain<F>> = vertices
-        .iter()
-        .map(|v| Chain::from_simplex_and_coeff(v.clone(), <F as One>::one()))
-        .collect();
+      let z0_gens: Vec<Chain<F>> =
+        vertices.iter().map(|v| Chain::from_simplex_and_coeff(v.clone(), F::one())).collect();
       let s1_for_b0 = self.simplices_by_dimension(1).map_or_else(Vec::new, |s| {
         let mut sorted_s = s.to_vec();
         sorted_s.sort_unstable();
@@ -380,13 +378,17 @@ impl SimplicialComplex {
       let b0_gens = if s1_for_b0.is_empty() || vertices.is_empty() {
         Vec::new()
       } else {
-        let mut mat_d1 = get_boundary_matrix(&s1_for_b0, &vertices);
-        let (_, p_cols_d1) = row_gaussian_elimination(&mut mat_d1);
+        let mut mat_d1: DynamicDenseMatrix<F, RowMajor> =
+          get_boundary_matrix(&s1_for_b0, &vertices);
+        let mat_d1_result = mat_d1.row_echelon_form();
         let d_s1_chains: Vec<Chain<F>> = s1_for_b0
           .iter()
-          .map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one()).boundary())
+          .map(|s| Chain::from_simplex_and_coeff(s.clone(), F::one()).boundary())
           .collect();
-        image_basis_from_row_echelon(&mat_d1, &d_s1_chains, &p_cols_d1)
+        image_basis_from_row_echelon(
+          &d_s1_chains,
+          &mat_d1_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
+        )
       };
       return HomologyGroup {
         dimension:           0,
@@ -421,13 +423,16 @@ impl SimplicialComplex {
     let b_k_gens = if s_kp1.is_empty() || s_k.is_empty() {
       Vec::new()
     } else {
-      let mut mat_dkp1 = get_boundary_matrix(&s_kp1, &s_k);
-      let (_, p_cols) = row_gaussian_elimination(&mut mat_dkp1);
+      let mut mat_dkp1: DynamicDenseMatrix<F, RowMajor> = get_boundary_matrix(&s_kp1, &s_k);
+      let mat_dkp1_result = mat_dkp1.row_echelon_form();
       let d_skp1_chains: Vec<Chain<F>> = s_kp1
         .iter()
         .map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one()).boundary())
         .collect();
-      image_basis_from_row_echelon(&mat_dkp1, &d_skp1_chains, &p_cols)
+      image_basis_from_row_echelon(
+        &d_skp1_chains,
+        &mat_dkp1_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
+      )
     };
 
     let z_k_gens = if s_k.is_empty() {
@@ -436,8 +441,12 @@ impl SimplicialComplex {
       ck_basis
     } else {
       let mut mat_dk = get_boundary_matrix(&s_k, &s_km1);
-      let (_, p_cols) = row_gaussian_elimination(&mut mat_dk);
-      kernel_basis_from_row_echelon(&mat_dk, &ck_basis, &p_cols)
+      let mat_dk_result = mat_dk.row_echelon_form();
+      kernel_basis_from_row_echelon(
+        &mat_dk,
+        &ck_basis,
+        &mat_dk_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
+      )
     };
 
     if s_k.is_empty() {
@@ -464,16 +473,14 @@ impl SimplicialComplex {
       };
     }
 
-    let mut q_mat = vec![vec![<F as Zero>::zero(); quot_mat_cols.len()]; s_k.len()];
+    let mut q_mat = DynamicDenseMatrix::<F, RowMajor>::new();
     if !s_k.is_empty() {
-      (0..s_k.len()).for_each(|r| {
-        (0..quot_mat_cols.len()).for_each(|c| {
-          q_mat[r][c] = quot_mat_cols[c][r];
-        });
-      });
+      for c in quot_mat_cols {
+        q_mat.append_column(c);
+      }
     }
 
-    let (_, p_cols_q) = row_gaussian_elimination(&mut q_mat);
+    let p_cols_q = q_mat.row_echelon_form().pivots.iter().map(|p| p.col).collect::<Vec<_>>();
     let mut h_k_gens = Vec::new();
     for &p_idx in &p_cols_q {
       if p_idx >= num_b {
@@ -913,7 +920,6 @@ pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
 /// # Returns
 /// A `Vec<Chain<F>>` where each chain is a generator for the image.
 pub fn image_basis_from_row_echelon<F: Field + Copy>(
-  _row_echelon_matrix: &[Vec<F>], // Matrix itself not strictly needed if we have pivot_cols
   column_basis_elements: &[Chain<F>],
   pivot_cols: &[usize],
 ) -> Vec<Chain<F>> {

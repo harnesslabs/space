@@ -31,11 +31,11 @@
 //! #![feature(generic_const_exprs)]
 //! use harness_algebra::{
 //!   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-//!   vector::Vector,
+//!   tensors::fixed::FixedVector,
 //! };
 //!
 //! // Create a 3D Clifford algebra with signature (+, +, -)
-//! let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+//! let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
 //! let algebra = CliffordAlgebra::new(quadratic_form);
 //!
 //! // Create basis vectors
@@ -99,10 +99,10 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use harness_algebra::{algebras::clifford::QuadraticForm, vector::Vector};
+/// use harness_algebra::{algebras::clifford::QuadraticForm, tensors::fixed::FixedVector};
 ///
 /// // Create a quadratic form with coefficients [1, 1, -1]
-/// let q = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+/// let q = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
 /// ```
 #[derive(Debug, PartialEq, Eq)]
 pub struct QuadraticForm<F: Field, const N: usize> {
@@ -119,9 +119,9 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   /// # Examples
   ///
   /// ```
-  /// use harness_algebra::{algebras::clifford::QuadraticForm, vector::Vector};
+  /// use harness_algebra::{algebras::clifford::QuadraticForm, tensors::fixed::FixedVector};
   ///
-  /// let q = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+  /// let q = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
   /// ```
   pub const fn new(coefficients: FixedVector<N, F>) -> Self { Self { coefficients } }
 
@@ -138,10 +138,10 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   /// # Examples
   ///
   /// ```
-  /// use harness_algebra::{algebras::clifford::QuadraticForm, vector::Vector};
+  /// use harness_algebra::{algebras::clifford::QuadraticForm, tensors::fixed::FixedVector};
   ///
-  /// let q = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
-  /// let v = Vector::<3, f64>([1.0, 2.0, 3.0]);
+  /// let q = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
+  /// let v = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
   /// assert_eq!(q.evaluate(&v), 1.0 + 4.0 - 9.0); // 1*1² + 1*2² + (-1)*3²
   /// ```
   pub fn evaluate(&self, v: &FixedVector<N, F>) -> F {
@@ -170,10 +170,10 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
 /// #![feature(generic_const_exprs)]
 /// use harness_algebra::{
 ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-///   vector::Vector,
+///   tensors::fixed::FixedVector,
 /// };
 ///
-/// let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+/// let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
 /// let algebra = CliffordAlgebra::new(quadratic_form);
 /// ```
 pub struct CliffordAlgebra<F: Field, const N: usize> {
@@ -195,10 +195,10 @@ where [(); 1 << N]:
   /// #![feature(generic_const_exprs)]
   /// use harness_algebra::{
   ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-  ///   vector::Vector,
+  ///   tensors::fixed::FixedVector,
   /// };
   ///
-  /// let quadratic_form = QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0]));
+  /// let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
   /// let algebra = CliffordAlgebra::new(quadratic_form);
   /// ```
   pub const fn new(quadratic_form: QuadraticForm<F, N>) -> Self { Self { quadratic_form } }
@@ -215,11 +215,11 @@ where [(); 1 << N]:
   /// #![feature(generic_const_exprs)]
   /// use harness_algebra::{
   ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-  ///   vector::Vector,
+  ///   tensors::fixed::FixedVector,
   /// };
   ///
-  /// let algebra = CliffordAlgebra::new(QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0])));
-  /// let element = algebra.element(Vector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+  /// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
+  /// let element = algebra.element(FixedVector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
   /// ```
   pub const fn element(
     &self,
@@ -247,10 +247,10 @@ where [(); 1 << N]:
   /// #![feature(generic_const_exprs)]
   /// use harness_algebra::{
   ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-  ///   vector::Vector,
+  ///   tensors::fixed::FixedVector,
   /// };
   ///
-  /// let algebra = CliffordAlgebra::new(QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0])));
+  /// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
   /// let e1 = algebra.blade([1]);
   /// let e01 = algebra.blade([0, 1]);
   /// ```
@@ -330,10 +330,10 @@ fn binomial(n: usize, k: usize) -> usize {
 /// #![feature(generic_const_exprs)]
 /// use harness_algebra::{
 ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-///   vector::Vector,
+///   tensors::fixed::FixedVector,
 /// };
 ///
-/// let algebra = CliffordAlgebra::new(QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0])));
+/// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
 /// let e1 = algebra.blade([1]);
 /// let e2 = algebra.blade([2]);
 /// let sum = e1 + e2;
@@ -636,10 +636,10 @@ fn generate_combinations(
 /// #![feature(generic_const_exprs)]
 /// use harness_algebra::{
 ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-///   vector::Vector,
+///   tensors::fixed::FixedVector,
 /// };
 ///
-/// let algebra = CliffordAlgebra::new(QuadraticForm::new(Vector::<3, f64>([1.0, 1.0, -1.0])));
+/// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
 /// let e1 = algebra.blade([1]);
 ///
 /// // Both of these are valid thanks to this macro

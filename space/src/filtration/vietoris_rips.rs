@@ -38,7 +38,7 @@
 //! [`SimplicialComplex`] or, optionally, [`HomologyGroup`]s for specified dimensions.
 //!
 //! ```rust
-//! use harness_algebra::vector::Vector;
+//! use harness_algebra::tensors::fixed::FixedVector;
 //! use harness_space::{
 //!   cloud::Cloud,
 //!   filtration::{vietoris_rips::VietorisRips, Filtration},
@@ -46,9 +46,9 @@
 //! };
 //!
 //! // Example: Create a cloud of 3 points forming a triangle
-//! let p0 = Vector([0.0, 0.0]);
-//! let p1 = Vector([1.0, 0.0]);
-//! let p2 = Vector([0.5, 0.866]); // Approx. equilateral triangle
+//! let p0 = FixedVector([0.0, 0.0]);
+//! let p1 = FixedVector([1.0, 0.0]);
+//! let p2 = FixedVector([0.5, 0.866]); // Approx. equilateral triangle
 //! let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1, p2]);
 //!
 //! // Create a VietorisRips builder for SimplicialComplex output

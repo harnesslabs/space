@@ -14,7 +14,7 @@ use super::*;
 /// # Examples
 ///
 /// ```
-/// use harness_algebra::arithmetic::Boolean;
+/// use harness_algebra::algebras::boolean::Boolean;
 ///
 /// let a = Boolean(true);
 /// let b = Boolean(false);

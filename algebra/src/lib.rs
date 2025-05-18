@@ -18,7 +18,7 @@
 //! ## Modular Arithmetic
 //!
 //! ```
-//! use harness_algebra::{group::Group, modular, ring::Ring};
+//! use harness_algebra::{algebras::boolean::Boolean, modular, rings::Field};
 //!
 //! // Create a type for numbers modulo 7
 //! modular!(Mod7, u32, 7);
@@ -31,13 +31,10 @@
 //! ## Vector Spaces
 //!
 //! ```
-//! use harness_algebra::{
-//!   ring::Field,
-//!   vector::{Vector, VectorSpace},
-//! };
+//! use harness_algebra::{algebras::boolean::Boolean, rings::Field, tensors::fixed::FixedVector};
 //!
-//! let v1 = Vector::<3, f64>([1.0, 2.0, 3.0]);
-//! let v2 = Vector::<3, f64>([4.0, 5.0, 6.0]);
+//! let v1 = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
+//! let v2 = FixedVector::<3, f64>([4.0, 5.0, 6.0]);
 //! let sum = v1 + v2;
 //! ```
 

@@ -6,10 +6,10 @@ use super::*;
 /// a fixed number of components and the scalars come from a field.
 ///
 /// ```
-/// use harness_algebra::{ring::Field, vector::Vector};
+/// use harness_algebra::{rings::Field, tensors::fixed::FixedVector};
 ///
-/// let v = Vector::<3, f64>([1.0, 2.0, 3.0]);
-/// let w = Vector::<3, f64>([4.0, 5.0, 6.0]);
+/// let v = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
+/// let w = FixedVector::<3, f64>([4.0, 5.0, 6.0]);
 /// let sum = v + w;
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
