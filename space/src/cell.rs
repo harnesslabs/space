@@ -17,7 +17,13 @@
 
 use std::collections::{HashMap, HashSet};
 
-use harness_algebra::{rings::Field, vector::DynVector};
+use harness_algebra::{
+  rings::Field,
+  tensors::dynamic::{
+    matrix::{DynamicDenseMatrix, RowMajor},
+    vector::DynamicVector,
+  },
+};
 
 use crate::{
   definitions::TopologicalSpace,
@@ -189,9 +195,9 @@ impl TopologicalSpace for CellComplex {
 }
 
 impl<F: Field + Copy, S: ::std::hash::BuildHasher> Section<CellComplex>
-  for HashMap<Cell, DynVector<F>, S>
+  for HashMap<Cell, DynamicVector<F>, S>
 {
-  type Stalk = DynVector<F>;
+  type Stalk = DynamicVector<F>;
 
   fn evaluate(&self, _point: &<CellComplex as TopologicalSpace>::Point) -> Option<Self::Stalk> {
     todo!()
@@ -205,6 +211,8 @@ impl<F: Field + Copy, S: ::std::hash::BuildHasher> Section<CellComplex>
   }
 }
 
+// TODO (autoparallel): This should be generic over a matrix type eventually, but for now the dense
+// row major matrix works.
 /// A cellular sheaf over a cell complex, associating data (stalks) and restriction maps to the
 /// cells.
 ///
@@ -233,12 +241,12 @@ pub struct CellularSheaf<F> {
   /// The restriction maps between stalks, represented as matrices.
   /// Each key is a pair of cell IDs `(from, to)` where `to` is a face of `from`,
   /// and the value is the matrix (as a Vec of Vecs) representing the restriction map.
-  pub restriction_matrices: HashMap<(usize, usize), Vec<Vec<F>>>,
+  pub restriction_matrices: HashMap<(usize, usize), DynamicDenseMatrix<F, RowMajor>>,
 }
 
 impl<F: Field + Copy> Presheaf<CellComplex> for CellularSheaf<F> {
-  type Data = DynVector<F>;
-  type Section = HashMap<Cell, DynVector<F>>;
+  type Data = DynamicVector<F>;
+  type Section = HashMap<Cell, DynamicVector<F>>;
 
   fn restrict(
     &self,
