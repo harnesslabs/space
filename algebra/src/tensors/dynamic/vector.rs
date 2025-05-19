@@ -344,6 +344,12 @@ impl<F: Field + Copy + Mul<Self>> TwoSidedModule for DynamicVector<F> {
 
 impl<F: Field + Copy + Mul<Self>> VectorSpace for DynamicVector<F> {}
 
+impl<F> Iterator for DynamicVector<F> {
+  type Item = F;
+
+  fn next(&mut self) -> Option<Self::Item> { self.components.pop() }
+}
+
 #[cfg(test)]
 mod tests {
   use fixtures::Mod7;
