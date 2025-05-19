@@ -78,20 +78,19 @@
 //! - Hatcher, A. (2002). *Algebraic Topology*. Cambridge University Press. (Especially Chapter 2)
 //! - Munkres, J. R. (1984). *Elements of Algebraic Topology*. Addison-Wesley.
 
-use std::{
-  collections::HashMap,
-  ops::{Add, Neg},
-};
+use std::collections::HashMap;
 
-use harness_algebra::{
-  rings::Field,
-  tensors::dynamic::{
-    matrix::{DynamicDenseMatrix, RowMajor},
-    vector::DynamicVector,
-  },
+use harness_algebra::tensors::dynamic::{
+  matrix::{DynamicDenseMatrix, RowMajor},
+  vector::DynamicVector,
 };
 use itertools::Itertools;
-use num_traits::{One, Zero};
+
+use super::*;
+use crate::{
+  definitions::Topology,
+  homology::{Chain, Homology},
+};
 
 #[cfg(test)] mod tests;
 
@@ -230,48 +229,6 @@ impl SimplicialComplex {
     self.simplices.entry(dim).or_default().push(simplex);
   }
 
-  /// Computes the boundary of a formal sum of all $d$-simplices in the complex,
-  /// where $d$ is the given `dimension`. The coefficients are chosen based on a specific
-  /// (and somewhat arbitrary for general purposes) heuristic related to shared faces.
-  ///
-  /// **Note:** This method is likely **not** the standard boundary operator used for homology
-  /// computations. The primary, standard boundary operator is defined on [`Chain`]s via
-  /// [`Chain::boundary()`]. This `SimplicialComplex::boundary` method seems to be an attempt at a
-  /// different kind of boundary or might be a remnant of a different approach. Its utility for
-  /// standard homology is questionable. For computing homology, rely on
-  /// [`SimplicialComplex::compute_homology()`] which uses [`Chain::boundary()`].
-  ///
-  /// # Type Parameters
-  /// * `R`: The coefficient ring type, which must implement [`Clone`], [`Neg<Output = R>`],
-  ///   [`Add<Output = R>`], [`Zero`], and [`One`].
-  ///
-  /// # Arguments
-  /// * `dimension`: The dimension $d$ of simplices for which to compute this specific boundary sum.
-  ///
-  /// # Returns
-  /// A [`Chain<R>`] representing the computed boundary. Returns an empty chain if `dimension` is 0
-  /// or if no simplices of the given `dimension` exist in the complex.
-  pub fn boundary<R: Clone + Neg<Output = R> + Add<Output = R> + Zero + One>(
-    &self,
-    dimension: usize,
-  ) -> Chain<R> {
-    if dimension == 0 {
-      return Chain::new();
-    }
-    let mut chain = Chain::new();
-    if let Some(simplices_in_dim) = self.simplices.get(&dimension) {
-      for s_val in simplices_in_dim.clone() {
-        // Renamed simplex to s_val
-        if chain.simplices.iter().flat_map(Simplex::faces).any(|f| s_val.faces().contains(&f)) {
-          chain = chain + Chain::from_simplex_and_coeff(s_val, -R::one());
-        } else {
-          chain = chain + Chain::from_simplex_and_coeff(s_val, R::one());
-        }
-      }
-    }
-    chain.boundary()
-  }
-
   /// Returns a slice reference to the simplices of a given `dimension` stored in the complex.
   ///
   /// The order of simplices in the returned slice is not guaranteed to be fixed or sorted unless
@@ -287,7 +244,7 @@ impl SimplicialComplex {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
-  // TODO (autoparallel): This is a bit of a mess. We should clean it up.
+  // // TODO (autoparallel): This is a bit of a mess. We should clean it up.
   #[allow(clippy::too_many_lines)]
   /// Computes the $k$-th homology group $H_k(K; F)$ of the simplicial complex $K$
   /// with coefficients in a specified field $F$.
@@ -321,14 +278,20 @@ impl SimplicialComplex {
   /// cycles, boundaries, and the homology group itself.
   /// Returns a trivial homology group if there are no $k$-simplices or if other conditions lead to
   /// a trivial group.
-  pub fn compute_homology<F: Field + Copy>(&self, k: usize) -> HomologyGroup<F> {
+  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<Simplex, F> {
+    // TODO: Let's think about this, we always need to find the image of \partial_{k+1} and the
+    // kernel of \partial_k. However, the kernel of \partial_k when k=0 is all the vertices. So we
+    // should make this kind of conditional work nicely here.
+    // TODO: We should also make use of the matrix lib to do this, so we should be able to determine
+    // image and kernel of matrix. We should also just have a simple way to create a vector from
+    // chains (which we can do by sorting).
     if k == 0 {
       let mut vertices = match self.simplices_by_dimension(0) {
         Some(v) => v.to_vec(),
-        None => return HomologyGroup::trivial(0),
+        None => return Homology::trivial(0),
       };
       if vertices.is_empty() {
-        return HomologyGroup::trivial(0);
+        return Homology::trivial(0);
       }
       vertices.sort_unstable();
 
@@ -355,7 +318,7 @@ impl SimplicialComplex {
       for i in 0..vertices.len() {
         if !visited[i] {
           components += 1;
-          h0_generators.push(Chain::from_simplex_and_coeff(vertices[i].clone(), <F as One>::one()));
+          h0_generators.push(Chain::from_item_and_coeff(vertices[i].clone(), <F as One>::one()));
           let mut q = std::collections::VecDeque::new();
           q.push_back(i);
           visited[i] = true;
@@ -369,8 +332,8 @@ impl SimplicialComplex {
           }
         }
       }
-      let z0_gens: Vec<Chain<F>> =
-        vertices.iter().map(|v| Chain::from_simplex_and_coeff(v.clone(), F::one())).collect();
+      let z0_gens: Vec<Chain<Simplex, F>> =
+        vertices.iter().map(|v| Chain::from_item_and_coeff(v.clone(), F::one())).collect();
       let s1_for_b0 = self.simplices_by_dimension(1).map_or_else(Vec::new, |s| {
         let mut sorted_s = s.to_vec();
         sorted_s.sort_unstable();
@@ -382,16 +345,16 @@ impl SimplicialComplex {
         let mut mat_d1: DynamicDenseMatrix<F, RowMajor> =
           get_boundary_matrix(&s1_for_b0, &vertices);
         let mat_d1_result = mat_d1.row_echelon_form();
-        let d_s1_chains: Vec<Chain<F>> = s1_for_b0
+        let d_s1_chains: Vec<Chain<Simplex, F>> = s1_for_b0
           .iter()
-          .map(|s| Chain::from_simplex_and_coeff(s.clone(), F::one()).boundary())
+          .map(|s| Chain::from_item_and_coeff(s.clone(), F::one()).boundary())
           .collect();
         image_basis_from_row_echelon(
           &d_s1_chains,
           &mat_d1_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
         )
       };
-      return HomologyGroup {
+      return Homology {
         dimension:           0,
         betti_number:        components,
         cycle_generators:    z0_gens,
@@ -406,7 +369,7 @@ impl SimplicialComplex {
         sorted_s.sort_unstable();
         sorted_s
       },
-      _ => return HomologyGroup::trivial(k),
+      _ => return Homology::trivial(k),
     };
     let s_km1 = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
       let mut ss = s.to_vec();
@@ -418,17 +381,17 @@ impl SimplicialComplex {
       ss.sort_unstable();
       ss
     });
-    let ck_basis: Vec<Chain<F>> =
-      s_k.iter().map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one())).collect();
+    let ck_basis: Vec<Chain<Simplex, F>> =
+      s_k.iter().map(|s| Chain::from_item_and_coeff(s.clone(), <F as One>::one())).collect();
 
     let b_k_gens = if s_kp1.is_empty() || s_k.is_empty() {
       Vec::new()
     } else {
       let mut mat_dkp1: DynamicDenseMatrix<F, RowMajor> = get_boundary_matrix(&s_kp1, &s_k);
       let mat_dkp1_result = mat_dkp1.row_echelon_form();
-      let d_skp1_chains: Vec<Chain<F>> = s_kp1
+      let d_skp1_chains: Vec<Chain<Simplex, F>> = s_kp1
         .iter()
-        .map(|s| Chain::from_simplex_and_coeff(s.clone(), <F as One>::one()).boundary())
+        .map(|s| Chain::from_item_and_coeff(s.clone(), <F as One>::one()).boundary())
         .collect();
       image_basis_from_row_echelon(
         &d_skp1_chains,
@@ -451,21 +414,21 @@ impl SimplicialComplex {
     };
 
     if s_k.is_empty() {
-      return HomologyGroup::trivial(k);
+      return Homology::trivial(k);
     }
     let sk_map: std::collections::HashMap<Simplex, usize> =
       s_k.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
     let mut quot_mat_cols = Vec::new();
     for ch in &b_k_gens {
-      quot_mat_cols.push(chain_to_coeff_vector(ch, &sk_map, s_k.len()));
+      quot_mat_cols.push(ch.to_coeff_vector(&sk_map, s_k.len()));
     }
     let num_b = quot_mat_cols.len();
     for ch in &z_k_gens {
-      quot_mat_cols.push(chain_to_coeff_vector(ch, &sk_map, s_k.len()));
+      quot_mat_cols.push(ch.to_coeff_vector(&sk_map, s_k.len()));
     }
 
     if quot_mat_cols.is_empty() {
-      return HomologyGroup {
+      return Homology {
         dimension:           k,
         betti_number:        z_k_gens.len(),
         cycle_generators:    z_k_gens.clone(),
@@ -489,7 +452,7 @@ impl SimplicialComplex {
       }
     }
 
-    HomologyGroup {
+    Homology {
       dimension:           k,
       betti_number:        h_k_gens.len(),
       cycle_generators:    z_k_gens,
@@ -499,268 +462,317 @@ impl SimplicialComplex {
   }
 }
 
-impl<R: Field> HomologyGroup<R> {
-  /// Creates a new, trivial homology group for a given `dimension`.
-  /// A trivial group has Betti number 0 and no generators.
-  /// This is used when, for example, there are no $k$-simplices to form $k$-chains.
-  pub const fn trivial(dimension: usize) -> Self {
-    Self {
-      dimension,
-      betti_number: 0,
-      cycle_generators: Vec::new(),
-      boundary_generators: Vec::new(),
-      homology_generators: Vec::new(),
-    }
-  }
+// TODO: Permutation should probably be moved into algebra crate for permutation groups.
+/// Represents whether a permutation of vertices is odd or even.
+/// This is used, for example, in defining the orientation of a simplex, although
+/// the `Chain::eq` method's use of it might need review for standard chain equality.
+#[derive(Debug, PartialEq, Eq)]
+pub enum Permutation {
+  /// An odd permutation (e.g., requires an odd number of transpositions to reach sorted order).
+  Odd,
+  /// An even permutation (e.g., requires an even number of transpositions to reach sorted order).
+  Even,
 }
 
-/// Extracts a basis for the kernel (null space) of a linear transformation represented by
-/// `row_echelon_matrix`.
-///
-/// The matrix $A$ (for which `row_echelon_matrix` is its RREF) maps a vector space $V$ (spanned by
-/// `column_basis_elements`) to a vector space $W$. This function finds a basis for $\ker A = \{ v
-/// \in V \mid Av = 0 \}$.
-///
-/// The method involves identifying free variables from the RREF and expressing pivot variables in
-/// terms of them. Each free variable gives rise to a kernel basis vector.
+/// Computes the sign (even or odd) of a permutation by counting the number of inversions.
+/// An inversion is a pair of elements `(item[i], item[j])` such that `i < j` but `item[i] >
+/// item[j]`.
 ///
 /// # Arguments
-/// * `row_echelon_matrix`: The matrix in reduced row echelon form (RREF).
-/// * `column_basis_elements`: A slice of [`Chain<F>`]s representing the basis for the domain $V$.
-///   The $j$-th chain corresponds to the $j$-th column of the original matrix before RREF. The
-///   length of this slice must match the number of columns in `row_echelon_matrix`.
-/// * `pivot_cols`: A slice of `usize` containing the column indices of the pivot elements in the
-///   RREF.
-///
-/// # Type Parameters
-/// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
+/// * `item`: A slice of ordered items (e.g., vertex indices of a simplex before sorting).
 ///
 /// # Returns
-/// A `Vec<Chain<F>>` where each chain is a generator for the kernel.
-///
-/// # Panics
-/// * If `column_basis_elements.len()` does not match the number of columns in `row_echelon_matrix`.
-///
-/// # Note
-/// The construction of `gen_chain` currently involves element-wise multiplication of coefficients
-/// within the `single_term_chain`. This assumes that `Chain::add` correctly combines these scaled
-/// chains. A more robust `Chain` API might include explicit scalar multiplication.
-pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
-  row_echelon_matrix: &DynamicDenseMatrix<F, RowMajor>,
-  column_basis_elements: &[Chain<F>],
-  pivot_cols: &[usize],
-) -> Vec<Chain<F>> {
-  if row_echelon_matrix.num_rows() == 0 {
-    if column_basis_elements.is_empty() {
-      return Vec::new();
-    }
-    // If it's a zero map from non-trivial C_n to C_m (m > 0), or to C_0,
-    // then all of C_n is kernel.
-    // This case should be handled if num_rows (effective rank) is 0 but num_cols > 0.
-    // The current logic for free variables should correctly make all columns free if rank is 0.
-    let is_zero_matrix_effectively = pivot_cols.is_empty();
-    if is_zero_matrix_effectively && !column_basis_elements.is_empty() {
-      return column_basis_elements.to_vec();
-    }
-    if column_basis_elements.is_empty() {
-      // Explicitly handle if no columns to form basis from
-      return Vec::new();
-    }
-    // Fallback if matrix had rows but all were zero, or other edge cases
-    // This part of the original condition might be too simple.
-    // Let the main loop handle it: if all columns are free, it will generate all basis elements.
-  }
-
-  let num_cols = if row_echelon_matrix.num_rows() == 0 { 0 } else { row_echelon_matrix.num_cols() };
-  if num_cols == 0 && column_basis_elements.is_empty() {
-    return Vec::new();
-  }
-  // If num_cols is 0 but column_basis_elements is not, it's an inconsistency.
-  // If row_echelon_matrix is empty but column_basis_elements is not, it implies a map to C_0.
-  // In this case, all columns are free. num_rows would be 0.
-
-  assert_eq!(
-    num_cols,
-    column_basis_elements.len(),
-    "Number of columns in matrix must match number of column basis elements"
-  );
-
-  let mut kernel_generators = Vec::new();
-  let mut current_pivot_idx = 0;
-
-  for j_col in 0..num_cols {
-    // Iterate through columns (potential free variables)
-    if current_pivot_idx < pivot_cols.len() && pivot_cols[current_pivot_idx] == j_col {
-      // This is a pivot column
-      current_pivot_idx += 1;
-    } else {
-      // This is a free variable column j_col
-      let mut generator_coeffs = vec![<F as Zero>::zero(); num_cols];
-      generator_coeffs[j_col] = <F as One>::one(); // Set free variable x_{j_col} to 1
-
-      // Solve for pivot variables in terms of this free variable
-      // For each pivot row r, associated with a pivot column p_c = pivot_cols[r_idx]:
-      //   x_{p_c} * 1 + M[r][j_col] * x_{j_col} = 0  (other free vars are 0, other pivots are 0
-      // in this equation)   x_{p_c} = -M[r][j_col] * x_{j_col}
-      // Since x_{j_col} = 1, then x_{p_c} = -M[r][j_col]
-
-      // Iterate through the pivot rows of the row_echelon_matrix
-      // The number of actual pivot rows is pivot_cols.len() (which is the rank)
-      // `row_echelon_matrix` still has all original rows, but non-pivot rows are zero or become
-      // zero relevant to pivots.
-
-      (0..pivot_cols.len()).for_each(|r_idx| {
-        // Iterate over actual pivot rows by their index in pivot_cols
-        let pivot_row_actual_index = r_idx; // In reduced row echelon form, pivot r is in row r.
-                                            // The way `row_gaussian_elimination` is written, it processes row by row.
-                                            // The pivot `matrix[r][lead]` means `pivot_cols[r_idx]` is that `lead`.
-        let pivot_col_for_this_row = pivot_cols[r_idx];
-
-        // We need to ensure row_echelon_matrix[pivot_row_actual_index] is the correct row.
-        // The RRE matrix has its pivots matrix[r_idx][pivot_cols[r_idx]] = 1.
-        if !row_echelon_matrix.get_component(pivot_row_actual_index, j_col).is_zero() {
-          generator_coeffs[pivot_col_for_this_row] =
-            -*row_echelon_matrix.get_component(pivot_row_actual_index, j_col);
-        }
-      });
-
-      let mut gen_chain = Chain::new();
-      for (idx, coeff) in generator_coeffs.iter().enumerate() {
-        if !coeff.is_zero() {
-          // This creates a chain with one simplex and the calculated coefficient.
-          // Then adds it to gen_chain. This is not quite right.
-          // We need to sum up (coeff_i * basis_chain_i).
-          // gen_chain = gen_chain + (coeff.clone() * column_basis_elements[idx].clone());
-          // Chain does not currently support multiplication by scalar from the left.
-          // For now, assume coeff is 1 or -1, or for Z2, just 1.
-          // If coeff is F::one(), add column_basis_elements[idx]
-          // If coeff is -F::one(), subtract column_basis_elements[idx] (add its negation)
-          // This logic needs Chain to support scalar multiplication or careful construction.
-
-          // Current Chain::add combines like terms. We are building a new chain from a linear
-          // combination. Let's assume column_basis_elements are single simplices with
-          // coeff 1.
-          let mut single_term_chain = column_basis_elements[idx].clone();
-          // We need to scale single_term_chain by *coeff.
-          // A simple way for now, if we assume Field allows it:
-          for c in &mut single_term_chain.coefficients {
-            *c *= *coeff; // Assumes coeff is F, c is F.
-          }
-          if !coeff.is_zero() {
-            // Re-check after potential multiplication if coeff was complex.
-            gen_chain = gen_chain + single_term_chain;
-          }
-        }
-      }
-      if !gen_chain.simplices.is_empty() {
-        kernel_generators.push(gen_chain);
+/// * `Permutation::Even` if the number of inversions is even.
+/// * `Permutation::Odd` if the number of inversions is odd.
+pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
+  let mut count = 0;
+  for i in 0..item.len() {
+    for j in i + 1..item.len() {
+      if item[i] > item[j] {
+        count += 1;
       }
     }
   }
-  kernel_generators
+  if count % 2 == 0 {
+    Permutation::Even
+  } else {
+    Permutation::Odd
+  }
 }
 
-/// Extracts a basis for the image (column space) of a linear transformation represented by a
-/// matrix.
-///
-/// If $A$ is the original matrix (before RREF), and `column_basis_elements` are the chains
-/// corresponding to the columns of $A$, then the chains corresponding to the pivot columns of $A$
-/// (identified from its RREF) form a basis for $\text{im } A$.
-///
-/// # Arguments
-/// * `_row_echelon_matrix`: The matrix in RREF. Not strictly used if `pivot_cols` is accurate, but
-///   kept for context.
-/// * `column_basis_elements`: A slice of [`Chain<F>`]s representing the basis for the domain,
-///   corresponding to columns of the original matrix.
-/// * `pivot_cols`: A slice of `usize` containing the column indices of the pivot elements in the
-///   RREF of the original matrix.
-///
-/// # Type Parameters
-/// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
-///
-/// # Returns
-/// A `Vec<Chain<F>>` where each chain is a generator for the image.
-pub fn image_basis_from_row_echelon<F: Field + Copy>(
-  column_basis_elements: &[Chain<F>],
-  pivot_cols: &[usize],
-) -> Vec<Chain<F>> {
-  let mut image_generators = Vec::new();
-  for &pivot_col_idx in pivot_cols {
-    if pivot_col_idx < column_basis_elements.len() {
-      image_generators.push(column_basis_elements[pivot_col_idx].clone());
+impl Permutation {
+  pub fn into_ring<R: Ring>(self) -> R {
+    match self {
+      Permutation::Even => R::one(),
+      Permutation::Odd => -R::one(),
     }
   }
-  image_generators
 }
 
-// Helper function to convert a Chain to a coefficient vector relative to a basis of simplices.
-// This is an internal utility function used during the construction of boundary matrices.
-// It projects a chain onto a vector representation given a specific ordered basis of simplices.
-fn chain_to_coeff_vector<F: Field + Copy>(
-  chain: &Chain<F>,
-  basis_simplices_map: &HashMap<Simplex, usize>, // Map simplex to its index in the basis
-  basis_size: usize,
-) -> DynamicVector<F> {
-  let mut vector = DynamicVector::<F>::new(vec![<F as Zero>::zero(); basis_size]);
-  for (i, simplex) in chain.simplices.iter().enumerate() {
-    if let Some(&idx) = basis_simplices_map.get(simplex) {
-      if !chain.coefficients[i].is_zero() {
-        vector.set_component(idx, chain.coefficients[i]);
-      }
+impl Topology for Simplex {
+  // TODO (autoparallel): Implement this. It  is the "star" of the simplex.
+  fn neighborhood(&self) -> Vec<Self> { todo!() }
+
+  fn boundary<R: Ring>(&self) -> Chain<Self, R> {
+    if self.dimension == 0 {
+      return Chain::new();
     }
+    let mut boundary = Chain::new();
+    for face in self.faces() {
+      let coeff = permutation_sign(face.vertices()).into_ring::<R>();
+      boundary = boundary + Chain::from_items_and_coeffs(vec![face], vec![coeff]);
+    }
+    boundary
   }
-  vector
 }
 
-/// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary operator.
-///
-/// The matrix columns are indexed by an ordered list of $k$-simplices (`ordered_k_simplices`),
-/// and rows are indexed by an ordered list of $(k-1)$-simplices (`ordered_km1_simplices`).
-/// The entry $(i,j)$ of the matrix is the coefficient of the $i$-th $(k-1)$-simplex in the boundary
-/// of the $j$-th $k$-simplex.
-///
-/// The boundary of a $k$-simplex $\sigma_j = [v_0, \dots, v_k]$ is $\sum_{m=0}^{k} (-1)^m [v_0,
-/// \dots, \hat{v}_m, \dots, v_k]$. The coefficient for $\sigma_i^{\prime}$ (the $i$-th
-/// $(k-1)$-simplex) in $\partial \sigma_j$ is determined accordingly.
-///
-/// # Arguments
-/// * `ordered_k_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
-///   $k$-chain group $C_k$.
-/// * `ordered_km1_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
-///   $(k-1)$-chain group $C_{k-1}$.
-///
-/// # Type Parameters
-/// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
-///
-/// # Returns
-/// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have
-/// `ordered_km1_simplices.len()` rows and `ordered_k_simplices.len()` columns.
-/// Returns an empty or specially-dimensioned matrix if either basis is empty.
-pub fn get_boundary_matrix<F: Field + Copy>(
-  ordered_k_simplices: &[Simplex],   // Basis for C_k (domain)
-  ordered_km1_simplices: &[Simplex], // Basis for C_{k-1} (codomain)
-) -> DynamicDenseMatrix<F, RowMajor> {
-  if ordered_k_simplices.is_empty() || ordered_km1_simplices.is_empty() {
-    return DynamicDenseMatrix::<F, RowMajor>::new();
-  }
+// /// Extracts a basis for the kernel (null space) of a linear transformation represented by
+// /// `row_echelon_matrix`.
+// ///
+// /// The matrix $A$ (for which `row_echelon_matrix` is its RREF) maps a vector space $V$ (spanned
+// by /// `column_basis_elements`) to a vector space $W$. This function finds a basis for $\ker A =
+// \{ v /// \in V \mid Av = 0 \}$.
+// ///
+// /// The method involves identifying free variables from the RREF and expressing pivot variables
+// in /// terms of them. Each free variable gives rise to a kernel basis vector.
+// ///
+// /// # Arguments
+// /// * `row_echelon_matrix`: The matrix in reduced row echelon form (RREF).
+// /// * `column_basis_elements`: A slice of [`Chain<F>`]s representing the basis for the domain
+// $V$. ///   The $j$-th chain corresponds to the $j$-th column of the original matrix before RREF.
+// The ///   length of this slice must match the number of columns in `row_echelon_matrix`.
+// /// * `pivot_cols`: A slice of `usize` containing the column indices of the pivot elements in the
+// ///   RREF.
+// ///
+// /// # Type Parameters
+// /// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
+// ///
+// /// # Returns
+// /// A `Vec<Chain<F>>` where each chain is a generator for the kernel.
+// ///
+// /// # Panics
+// /// * If `column_basis_elements.len()` does not match the number of columns in
+// `row_echelon_matrix`. ///
+// /// # Note
+// /// The construction of `gen_chain` currently involves element-wise multiplication of
+// coefficients /// within the `single_term_chain`. This assumes that `Chain::add` correctly
+// combines these scaled /// chains. A more robust `Chain` API might include explicit scalar
+// multiplication. pub fn kernel_basis_from_row_echelon<F: Field + Copy>(
+//   row_echelon_matrix: &DynamicDenseMatrix<F, RowMajor>,
+//   column_basis_elements: &[Chain<F>],
+//   pivot_cols: &[usize],
+// ) -> Vec<Chain<F>> {
+//   if row_echelon_matrix.num_rows() == 0 {
+//     if column_basis_elements.is_empty() {
+//       return Vec::new();
+//     }
+//     // If it's a zero map from non-trivial C_n to C_m (m > 0), or to C_0,
+//     // then all of C_n is kernel.
+//     // This case should be handled if num_rows (effective rank) is 0 but num_cols > 0.
+//     // The current logic for free variables should correctly make all columns free if rank is 0.
+//     let is_zero_matrix_effectively = pivot_cols.is_empty();
+//     if is_zero_matrix_effectively && !column_basis_elements.is_empty() {
+//       return column_basis_elements.to_vec();
+//     }
+//     if column_basis_elements.is_empty() {
+//       // Explicitly handle if no columns to form basis from
+//       return Vec::new();
+//     }
+//     // Fallback if matrix had rows but all were zero, or other edge cases
+//     // This part of the original condition might be too simple.
+//     // Let the main loop handle it: if all columns are free, it will generate all basis elements.
+//   }
 
-  let num_rows = ordered_km1_simplices.len();
+//   let num_cols = if row_echelon_matrix.num_rows() == 0 { 0 } else { row_echelon_matrix.num_cols()
+// };   if num_cols == 0 && column_basis_elements.is_empty() {
+//     return Vec::new();
+//   }
+//   // If num_cols is 0 but column_basis_elements is not, it's an inconsistency.
+//   // If row_echelon_matrix is empty but column_basis_elements is not, it implies a map to C_0.
+//   // In this case, all columns are free. num_rows would be 0.
 
-  let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
+//   assert_eq!(
+//     num_cols,
+//     column_basis_elements.len(),
+//     "Number of columns in matrix must match number of column basis elements"
+//   );
 
-  // Create a map for quick lookup of (k-1)-simplex indices
-  let km1_simplex_to_idx: HashMap<Simplex, usize> =
-    ordered_km1_simplices.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
+//   let mut kernel_generators = Vec::new();
+//   let mut current_pivot_idx = 0;
 
-  for k_simplex in ordered_k_simplices {
-    // For each k-simplex, compute its boundary.
-    // The boundary is a (k-1)-chain.
-    let boundary_chain =
-      Chain::from_simplex_and_coeff(k_simplex.clone(), <F as One>::one()).boundary();
+//   for j_col in 0..num_cols {
+//     // Iterate through columns (potential free variables)
+//     if current_pivot_idx < pivot_cols.len() && pivot_cols[current_pivot_idx] == j_col {
+//       // This is a pivot column
+//       current_pivot_idx += 1;
+//     } else {
+//       // This is a free variable column j_col
+//       let mut generator_coeffs = vec![<F as Zero>::zero(); num_cols];
+//       generator_coeffs[j_col] = <F as One>::one(); // Set free variable x_{j_col} to 1
 
-    // Convert this boundary_chain into a column vector for the matrix.
-    let col_vector = chain_to_coeff_vector(&boundary_chain, &km1_simplex_to_idx, num_rows);
-    matrix.append_column(&col_vector);
-  }
-  matrix
-}
+//       // Solve for pivot variables in terms of this free variable
+//       // For each pivot row r, associated with a pivot column p_c = pivot_cols[r_idx]:
+//       //   x_{p_c} * 1 + M[r][j_col] * x_{j_col} = 0  (other free vars are 0, other pivots are 0
+//       // in this equation)   x_{p_c} = -M[r][j_col] * x_{j_col}
+//       // Since x_{j_col} = 1, then x_{p_c} = -M[r][j_col]
+
+//       // Iterate through the pivot rows of the row_echelon_matrix
+//       // The number of actual pivot rows is pivot_cols.len() (which is the rank)
+//       // `row_echelon_matrix` still has all original rows, but non-pivot rows are zero or become
+//       // zero relevant to pivots.
+
+//       (0..pivot_cols.len()).for_each(|r_idx| {
+//         // Iterate over actual pivot rows by their index in pivot_cols
+//         let pivot_row_actual_index = r_idx; // In reduced row echelon form, pivot r is in row r.
+//                                             // The way `row_gaussian_elimination` is written, it
+// processes row by row.                                             // The pivot `matrix[r][lead]`
+// means `pivot_cols[r_idx]` is that `lead`.         let pivot_col_for_this_row = pivot_cols[r_idx];
+
+//         // We need to ensure row_echelon_matrix[pivot_row_actual_index] is the correct row.
+//         // The RRE matrix has its pivots matrix[r_idx][pivot_cols[r_idx]] = 1.
+//         if !row_echelon_matrix.get_component(pivot_row_actual_index, j_col).is_zero() {
+//           generator_coeffs[pivot_col_for_this_row] =
+//             -*row_echelon_matrix.get_component(pivot_row_actual_index, j_col);
+//         }
+//       });
+
+//       let mut gen_chain = Chain::new();
+//       for (idx, coeff) in generator_coeffs.iter().enumerate() {
+//         if !coeff.is_zero() {
+//           // This creates a chain with one simplex and the calculated coefficient.
+//           // Then adds it to gen_chain. This is not quite right.
+//           // We need to sum up (coeff_i * basis_chain_i).
+//           // gen_chain = gen_chain + (coeff.clone() * column_basis_elements[idx].clone());
+//           // Chain does not currently support multiplication by scalar from the left.
+//           // For now, assume coeff is 1 or -1, or for Z2, just 1.
+//           // If coeff is F::one(), add column_basis_elements[idx]
+//           // If coeff is -F::one(), subtract column_basis_elements[idx] (add its negation)
+//           // This logic needs Chain to support scalar multiplication or careful construction.
+
+//           // Current Chain::add combines like terms. We are building a new chain from a linear
+//           // combination. Let's assume column_basis_elements are single simplices with
+//           // coeff 1.
+//           let mut single_term_chain = column_basis_elements[idx].clone();
+//           // We need to scale single_term_chain by *coeff.
+//           // A simple way for now, if we assume Field allows it:
+//           for c in &mut single_term_chain.coefficients {
+//             *c *= *coeff; // Assumes coeff is F, c is F.
+//           }
+//           if !coeff.is_zero() {
+//             // Re-check after potential multiplication if coeff was complex.
+//             gen_chain = gen_chain + single_term_chain;
+//           }
+//         }
+//       }
+//       if !gen_chain.simplices.is_empty() {
+//         kernel_generators.push(gen_chain);
+//       }
+//     }
+//   }
+//   kernel_generators
+// }
+
+// /// Extracts a basis for the image (column space) of a linear transformation represented by a
+// /// matrix.
+// ///
+// /// If $A$ is the original matrix (before RREF), and `column_basis_elements` are the chains
+// /// corresponding to the columns of $A$, then the chains corresponding to the pivot columns of
+// $A$ /// (identified from its RREF) form a basis for $\text{im } A$.
+// ///
+// /// # Arguments
+// /// * `_row_echelon_matrix`: The matrix in RREF. Not strictly used if `pivot_cols` is accurate,
+// but ///   kept for context.
+// /// * `column_basis_elements`: A slice of [`Chain<F>`]s representing the basis for the domain,
+// ///   corresponding to columns of the original matrix.
+// /// * `pivot_cols`: A slice of `usize` containing the column indices of the pivot elements in the
+// ///   RREF of the original matrix.
+// ///
+// /// # Type Parameters
+// /// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
+// ///
+// /// # Returns
+// /// A `Vec<Chain<F>>` where each chain is a generator for the image.
+// pub fn image_basis_from_row_echelon<F: Field + Copy>(
+//   column_basis_elements: &[Chain<F>],
+//   pivot_cols: &[usize],
+// ) -> Vec<Chain<F>> {
+//   let mut image_generators = Vec::new();
+//   for &pivot_col_idx in pivot_cols {
+//     if pivot_col_idx < column_basis_elements.len() {
+//       image_generators.push(column_basis_elements[pivot_col_idx].clone());
+//     }
+//   }
+//   image_generators
+// }
+
+// // Helper function to convert a Chain to a coefficient vector relative to a basis of simplices.
+// // This is an internal utility function used during the construction of boundary matrices.
+// // It projects a chain onto a vector representation given a specific ordered basis of simplices.
+// fn chain_to_coeff_vector<F: Field + Copy>(
+//   chain: &Chain<F>,
+//   basis_simplices_map: &HashMap<Simplex, usize>, // Map simplex to its index in the basis
+//   basis_size: usize,
+// ) -> DynamicVector<F> {
+//   let mut vector = DynamicVector::<F>::new(vec![<F as Zero>::zero(); basis_size]);
+//   for (i, simplex) in chain.simplices.iter().enumerate() {
+//     if let Some(&idx) = basis_simplices_map.get(simplex) {
+//       if !chain.coefficients[i].is_zero() {
+//         vector.set_component(idx, chain.coefficients[i]);
+//       }
+//     }
+//   }
+//   vector
+// }
+
+// /// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary
+// operator. ///
+// /// The matrix columns are indexed by an ordered list of $k$-simplices (`ordered_k_simplices`),
+// /// and rows are indexed by an ordered list of $(k-1)$-simplices (`ordered_km1_simplices`).
+// /// The entry $(i,j)$ of the matrix is the coefficient of the $i$-th $(k-1)$-simplex in the
+// boundary /// of the $j$-th $k$-simplex.
+// ///
+// /// The boundary of a $k$-simplex $\sigma_j = [v_0, \dots, v_k]$ is $\sum_{m=0}^{k} (-1)^m [v_0,
+// /// \dots, \hat{v}_m, \dots, v_k]$. The coefficient for $\sigma_i^{\prime}$ (the $i$-th
+// /// $(k-1)$-simplex) in $\partial \sigma_j$ is determined accordingly.
+// ///
+// /// # Arguments
+// /// * `ordered_k_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
+// ///   $k$-chain group $C_k$.
+// /// * `ordered_km1_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
+// ///   $(k-1)$-chain group $C_{k-1}$.
+// ///
+// /// # Type Parameters
+// /// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
+// ///
+// /// # Returns
+// /// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have
+// /// `ordered_km1_simplices.len()` rows and `ordered_k_simplices.len()` columns.
+// /// Returns an empty or specially-dimensioned matrix if either basis is empty.
+// pub fn get_boundary_matrix<F: Field + Copy>(
+//   ordered_k_simplices: &[Simplex],   // Basis for C_k (domain)
+//   ordered_km1_simplices: &[Simplex], // Basis for C_{k-1} (codomain)
+// ) -> DynamicDenseMatrix<F, RowMajor> {
+//   if ordered_k_simplices.is_empty() || ordered_km1_simplices.is_empty() {
+//     return DynamicDenseMatrix::<F, RowMajor>::new();
+//   }
+
+//   let num_rows = ordered_km1_simplices.len();
+
+//   let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
+
+//   // Create a map for quick lookup of (k-1)-simplex indices
+//   let km1_simplex_to_idx: HashMap<Simplex, usize> =
+//     ordered_km1_simplices.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
+
+//   for k_simplex in ordered_k_simplices {
+//     // For each k-simplex, compute its boundary.
+//     // The boundary is a (k-1)-chain.
+//     let boundary_chain =
+//       Chain::from_simplex_and_coeff(k_simplex.clone(), <F as One>::one()).boundary();
+
+//     // Convert this boundary_chain into a column vector for the matrix.
+//     let col_vector = chain_to_coeff_vector(&boundary_chain, &km1_simplex_to_idx, num_rows);
+//     matrix.append_column(&col_vector);
+//   }
+//   matrix
+// }

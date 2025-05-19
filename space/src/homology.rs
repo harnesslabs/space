@@ -1,56 +1,72 @@
-use std::ops::Add;
+use std::{mem, ops::Add};
 
 use super::*;
+use crate::definitions::Topology;
 
 #[derive(Clone, Debug, Default)]
 pub struct Chain<T, R> {
   /// A vector of objects that are part of this chain.
-  items:        Vec<T>,
+  pub items:        Vec<T>,
   /// A vector of coefficients of type `R`, corresponding one-to-one with the `simplices`.
   /// `coefficients[i]` is the coefficient for `simplices[i]`.
-  coefficients: Vec<R>,
+  pub coefficients: Vec<R>,
 }
 
 impl<T, R> Chain<T, R> {
   pub const fn new() -> Self { Self { items: vec![], coefficients: vec![] } }
 
+  pub fn from_item_and_coeff(item: T, coeff: R) -> Self {
+    Self { items: vec![item], coefficients: vec![coeff] }
+  }
+
   pub fn from_items_and_coeffs(items: Vec<T>, coeffs: Vec<R>) -> Self {
     Self { items, coefficients: coeffs }
   }
 
-  /// Computes the boundary of this chain.
-  ///
-  /// The boundary operator $\partial$ maps a $k$-chain to a $(k-1)$-chain. For a single $k$-simplex
-  /// $\sigma = [v_0, v_1, \dots, v_k]$, its boundary is $\partial_k \sigma = \sum_{i=0}^{k} (-1)^i
-  /// [v_0, \dots, \hat{v_i}, \dots, v_k]$, where $\hat{v_i}$ indicates that vertex $v_i$ is
-  /// omitted. This operator is extended linearly to chains.
-  ///
-  /// A fundamental property of the boundary operator is that $\partial \circ \partial = 0$ (the
-  /// boundary of a boundary is zero).
-  ///
-  /// # Type Constraints
-  /// * `R` must implement `Clone`, `Neg<Output = R>`, `Add<Output = R>`, and `Zero`.
-  ///
-  /// # Returns
-  /// A new [`Chain<R>`] representing the boundary of the current chain. If the chain consists of
-  /// 0-simplices, their boundary is the empty chain (zero).
   pub fn boundary(&self) -> Self
-  where R: Clone + Neg<Output = R> + Add<Output = R> + Zero {
-    let mut boundary = Self::new();
-    for (coeff, simplex) in self.coefficients.clone().into_iter().zip(self.simplices.iter()) {
-      for i in 0..=simplex.dimension() {
-        let mut vertices = simplex.vertices().to_vec();
-        let _ = vertices.remove(i);
-        let face = Simplex::new(simplex.dimension() - 1, vertices);
-        let chain = Self::from_simplex_and_coeff(
-          face,
-          if i % 2 == 0 { coeff.clone() } else { -coeff.clone() },
-        );
-        boundary = boundary + chain;
-      }
+  where
+    T: Topology + PartialEq,
+    R: Ring + Copy, {
+    let mut boundary = Chain::new();
+    for item in self.items.iter() {
+      boundary = boundary + item.boundary();
     }
     boundary
   }
+
+  //  /// Computes the boundary of this chain.
+  //   ///
+  //   /// The boundary operator $\partial$ maps a $k$-chain to a $(k-1)$-chain. For a single
+  // $k$-simplex   /// $\sigma = [v_0, v_1, \dots, v_k]$, its boundary is $\partial_k \sigma =
+  // \sum_{i=0}^{k} (-1)^i   /// [v_0, \dots, \hat{v_i}, \dots, v_k]$, where $\hat{v_i}$ indicates
+  // that vertex $v_i$ is   /// omitted. This operator is extended linearly to chains.
+  //   ///
+  //   /// A fundamental property of the boundary operator is that $\partial \circ \partial = 0$
+  // (the   /// boundary of a boundary is zero).
+  //   ///
+  //   /// # Type Constraints
+  //   /// * `R` must implement `Clone`, `Neg<Output = R>`, `Add<Output = R>`, and `Zero`.
+  //   ///
+  //   /// # Returns
+  //   /// A new [`Chain<R>`] representing the boundary of the current chain. If the chain consists
+  // of   /// 0-simplices, their boundary is the empty chain (zero).
+  //   pub fn boundary(&self) -> Self
+  //   where R: Clone + Neg<Output = R> + Add<Output = R> + Zero {
+  //     let mut boundary = Self::new();
+  //     for (coeff, simplex) in self.coefficients.clone().into_iter().zip(self.simplices.iter()) {
+  //       for i in 0..=simplex.dimension() {
+  //         let mut vertices = simplex.vertices().to_vec();
+  //         let _ = vertices.remove(i);
+  //         let face = Simplex::new(simplex.dimension() - 1, vertices);
+  //         let chain = Self::from_simplex_and_coeff(
+  //           face,
+  //           if i % 2 == 0 { coeff.clone() } else { -coeff.clone() },
+  //         );
+  //         boundary = boundary + chain;
+  //       }
+  //     }
+  //     boundary
+  //   }
 }
 
 impl<T: PartialEq, R: PartialEq> PartialEq for Chain<T, R> {
@@ -86,7 +102,8 @@ impl<T: PartialEq, R: Ring> Add for Chain<T, R> {
   /// Simplices are compared for equality to identify like terms.
   ///
   /// # Type Constraints
-  /// * `R` must implement `Add<Output = R>`, `Neg<Output = R>`, `Clone`, and `Zero`.
+  /// * `R` must implement `Add<Output = R>`, `Neg<Output = R>`, `Zero`. (Note: The original doc
+  ///   mentioned Clone for R, this version avoids it).
   ///
   /// # Note
   /// This implementation assumes that the input chains might contain simplices of mixed dimensions
@@ -97,47 +114,71 @@ impl<T: PartialEq, R: Ring> Add for Chain<T, R> {
     let mut result_items = Vec::new();
     let mut result_coefficients: Vec<R> = Vec::new();
 
-    // Add all simplices from self
-    for (idx, item) in self.items.into_iter().enumerate() {
-      let coefficient = self.coefficients[idx];
+    // Process items from self
+    for (item_from_self, original_coeff_from_self) in
+      self.items.into_iter().zip(self.coefficients.into_iter())
+    {
+      let mut opt_coeff = Some(original_coeff_from_self);
+      let mut found_and_processed = false;
 
-      // See if this simplex already exists in our result
-      let mut found = false;
-      for (res_idx, &res_item) in result_items.iter().enumerate() {
-        if item == res_item {
-          // Same simplex, add coefficients
-          result_coefficients[res_idx] = result_coefficients[res_idx] + coefficient;
-          found = true;
+      for (res_idx, res_item_ref) in result_items.iter().enumerate() {
+        if item_from_self == *res_item_ref {
+          // T: PartialEq
+          if let Some(coeff_val) = opt_coeff.take() {
+            // Take R from Option, making opt_coeff None
+            let current_res_coeff = mem::replace(&mut result_coefficients[res_idx], R::zero());
+            result_coefficients[res_idx] = current_res_coeff + coeff_val; // coeff_val is consumed
+          }
+          found_and_processed = true;
+          // item_from_self is owned and will be dropped if not moved later (it won't be in this
+          // branch)
           break;
         }
       }
 
-      if !found {
-        // New simplex
-        result_items.push(item);
-        result_coefficients.push(coefficient);
+      if !found_and_processed {
+        result_items.push(item_from_self); // item_from_self is moved
+        if let Some(coeff_val) = opt_coeff.take() {
+          // opt_coeff should be Some here
+          result_coefficients.push(coeff_val); // coeff_val is moved
+        } else {
+          // This case should ideally not happen if logic is correct, means opt_coeff was already
+          // None. For safety, one might handle it, e.g. by pushing R::zero() or
+          // panicking. However, with current flow, if !found_and_processed, opt_coeff
+          // must be Some.
+        }
       }
+      // After this, item_from_self is either dropped (if found_and_processed) or moved (if
+      // !found_and_processed). opt_coeff is None because it has been .take()n in one of the
+      // branches.
     }
 
-    // Add all simplices from other
-    for (idx, item) in other.items.into_iter().enumerate() {
-      let coefficient = other.coefficients[idx];
+    // Process items from other
+    for (item_from_other, original_coeff_from_other) in
+      other.items.into_iter().zip(other.coefficients.into_iter())
+    {
+      let mut opt_coeff = Some(original_coeff_from_other);
+      let mut found_and_processed = false;
 
-      // See if this simplex already exists in our result
-      let mut found = false;
-      for (res_idx, &res_item) in result_items.iter().enumerate() {
-        if item == res_item {
-          // Same simplex, add coefficients
-          result_coefficients[res_idx] = result_coefficients[res_idx] + coefficient;
-          found = true;
+      for (res_idx, res_item_ref) in result_items.iter().enumerate() {
+        if item_from_other == *res_item_ref {
+          // T: PartialEq
+          if let Some(coeff_val) = opt_coeff.take() {
+            let current_res_coeff = mem::replace(&mut result_coefficients[res_idx], R::zero());
+            result_coefficients[res_idx] = current_res_coeff + coeff_val;
+          }
+          found_and_processed = true;
           break;
         }
       }
 
-      if !found {
-        // New simplex
-        result_items.push(item);
-        result_coefficients.push(coefficient);
+      if !found_and_processed {
+        result_items.push(item_from_other);
+        if let Some(coeff_val) = opt_coeff.take() {
+          result_coefficients.push(coeff_val);
+        } else {
+          // Safety: see comment in the loop for self items
+        }
       }
     }
 
@@ -145,6 +186,7 @@ impl<T: PartialEq, R: Ring> Add for Chain<T, R> {
     let mut i = 0;
     while i < result_coefficients.len() {
       if result_coefficients[i].is_zero() {
+        // R: Ring implies R: Zero for is_zero()
         result_coefficients.remove(i);
         result_items.remove(i);
       } else {
@@ -156,56 +198,27 @@ impl<T: PartialEq, R: Ring> Add for Chain<T, R> {
   }
 }
 
-/// Represents whether a permutation of vertices is odd or even.
-/// This is used, for example, in defining the orientation of a simplex, although
-/// the `Chain::eq` method's use of it might need review for standard chain equality.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Permutation {
-  /// An odd permutation (e.g., requires an odd number of transpositions to reach sorted order).
-  Odd,
-  /// An even permutation (e.g., requires an even number of transpositions to reach sorted order).
-  Even,
-}
+impl<T, R: Ring + Copy> Neg for Chain<T, R> {
+  type Output = Self;
 
-/// Computes the sign (even or odd) of a permutation by counting the number of inversions.
-/// An inversion is a pair of elements `(item[i], item[j])` such that `i < j` but `item[i] >
-/// item[j]`.
-///
-/// # Arguments
-/// * `item`: A slice of ordered items (e.g., vertex indices of a simplex before sorting).
-///
-/// # Returns
-/// * `Permutation::Even` if the number of inversions is even.
-/// * `Permutation::Odd` if the number of inversions is odd.
-pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
-  let mut count = 0;
-  for i in 0..item.len() {
-    for j in i + 1..item.len() {
-      if item[i] > item[j] {
-        count += 1;
-      }
-    }
-  }
-  if count % 2 == 0 {
-    Permutation::Even
-  } else {
-    Permutation::Odd
+  fn neg(self) -> Self::Output {
+    Self { items: self.items, coefficients: self.coefficients.iter().map(|c| -*c).collect() }
   }
 }
 
-// TODO: The `HomologyGroup` struct mentions coefficients `R: Field`.
-// While computations often use fields (like Z/2Z or Q or R), homology can be defined over rings
-// (like Z). The current implementation heavily relies on field properties for Gaussian elimination.
-/// Stores the results of a homology computation for a specific dimension $k$.
-/// This includes the Betti number (rank of $H_k$) and bases for cycles, boundaries, and $H_k$
-/// itself.
-///
-/// # Type Parameters
-/// * `R`: The coefficient type, which **must be a field** for the current computation methods (due
-///   to reliance on Gaussian elimination which requires multiplicative inverses). It should
-///   implement [`Field`].
+impl<T: PartialEq, R: Ring + Copy> Sub for Chain<T, R> {
+  type Output = Self;
+
+  fn sub(self, other: Self) -> Self::Output { self + (-other) }
+}
+
+// TODO: Implement the rest of the algebra traits.
+// impl<T,R> LeftModule<R> for Chain<T, R> {
+//     type Ring = R;
+// }
+
 #[derive(Debug, Clone)]
-pub struct HomologyGroup<R: Field> {
+pub struct Homology<T, R> {
   /// The dimension $k$ for which this homology group $H_k$ is computed.
   pub dimension:           usize,
   /// The Betti number $b_k = \text{rank}(H_k(X; R))$. For field coefficients,
@@ -213,19 +226,16 @@ pub struct HomologyGroup<R: Field> {
   pub betti_number:        usize,
   /// A basis for the $k$-cycles $Z_k = \ker \partial_k$.
   /// Each element is a [`Chain<R>`] representing a cycle.
-  pub cycle_generators:    Vec<Chain<R>>,
+  pub cycle_generators:    Vec<Chain<T, R>>,
   /// A basis for the $k$-boundaries $B_k = \text{im } \partial_{k+1}$.
   /// Each element is a [`Chain<R>`] representing a boundary.
-  pub boundary_generators: Vec<Chain<R>>,
+  pub boundary_generators: Vec<Chain<T, R>>,
   /// A basis for the homology group $H_k = Z_k / B_k$.
   /// Each element is a [`Chain<R>`] representing a homology class generator.
-  pub homology_generators: Vec<Chain<R>>,
+  pub homology_generators: Vec<Chain<T, R>>,
 }
 
-impl<R: Field> HomologyGroup<R> {
-  /// Creates a new, trivial homology group for a given `dimension`.
-  /// A trivial group has Betti number 0 and no generators.
-  /// This is used when, for example, there are no $k$-simplices to form $k$-chains.
+impl<T, R> Homology<T, R> {
   pub const fn trivial(dimension: usize) -> Self {
     Self {
       dimension,

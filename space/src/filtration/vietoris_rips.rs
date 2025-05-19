@@ -79,8 +79,9 @@ use itertools::Itertools;
 use crate::filtration::ParallelFiltration;
 use crate::{
   cloud::Cloud,
-  complexes::simplicial::{HomologyGroup, Simplex, SimplicialComplex},
+  complexes::simplicial::{Simplex, SimplicialComplex},
   filtration::Filtration,
+  homology::Homology,
   prelude::MetricSpace,
 };
 
@@ -251,7 +252,7 @@ where
 ///
 /// # Type Parameters
 /// * `R`: The coefficient [`Field`] for homology computations.
-impl<const N: usize, F, R> Filtration for VietorisRips<N, F, HomologyGroup<R>>
+impl<const N: usize, F, R> Filtration for VietorisRips<N, F, Homology<Simplex, R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync, // Send + Sync for potential parallelism
   R: Field + Copy + Send + Sync,                       // Send + Sync for homology result
@@ -263,7 +264,7 @@ where
   type InputSpace = Cloud<N, F>;
   type OutputParameter = HashSet<usize>;
   // Set of dimensions for which to compute homology
-  type OutputSpace = HashMap<usize, HomologyGroup<R>>;
+  type OutputSpace = HashMap<usize, Homology<Simplex, R>>;
 
   // Map from dimension to HomologyGroup
 
@@ -287,18 +288,19 @@ where
     param: Self::InputParameter,          // epsilon
     output_param: &Self::OutputParameter, // dimensions for homology
   ) -> Self::OutputSpace {
-    // First, build the Vietoris-Rips complex at the given epsilon.
-    // This reuses the existing VietorisRips builder logic for SimplicialComplex.
-    let complex_builder = VietorisRips::<N, F, SimplicialComplex>::new();
-    let complex = complex_builder.build_complex(input, param);
+    todo!();
+    // // First, build the Vietoris-Rips complex at the given epsilon.
+    // // This reuses the existing VietorisRips builder logic for SimplicialComplex.
+    // let complex_builder = VietorisRips::<N, F, SimplicialComplex>::new();
+    // let complex = complex_builder.build_complex(input, param);
 
-    let mut homology_groups = HashMap::new();
-    // For each dimension requested in output_param, compute homology.
-    for dim in output_param {
-      let homology_group = complex.compute_homology(*dim); // Pass R by type inference
-      homology_groups.insert(*dim, homology_group);
-    }
-    homology_groups
+    // let mut homology_groups = HashMap::new();
+    // // For each dimension requested in output_param, compute homology.
+    // for dim in output_param {
+    //   let homology_group = complex.compute_homology(*dim); // Pass R by type inference
+    //   homology_groups.insert(*dim, homology_group);
+    // }
+    // homology_groups
   }
 }
 
@@ -311,18 +313,13 @@ where
 /// and then computing homology; these steps themselves might also have parallel potential
 /// depending on their implementations.
 #[cfg(feature = "parallel")]
-impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, HomologyGroup<R>>
+impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, Homology<Simplex, R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
   R: Field + Copy + Send + Sync,
   Cloud<N, F>: Sync,
-  HomologyGroup<R>: Send, /* Ensure the output homology groups can be sent across threads
-                           * SimplicialComplex::Send is implicitly required by the Filtration
-                           * impl above */
+  Homology<Simplex, R>: Send,
 {
-  // No additional methods are required by ParallelFiltration if the base Filtration methods
-  // are sufficient and types are Send + Sync.
-  // build_parallel and build_serial will be available from the ParallelFiltration trait.
 }
 
 #[cfg(test)]
@@ -408,7 +405,7 @@ mod tests {
     let p0 = FixedVector([0.0, 0.0]);
     let p1 = FixedVector([1.0, 0.0]);
     let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1]);
-    let vr_builder = VietorisRips::<2, f64, HomologyGroup<Mod7>>::new();
+    let vr_builder = VietorisRips::<2, f64, Homology<Simplex, Mod7>>::new();
 
     let epsilons = vec![0.5, 1.5]; // Epsilon_0: 2 components, Epsilon_1: 1 component
     let dims = HashSet::from([0, 1]);
@@ -464,7 +461,7 @@ mod tests {
     let p2 = FixedVector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
-    let vr_builder = VietorisRips::<2, f64, HomologyGroup<Boolean>>::new();
+    let vr_builder = VietorisRips::<2, f64, Homology<Simplex, Boolean>>::new();
     // Distances: d(p0,p1)=1, d(p0,p2)=1, d(p1,p2)=1
     let epsilons = vec![0.5, 1.1];
     // eps=0.5: 3 points (3 components in H0)

@@ -4,7 +4,22 @@
 //! used in topology and geometry. The traits form a hierarchy from basic set operations
 //! up through inner product spaces.
 
-use crate::set::{Collection, Set};
+use harness_algebra::rings::Ring;
+
+use crate::{
+  homology::Chain,
+  set::{Collection, Set},
+};
+
+// TODO: This is a much simpler trait to work with and for discrete things this is fine.
+// TODO (autoparallel): It may be good to have this generic over a `Collection` trait at some point.
+// TODO (autoparallel): This is a bit of a hack to get the boundary operator to work nicely, it may
+// not be the best way to do this.
+pub trait Topology
+where Self: Sized {
+  fn neighborhood(&self) -> Vec<Self>;
+  fn boundary<R: Ring>(&self) -> Chain<Self, R>;
+}
 
 /// A trait for topological spaces.
 ///
