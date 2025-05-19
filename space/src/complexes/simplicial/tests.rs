@@ -205,27 +205,6 @@ fn test_simplices_by_dimension_basic() {
   assert!(dim0_simplices.contains(&s0_v2), "Missing 0-simplex [2]");
 }
 
-// TODO: This should be done by making the complex into its canonical chain and then computing the
-// boundary.
-#[test]
-fn test_simplicial_complex_boundary() {
-  todo!();
-  // let mut complex = SimplicialComplex::new();
-  // complex.join_simplex(Simplex::new(2, vec![0, 1, 2]));
-  // complex.join_simplex(Simplex::new(2, vec![1, 2, 3]));
-  // let boundary: Chain<i32> = complex.boundary(2);
-  // assert_eq!(boundary.simplices.len(), 4);
-  // assert_eq!(boundary.coefficients.len(), 4);
-  // assert_eq!(boundary.simplices[0].vertices(), &[0, 2]);
-  // assert_eq!(boundary.simplices[1].vertices(), &[0, 1]);
-  // assert_eq!(boundary.simplices[2].vertices(), &[2, 3]);
-  // assert_eq!(boundary.simplices[3].vertices(), &[1, 3]);
-  // assert_eq!(boundary.coefficients[0], -1);
-  // assert_eq!(boundary.coefficients[1], 1);
-  // assert_eq!(boundary.coefficients[2], -1);
-  // assert_eq!(boundary.coefficients[3], 1);
-}
-
 fn test_homology_point_generic<F: TestField>() {
   let mut complex = SimplicialComplex::new();
   let p0 = Simplex::new(0, vec![0]);
@@ -236,7 +215,7 @@ fn test_homology_point_generic<F: TestField>() {
   assert_eq!(h0.dimension, 0, "H0: Dimension check");
   assert_eq!(h0.betti_number, 1, "H0: Betti number for a point should be 1");
   assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
-  let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, F::one());
+  let expected_gen_h0 = Chain::from_item_and_coeff(p0, F::one());
   assert!(
     h0.homology_generators.contains(&expected_gen_h0),
     "H0: Generator mismatch for field {:?}",
@@ -270,30 +249,30 @@ fn test_homology_point_all_fields() {
 }
 
 fn test_homology_edge_generic<F: TestField>() {
-  // let mut complex = SimplicialComplex::new();
-  // let edge01 = Simplex::new(1, vec![0, 1]);
-  // complex.join_simplex(edge01.clone());
+  let mut complex = SimplicialComplex::new();
+  let edge01 = Simplex::new(1, vec![0, 1]);
+  complex.join_simplex(edge01);
 
-  // let h0 = complex.compute_homology::<F>(0);
-  // assert_eq!(h0.dimension, 0, "H0: Dimension check");
-  // assert_eq!(h0.betti_number, 1, "H0: Betti for an edge");
-  // assert_eq!(h0.homology_generators.len(), 1, "H0: One generator");
-  // let p0 = Simplex::new(0, vec![0]);
-  // let expected_gen_h0 = Chain::from_simplex_and_coeff(p0, F::one());
-  // assert!(
-  //   h0.homology_generators.contains(&expected_gen_h0),
-  //   "H0: Generator for edge field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h0 = complex.homology::<F>(0);
+  assert_eq!(h0.dimension, 0, "H0: Dimension check");
+  assert_eq!(h0.betti_number, 1, "H0: Betti for an edge");
+  assert_eq!(h0.homology_generators.len(), 1, "H0: One generator");
+  let p0 = Simplex::new(0, vec![0]);
+  let expected_gen_h0 = Chain::from_item_and_coeff(p0, F::one());
+  assert!(
+    h0.homology_generators.contains(&expected_gen_h0),
+    "H0: Generator for edge field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let h1 = complex.compute_homology::<F>(1);
-  // assert_eq!(h1.dimension, 1, "H1: Dimension check");
-  // assert_eq!(h1.betti_number, 0, "H1: Betti for an edge");
-  // assert!(
-  //   h1.homology_generators.is_empty(),
-  //   "H1: No generators for edge field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h1 = complex.homology::<F>(1);
+  assert_eq!(h1.dimension, 1, "H1: Dimension check");
+  assert_eq!(h1.betti_number, 0, "H1: Betti for an edge");
+  assert!(
+    h1.homology_generators.is_empty(),
+    "H1: No generators for edge field {:?}",
+    std::any::type_name::<F>()
+  );
 }
 
 #[test]

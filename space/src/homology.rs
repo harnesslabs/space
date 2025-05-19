@@ -1,4 +1,11 @@
-use std::{mem, ops::Add};
+use std::{
+  collections::{HashMap, HashSet},
+  hash::Hash,
+  mem,
+  ops::Add,
+};
+
+use harness_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
 
 use super::*;
 use crate::definitions::Topology;
@@ -32,6 +39,27 @@ impl<T, R> Chain<T, R> {
       boundary = boundary + item.boundary();
     }
     boundary
+  }
+
+  /// Converts this chain to a coefficient vector in the basis given by the mapping.
+  /// The mapping should be from basis elements to their indices in the basis.
+  /// The resulting vector will have length equal to the basis size.
+  pub fn to_coeff_vector(
+    &self,
+    basis_map: &HashMap<T, usize>,
+    basis_size: usize,
+  ) -> DynamicVector<R>
+  where
+    T: Hash + Eq,
+    R: Ring + Copy,
+  {
+    let mut coeffs = vec![R::zero(); basis_size];
+    for (item, coeff) in self.items.iter().zip(self.coefficients.iter()) {
+      if let Some(&idx) = basis_map.get(item) {
+        coeffs[idx] = *coeff;
+      }
+    }
+    DynamicVector::new(coeffs)
   }
 }
 

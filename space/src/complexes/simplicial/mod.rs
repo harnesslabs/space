@@ -244,220 +244,124 @@ impl SimplicialComplex {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
-  // // TODO (autoparallel): This is a bit of a mess. We should clean it up.
-  #[allow(clippy::too_many_lines)]
-  /// Computes the $k$-th homology group $H_k(K; F)$ of the simplicial complex $K$
-  /// with coefficients in a specified field $F$.
-  ///
-  /// Homology groups are algebraic invariants that capture information about the "holes"
-  /// in a topological space. For example:
-  /// - $H_0$ describes path-connected components (rank is the number of components).
-  /// - $H_1$ describes 1-dimensional holes (like loops or tunnels).
-  /// - $H_2$ describes 2-dimensional voids (like cavities).
-  ///
-  /// The computation involves:
-  /// 1. Identifying bases for $k$-simplices ($S_k$), $(k-1)$-simplices ($S_{k-1}$), and
-  ///    $(k+1)$-simplices ($S_{k+1}$).
-  /// 2. Constructing boundary matrices for $\partial_k: C_k \to C_{k-1}$ and $\partial_{k+1}:
-  ///    C_{k+1} \to C_k$.
-  /// 3. Using [`DynamicDenseMatrix::row_echelon_form`] to find the rank and bases for the kernel
-  ///    (cycles $Z_k = \ker \partial_k$) and image (boundaries $B_k = \text{im } \partial_{k+1}$).
-  /// 4. The homology group $H_k = Z_k / B_k$. The Betti number ($b_k$) is $\text{rank}(H_k) =
-  ///    \dim(Z_k) - \dim(B_k)$.
-  ///
-  /// # Type Parameters
-  /// * `F`: The coefficient field. Must implement [`Field`] and [`Copy`]. Common choices include
-  ///   [`f64`], [`Boolean`](harness_algebra::algebras::boolean::Boolean) (for
-  ///   $\mathbb{Z}/2\mathbb{Z}$), or modular fields like $\mathbb{Z}/p\mathbb{Z}$ for prime $p$.
-  ///
-  /// # Arguments
-  /// * `k`: The dimension of the homology group to compute (e.g., 0 for $H_0$, 1 for $H_1$).
-  ///
-  /// # Returns
-  /// A [`HomologyGroup<F>`] struct containing the dimension, Betti number, and generators for
-  /// cycles, boundaries, and the homology group itself.
-  /// Returns a trivial homology group if there are no $k$-simplices or if other conditions lead to
-  /// a trivial group.
   pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<Simplex, F> {
-    // TODO: Let's think about this, we always need to find the image of \partial_{k+1} and the
-    // kernel of \partial_k. However, the kernel of \partial_k when k=0 is all the vertices. So we
-    // should make this kind of conditional work nicely here.
-    // TODO: We should also make use of the matrix lib to do this, so we should be able to determine
-    // image and kernel of matrix. We should also just have a simple way to create a vector from
-    // chains (which we can do by sorting).
-    if k == 0 {
-      let mut vertices = match self.simplices_by_dimension(0) {
-        Some(v) => v.to_vec(),
-        None => return Homology::trivial(0),
-      };
-      if vertices.is_empty() {
-        return Homology::trivial(0);
-      }
-      vertices.sort_unstable();
-
-      let mut adj: Vec<Vec<usize>> = vec![Vec::new(); vertices.len()];
-      let vertex_to_idx: std::collections::HashMap<Simplex, usize> =
-        vertices.iter().enumerate().map(|(i, v_s)| (v_s.clone(), i)).collect();
-
-      if let Some(edges) = self.simplices_by_dimension(1) {
-        for edge_s in edges {
-          if edge_s.vertices().len() == 2 {
-            let v0_s = Simplex::new(0, vec![edge_s.vertices()[0]]);
-            let v1_s = Simplex::new(0, vec![edge_s.vertices()[1]]);
-            if let (Some(&idx0), Some(&idx1)) = (vertex_to_idx.get(&v0_s), vertex_to_idx.get(&v1_s))
-            {
-              adj[idx0].push(idx1);
-              adj[idx1].push(idx0);
-            }
-          }
-        }
-      }
-      let mut visited = vec![false; vertices.len()];
-      let mut components = 0;
-      let mut h0_generators = Vec::new();
-      for i in 0..vertices.len() {
-        if !visited[i] {
-          components += 1;
-          h0_generators.push(Chain::from_item_and_coeff(vertices[i].clone(), <F as One>::one()));
-          let mut q = std::collections::VecDeque::new();
-          q.push_back(i);
-          visited[i] = true;
-          while let Some(u) = q.pop_front() {
-            for &v_idx in &adj[u] {
-              if !visited[v_idx] {
-                visited[v_idx] = true;
-                q.push_back(v_idx);
-              }
-            }
-          }
-        }
-      }
-      let z0_gens: Vec<Chain<Simplex, F>> =
-        vertices.iter().map(|v| Chain::from_item_and_coeff(v.clone(), F::one())).collect();
-      let s1_for_b0 = self.simplices_by_dimension(1).map_or_else(Vec::new, |s| {
-        let mut sorted_s = s.to_vec();
-        sorted_s.sort_unstable();
-        sorted_s
-      });
-      let b0_gens = if s1_for_b0.is_empty() || vertices.is_empty() {
-        Vec::new()
-      } else {
-        let mut mat_d1: DynamicDenseMatrix<F, RowMajor> =
-          get_boundary_matrix(&s1_for_b0, &vertices);
-        let mat_d1_result = mat_d1.row_echelon_form();
-        let d_s1_chains: Vec<Chain<Simplex, F>> = s1_for_b0
-          .iter()
-          .map(|s| Chain::from_item_and_coeff(s.clone(), F::one()).boundary())
-          .collect();
-        image_basis_from_row_echelon(
-          &d_s1_chains,
-          &mat_d1_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
-        )
-      };
-      return Homology {
-        dimension:           0,
-        betti_number:        components,
-        cycle_generators:    z0_gens,
-        boundary_generators: b0_gens,
-        homology_generators: h0_generators,
-      };
-    }
-
-    let s_k = match self.simplices_by_dimension(k) {
-      Some(s) if !s.is_empty() => {
-        let mut sorted_s = s.to_vec();
-        sorted_s.sort_unstable();
-        sorted_s
-      },
-      _ => return Homology::trivial(k),
-    };
-    let s_km1 = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
-      let mut ss = s.to_vec();
-      ss.sort_unstable();
-      ss
+    // Get ordered bases for simplices of dimensions k-1, k, and k+1
+    let k_simplices = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
+      let mut sorted = s.to_vec();
+      sorted.sort_unstable();
+      sorted
     });
-    let s_kp1 = self.simplices_by_dimension(k + 1).map_or_else(Vec::new, |s| {
-      let mut ss = s.to_vec();
-      ss.sort_unstable();
-      ss
-    });
-    let ck_basis: Vec<Chain<Simplex, F>> =
-      s_k.iter().map(|s| Chain::from_item_and_coeff(s.clone(), <F as One>::one())).collect();
 
-    let b_k_gens = if s_kp1.is_empty() || s_k.is_empty() {
-      Vec::new()
-    } else {
-      let mut mat_dkp1: DynamicDenseMatrix<F, RowMajor> = get_boundary_matrix(&s_kp1, &s_k);
-      let mat_dkp1_result = mat_dkp1.row_echelon_form();
-      let d_skp1_chains: Vec<Chain<Simplex, F>> = s_kp1
-        .iter()
-        .map(|s| Chain::from_item_and_coeff(s.clone(), <F as One>::one()).boundary())
-        .collect();
-      image_basis_from_row_echelon(
-        &d_skp1_chains,
-        &mat_dkp1_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
-      )
-    };
-
-    let z_k_gens = if s_k.is_empty() {
-      Vec::new()
-    } else if s_km1.is_empty() {
-      ck_basis
-    } else {
-      let mut mat_dk = get_boundary_matrix(&s_k, &s_km1);
-      let mat_dk_result = mat_dk.row_echelon_form();
-      kernel_basis_from_row_echelon(
-        &mat_dk,
-        &ck_basis,
-        &mat_dk_result.pivots.iter().map(|p| p.col).collect::<Vec<_>>(),
-      )
-    };
-
-    if s_k.is_empty() {
+    if k_simplices.is_empty() {
       return Homology::trivial(k);
     }
-    let sk_map: std::collections::HashMap<Simplex, usize> =
-      s_k.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
-    let mut quot_mat_cols = Vec::new();
-    for ch in &b_k_gens {
-      quot_mat_cols.push(ch.to_coeff_vector(&sk_map, s_k.len()));
+
+    let km1_simplices = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
+      let mut sorted = s.to_vec();
+      sorted.sort_unstable();
+      sorted
+    });
+
+    let kp1_simplices = self.simplices_by_dimension(k + 1).map_or_else(Vec::new, |s| {
+      let mut sorted = s.to_vec();
+      sorted.sort_unstable();
+      sorted
+    });
+
+    // Create basis chains for k-simplices
+    let k_chain_basis: Vec<Chain<Simplex, F>> =
+      k_simplices.iter().map(|s| Chain::from_item_and_coeff(s.clone(), F::one())).collect();
+
+    // Compute boundary matrices
+    let boundary_k = if km1_simplices.is_empty() {
+      DynamicDenseMatrix::<F, RowMajor>::new()
+    } else {
+      get_boundary_matrix(&k_simplices, &km1_simplices)
+    };
+
+    let boundary_kp1 = if kp1_simplices.is_empty() {
+      DynamicDenseMatrix::<F, RowMajor>::new()
+    } else {
+      get_boundary_matrix(&kp1_simplices, &k_simplices)
+    };
+
+    // Find cycles (kernel of ∂k) and boundaries (image of ∂k+1)
+    let cycles = if km1_simplices.is_empty() {
+      k_chain_basis
+    } else {
+      let kernel_vectors = boundary_k.kernel();
+      kernel_vectors
+        .into_iter()
+        .map(|v| {
+          let mut chain = Chain::new();
+          for (i, &coeff) in v.components().iter().enumerate() {
+            if !coeff.is_zero() {
+              chain = chain + Chain::from_item_and_coeff(k_simplices[i].clone(), coeff);
+            }
+          }
+          chain
+        })
+        .collect()
+    };
+
+    let boundaries = if kp1_simplices.is_empty() {
+      Vec::new()
+    } else {
+      let image_vectors = boundary_kp1.image();
+      image_vectors
+        .into_iter()
+        .map(|v| {
+          let mut chain = Chain::new();
+          for (i, &coeff) in v.components().iter().enumerate() {
+            if !coeff.is_zero() {
+              chain = chain + Chain::from_item_and_coeff(k_simplices[i].clone(), coeff);
+            }
+          }
+          chain
+        })
+        .collect()
+    };
+
+    // Create matrix for quotient space computation
+    let mut quotient_matrix = DynamicDenseMatrix::<F, RowMajor>::new();
+    let k_simplex_to_idx: HashMap<Simplex, usize> =
+      k_simplices.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
+
+    // Add boundary vectors first, then cycle vectors
+    for boundary in &boundaries {
+      quotient_matrix
+        .append_column(&boundary.to_coeff_vector(&k_simplex_to_idx, k_simplices.len()));
     }
-    let num_b = quot_mat_cols.len();
-    for ch in &z_k_gens {
-      quot_mat_cols.push(ch.to_coeff_vector(&sk_map, s_k.len()));
+    for cycle in &cycles {
+      quotient_matrix.append_column(&cycle.to_coeff_vector(&k_simplex_to_idx, k_simplices.len()));
     }
 
-    if quot_mat_cols.is_empty() {
-      return Homology {
-        dimension:           k,
-        betti_number:        z_k_gens.len(),
-        cycle_generators:    z_k_gens.clone(),
-        boundary_generators: b_k_gens,
-        homology_generators: z_k_gens,
-      };
-    }
+    // Find homology generators
+    let homology_generators = if quotient_matrix.num_cols() == 0 {
+      cycles.clone()
+    } else {
+      let rref_result = quotient_matrix.row_echelon_form();
+      let num_boundaries = boundaries.len();
 
-    let mut q_mat = DynamicDenseMatrix::<F, RowMajor>::new();
-    if !s_k.is_empty() {
-      for c in quot_mat_cols {
-        q_mat.append_column(&c);
-      }
-    }
-
-    let p_cols_q = q_mat.row_echelon_form().pivots.iter().map(|p| p.col).collect::<Vec<_>>();
-    let mut h_k_gens = Vec::new();
-    for &p_idx in &p_cols_q {
-      if p_idx >= num_b {
-        h_k_gens.push(z_k_gens[p_idx - num_b].clone());
-      }
-    }
+      rref_result
+        .pivots
+        .iter()
+        .filter_map(|pivot| {
+          if pivot.col >= num_boundaries {
+            Some(cycles[pivot.col - num_boundaries].clone())
+          } else {
+            None
+          }
+        })
+        .collect()
+    };
 
     Homology {
-      dimension:           k,
-      betti_number:        h_k_gens.len(),
-      cycle_generators:    z_k_gens,
-      boundary_generators: b_k_gens,
-      homology_generators: h_k_gens,
+      dimension: k,
+      betti_number: homology_generators.len(),
+      cycle_generators: cycles,
+      boundary_generators: boundaries,
+      homology_generators,
     }
   }
 }
@@ -503,8 +407,8 @@ pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
 impl Permutation {
   pub fn into_ring<R: Ring>(self) -> R {
     match self {
-      Permutation::Even => R::one(),
-      Permutation::Odd => -R::one(),
+      Self::Even => R::one(),
+      Self::Odd => -R::one(),
     }
   }
 }
@@ -570,27 +474,8 @@ pub fn get_boundary_matrix<F: Field + Copy>(
     let boundary_chain = k_simplex.boundary();
 
     // Convert this boundary_chain into a column vector for the matrix.
-    let col_vector = chain_to_coeff_vector(&boundary_chain, &km1_simplex_to_idx, num_rows);
+    let col_vector = boundary_chain.to_coeff_vector(&km1_simplex_to_idx, num_rows);
     matrix.append_column(&col_vector);
   }
   matrix
-}
-
-pub fn chain_to_coeff_vector<F: Field + Copy>(
-  chain: &Chain<Simplex, F>,
-  simplex_to_idx: &HashMap<Simplex, usize>,
-  num_rows: usize,
-) -> DynamicVector<F> {
-  let mut coeffs = vec![F::zero(); num_rows];
-
-  // For each simplex in the chain, get its coefficient and place it in the correct position
-  for (simplex, coeff) in chain.items.iter().zip(chain.coefficients.iter()) {
-    if let Some(&idx) = simplex_to_idx.get(simplex) {
-      if idx < num_rows {
-        coeffs[idx] = *coeff;
-      }
-    }
-  }
-
-  DynamicVector::new(coeffs)
 }
