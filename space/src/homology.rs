@@ -33,40 +33,6 @@ impl<T, R> Chain<T, R> {
     }
     boundary
   }
-
-  //  /// Computes the boundary of this chain.
-  //   ///
-  //   /// The boundary operator $\partial$ maps a $k$-chain to a $(k-1)$-chain. For a single
-  // $k$-simplex   /// $\sigma = [v_0, v_1, \dots, v_k]$, its boundary is $\partial_k \sigma =
-  // \sum_{i=0}^{k} (-1)^i   /// [v_0, \dots, \hat{v_i}, \dots, v_k]$, where $\hat{v_i}$ indicates
-  // that vertex $v_i$ is   /// omitted. This operator is extended linearly to chains.
-  //   ///
-  //   /// A fundamental property of the boundary operator is that $\partial \circ \partial = 0$
-  // (the   /// boundary of a boundary is zero).
-  //   ///
-  //   /// # Type Constraints
-  //   /// * `R` must implement `Clone`, `Neg<Output = R>`, `Add<Output = R>`, and `Zero`.
-  //   ///
-  //   /// # Returns
-  //   /// A new [`Chain<R>`] representing the boundary of the current chain. If the chain consists
-  // of   /// 0-simplices, their boundary is the empty chain (zero).
-  //   pub fn boundary(&self) -> Self
-  //   where R: Clone + Neg<Output = R> + Add<Output = R> + Zero {
-  //     let mut boundary = Self::new();
-  //     for (coeff, simplex) in self.coefficients.clone().into_iter().zip(self.simplices.iter()) {
-  //       for i in 0..=simplex.dimension() {
-  //         let mut vertices = simplex.vertices().to_vec();
-  //         let _ = vertices.remove(i);
-  //         let face = Simplex::new(simplex.dimension() - 1, vertices);
-  //         let chain = Self::from_simplex_and_coeff(
-  //           face,
-  //           if i % 2 == 0 { coeff.clone() } else { -coeff.clone() },
-  //         );
-  //         boundary = boundary + chain;
-  //       }
-  //     }
-  //     boundary
-  //   }
 }
 
 impl<T: PartialEq, R: PartialEq> PartialEq for Chain<T, R> {

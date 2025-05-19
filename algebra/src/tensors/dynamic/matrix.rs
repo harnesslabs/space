@@ -1064,6 +1064,8 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 }
 
+// TODO: Should implement algebraic traits on these matrices then use them in the tests below as
+// well.
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -1365,34 +1367,6 @@ mod tests {
     basis.iter().any(|v| v == vector)
   }
 
-  // Helper function to check if two bases span the same space.
-  // This is simplified: sorts both and checks for equality.
-  // Assumes F allows ordering for sorting components, which might not be true for all Fields.
-  // A more robust check would involve checking if each vector in one basis
-  // can be expressed as a linear combination of vectors in the other, and vice-versa,
-  // and that their dimensions match.
-  fn compare_bases<F: Field + Copy + PartialEq + Ord>(
-    mut basis1: Vec<DynamicVector<F>>,
-    mut basis2: Vec<DynamicVector<F>>,
-  ) -> bool {
-    if basis1.len() != basis2.len() {
-      return false;
-    }
-    // Sort components within each vector first for a canonical representation
-    for v in basis1.iter_mut() {
-      v.components_mut().sort_unstable();
-    }
-    for v in basis2.iter_mut() {
-      v.components_mut().sort_unstable();
-    }
-    // Then sort the vectors themselves
-    // This requires DynamicVector<F> to be Ord, which means its components Vec<F> needs to be Ord.
-    // This is a simplification for testing. A proper check is more involved.
-    basis1.sort_unstable_by(|a, b| a.components().cmp(b.components()));
-    basis2.sort_unstable_by(|a, b| a.components().cmp(b.components()));
-    basis1 == basis2
-  }
-
   #[test]
   fn test_image_kernel_row_major_simple() {
     let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
@@ -1403,7 +1377,7 @@ mod tests {
 
     let image = m.image();
     // Pivots are in col 0 and col 1. Image is span of original col 0 and col 1.
-    let expected_image_basis = vec![
+    let expected_image_basis = [
       DynamicVector::from(vec![1.0, 0.0]), // Original col 0
       DynamicVector::from(vec![0.0, 1.0]), // Original col 1
     ];
@@ -1448,7 +1422,7 @@ mod tests {
     // Image basis: col 0, col 1 of original matrix
     let image = m.image();
     let expected_image_basis =
-      vec![DynamicVector::from(vec![1.0, 0.0, -1.0]), DynamicVector::from(vec![0.0, 1.0, 2.0])];
+      [DynamicVector::from(vec![1.0, 0.0, -1.0]), DynamicVector::from(vec![0.0, 1.0, 2.0])];
     assert_eq!(image.len(), 2);
     assert!(contains_vector(&image, &expected_image_basis[0]));
     assert!(contains_vector(&image, &expected_image_basis[1]));
@@ -1466,7 +1440,7 @@ mod tests {
 
     let image = m.image();
     let expected_image_basis =
-      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
     assert_eq!(image.len(), 2);
     assert!(contains_vector(&image, &expected_image_basis[0]));
     assert!(contains_vector(&image, &expected_image_basis[1]));
@@ -1487,7 +1461,7 @@ mod tests {
     let kernel = m.kernel();
     // Kernel of 2x2 zero matrix is R^2, basis e.g., [[1,0],[0,1]]
     let expected_kernel_basis =
-      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
     assert_eq!(kernel.len(), 2);
     // Order might differ, so check containment
     assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
@@ -1549,7 +1523,7 @@ mod tests {
 
     let image = m.image();
     let expected_image_basis =
-      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
     assert_eq!(image.len(), 2);
     assert!(contains_vector(&image, &expected_image_basis[0]));
     assert!(contains_vector(&image, &expected_image_basis[1]));
@@ -1569,7 +1543,7 @@ mod tests {
 
     let kernel = m.kernel();
     let expected_kernel_basis =
-      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
     assert_eq!(kernel.len(), 2);
     assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
     assert!(contains_vector(&kernel, &expected_kernel_basis[1]));
@@ -1585,34 +1559,6 @@ mod tests {
   }
 
   #[test]
-  fn test_empty_matrix_0x3_row_major() {
-    // A 0x3 matrix means 0 rows, 3 columns.append_column will create rows of 1 element.
-    // To truly get a 0xN, it needs to be empty, or its num_rows() method should reflect 0.
-    // The current `append_column` to empty RowMajor matrix creates rows.
-    // So we test a matrix that IS 0 rows after construction (but might have cols implicitly if not
-    // careful). If num_rows is 0 and num_cols > 0, kernel should be R^num_cols.
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    // To represent a 0x3 matrix without using internal `components` directly, we can't easily add
-    // columns without also adding rows in RowMajor with current `append_column`.
-    // Let's test the functions' behavior if num_rows is 0 from the start.
-    // The kernel logic has a path for num_rows == 0.
-    // For image, if num_rows or num_cols is 0, it returns empty Vec.
-
-    // This actually makes a 0x0 matrix.
-    assert_eq!(m.num_rows(), 0);
-    assert_eq!(m.num_cols(), 0); // num_cols also 0
-    assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 0); // kernel of 0x0 is trivial
-
-    // A matrix with 0 rows and N columns for RowMajor is tricky with current API.
-    // The functions `image` and `kernel` themselves handle `self.num_rows() == 0` or
-    // `self.num_cols() == 0`. Let's consider how to construct such a matrix or if the test
-    // needs to mock `num_cols`. The `kernel` method has this: `if self.num_rows() == 0 { ...
-    // basis for R^num_cols }` But `num_cols()` for an empty RowMajor returns 0.
-    // This scenario might expose edge cases in `num_cols` or how `kernel` should behave.
-  }
-
-  #[test]
   fn test_matrix_3x0_row_major() {
     let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
     m.append_row(DynamicVector::from(vec![]));
@@ -1621,7 +1567,7 @@ mod tests {
     assert_eq!(m.num_rows(), 3);
     assert_eq!(m.num_cols(), 0);
     assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 0); // Kernel of Nx0 is trivial {0}
+    assert_eq!(m.kernel().len(), 0);
   }
 
   #[test]
@@ -1648,18 +1594,5 @@ mod tests {
     assert!(contains_vector(&kernel, &DynamicVector::from(vec![1.0, 0.0, 0.0])));
     assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 1.0, 0.0])));
     assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 0.0, 1.0])));
-  }
-
-  #[test]
-  fn test_matrix_3x0_col_major() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    // A 3x0 matrix means 3 rows, 0 columns.
-    // The current `append_row` to empty ColMajor matrix creates columns of 1 element.
-    // This test case is slightly problematic for ColMajor construction via `append_row`.
-    // Let's test if it's empty.
-    assert_eq!(m.num_rows(), 0);
-    assert_eq!(m.num_cols(), 0); // num_rows also 0
-    assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 0);
   }
 }
