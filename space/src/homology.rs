@@ -30,15 +30,29 @@ impl<T, R> Chain<T, R> {
     Self { items, coefficients: coeffs }
   }
 
+  // TODO: Get rid of this method and implement the algebraic operations on chains instead.
+  /// Scales the chain by a scalar coefficient.
+  /// If the scalar is zero, an empty chain is returned.
+  pub fn scaled(self, scalar: R) -> Self
+  where R: Ring + Copy {
+    if scalar.is_zero() {
+      return Chain::new();
+    }
+    let new_coefficients = self.coefficients.into_iter().map(|c| c * scalar).collect();
+    Chain::from_items_and_coeffs(self.items, new_coefficients)
+  }
+
   pub fn boundary(&self) -> Self
   where
     T: Topology + PartialEq,
     R: Ring + Copy, {
-    let mut boundary = Chain::new();
-    for item in self.items.iter() {
-      boundary = boundary + item.boundary();
+    let mut total_boundary = Chain::new();
+    for (item, coeff) in self.items.iter().zip(self.coefficients.iter()) {
+      let simplex_boundary_chain = item.boundary::<R>();
+      let scaled_simplex_boundary = simplex_boundary_chain.scaled(*coeff);
+      total_boundary = total_boundary + scaled_simplex_boundary;
     }
-    boundary
+    total_boundary
   }
 
   /// Converts this chain to a coefficient vector in the basis given by the mapping.

@@ -437,93 +437,92 @@ fn test_homology_circle_all_fields() {
 }
 
 fn test_homology_sphere_surface_generic<F: TestField>() {
-  todo!();
-  // let mut complex = SimplicialComplex::new();
-  // let f012 = Simplex::new(2, vec![0, 1, 2]);
-  // let f013 = Simplex::new(2, vec![0, 1, 3]);
-  // let f023 = Simplex::new(2, vec![0, 2, 3]);
-  // let f123 = Simplex::new(2, vec![1, 2, 3]);
+  let mut complex = SimplicialComplex::new();
+  let f012 = Simplex::new(2, vec![0, 1, 2]);
+  let f013 = Simplex::new(2, vec![0, 1, 3]);
+  let f023 = Simplex::new(2, vec![0, 2, 3]);
+  let f123 = Simplex::new(2, vec![1, 2, 3]);
 
-  // complex.join_simplex(f012.clone());
-  // complex.join_simplex(f013.clone());
-  // complex.join_simplex(f023.clone());
-  // complex.join_simplex(f123.clone());
+  complex.join_simplex(f012.clone());
+  complex.join_simplex(f013.clone());
+  complex.join_simplex(f023.clone());
+  complex.join_simplex(f123.clone());
 
-  // let h0 = complex.compute_homology::<F>(0);
-  // assert_eq!(h0.betti_number, 1, "H0: Betti sphere field {:?}", std::any::type_name::<F>());
+  let h0 = complex.homology::<F>(0);
+  assert_eq!(h0.betti_number, 1, "H0: Betti sphere field {:?}", std::any::type_name::<F>());
 
-  // let h1 = complex.compute_homology::<F>(1);
-  // assert_eq!(h1.betti_number, 0, "H1: Betti sphere field {:?}", std::any::type_name::<F>());
-  // assert!(
-  //   h1.homology_generators.is_empty(),
-  //   "H1: Generators sphere field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h1 = complex.homology::<F>(1);
+  assert_eq!(h1.betti_number, 0, "H1: Betti sphere field {:?}", std::any::type_name::<F>());
+  assert!(
+    h1.homology_generators.is_empty(),
+    "H1: Generators sphere field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let h2 = complex.compute_homology::<F>(2);
-  // assert_eq!(h2.betti_number, 1, "H2: Betti sphere field {:?}", std::any::type_name::<F>());
-  // assert_eq!(
-  //   h2.homology_generators.len(),
-  //   1,
-  //   "H2: One 2D generator field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h2 = complex.homology::<F>(2);
+  assert_eq!(h2.betti_number, 1, "H2: Betti sphere field {:?}", std::any::type_name::<F>());
+  assert_eq!(
+    h2.homology_generators.len(),
+    1,
+    "H2: One 2D generator field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let generator_h2 = h2.homology_generators[0].clone();
-  // assert_eq!(
-  //   generator_h2.simplices.len(),
-  //   4,
-  //   "H2: Sphere generator 4 faces field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   generator_h2.simplices.contains(&f012),
-  //   "H2: Gen missing f012 field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   generator_h2.simplices.contains(&f013),
-  //   "H2: Gen missing f013 field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   generator_h2.simplices.contains(&f023),
-  //   "H2: Gen missing f023 field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   generator_h2.simplices.contains(&f123),
-  //   "H2: Gen missing f123 field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let generator_h2 = h2.homology_generators[0].clone();
+  assert_eq!(
+    generator_h2.items.len(),
+    4,
+    "H2: Sphere generator 4 faces field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    generator_h2.items.contains(&f012),
+    "H2: Gen missing f012 field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    generator_h2.items.contains(&f013),
+    "H2: Gen missing f013 field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    generator_h2.items.contains(&f023),
+    "H2: Gen missing f023 field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    generator_h2.items.contains(&f123),
+    "H2: Gen missing f123 field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // // Check that all coefficients of the generator are F::one() or -F::one().
-  // assert!(
-  //   !generator_h2.coefficients.is_empty(),
-  //   "H2: Generator should have coefficients for field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // let one = F::one();
-  // let neg_one = -F::one();
+  // Check that all coefficients of the generator are F::one() or -F::one().
+  assert!(
+    !generator_h2.coefficients.is_empty(),
+    "H2: Generator should have coefficients for field {:?}",
+    std::any::type_name::<F>()
+  );
+  let one = F::one();
+  let neg_one = -F::one();
 
-  // for coeff in generator_h2.coefficients.iter() {
-  //   assert!(
-  //     *coeff == one || *coeff == neg_one,
-  //     "H2: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
-  //      field {:?}",
-  //     *coeff,
-  //     std::any::type_name::<F>()
-  //   );
-  // }
+  for coeff in &generator_h2.coefficients {
+    assert!(
+      *coeff == one || *coeff == neg_one,
+      "H2: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
+       field {:?}",
+      *coeff,
+      std::any::type_name::<F>()
+    );
+  }
 
-  // assert!(
-  //   generator_h2.boundary().simplices.is_empty(),
-  //   "H2: Generator boundary zero field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  assert!(
+    generator_h2.boundary().items.is_empty(),
+    "H2: Generator boundary zero field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let h3 = complex.compute_homology::<F>(3);
-  // assert_eq!(h3.betti_number, 0, "H3: Betti sphere field {:?}", std::any::type_name::<F>());
+  let h3 = complex.homology::<F>(3);
+  assert_eq!(h3.betti_number, 0, "H3: Betti sphere field {:?}", std::any::type_name::<F>());
 }
 
 #[test]

@@ -78,12 +78,9 @@
 //! - Hatcher, A. (2002). *Algebraic Topology*. Cambridge University Press. (Especially Chapter 2)
 //! - Munkres, J. R. (1984). *Elements of Algebraic Topology*. Addison-Wesley.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
-use harness_algebra::tensors::dynamic::{
-  matrix::{DynamicDenseMatrix, RowMajor},
-  vector::DynamicVector,
-};
+use harness_algebra::tensors::dynamic::matrix::{DynamicDenseMatrix, RowMajor};
 use itertools::Itertools;
 
 use super::*;
@@ -256,16 +253,70 @@ impl SimplicialComplex {
       return Homology::trivial(k);
     }
 
-    // Special case for k=0: no (-1)-simplices exist
-    let km1_simplices = if k == 0 {
-      Vec::new()
-    } else {
-      self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
-        let mut sorted = s.to_vec();
-        sorted.sort_unstable();
-        sorted
-      })
-    };
+    // Special case for k=0: we need to handle connected components
+    if k == 0 {
+      // For H₀, we need to find connected components
+      // Start with each vertex in its own component
+      let mut components: Vec<Vec<Simplex>> = k_simplices.iter().map(|s| vec![s.clone()]).collect();
+
+      // For each edge, merge the components of its vertices
+      if let Some(edges) = self.simplices_by_dimension(1) {
+        for edge in edges {
+          let v0 = Simplex::new(0, vec![edge.vertices()[0]]);
+          let v1 = Simplex::new(0, vec![edge.vertices()[1]]);
+
+          // Find components containing v0 and v1
+          let mut i0 = None;
+          let mut i1 = None;
+          for (i, comp) in components.iter().enumerate() {
+            if comp.contains(&v0) {
+              i0 = Some(i);
+            }
+            if comp.contains(&v1) {
+              i1 = Some(i);
+            }
+          }
+
+          // If vertices are in different components, merge them
+          if let (Some(i0), Some(i1)) = (i0, i1) {
+            if i0 != i1 {
+              let comp1 = components.remove(i1);
+              components[i0].extend(comp1);
+            }
+          }
+        }
+      }
+
+      // Create one generator per connected component
+      let homology_generators: Vec<Chain<Simplex, F>> = components
+        .into_iter()
+        .map(|comp| {
+          let mut chain = Chain::new();
+          for vertex in comp {
+            chain = chain + Chain::from_item_and_coeff(vertex, F::one());
+          }
+          chain
+        })
+        .collect();
+
+      return Homology {
+        dimension: k,
+        betti_number: homology_generators.len(),
+        cycle_generators: k_simplices
+          .iter()
+          .map(|s| Chain::from_item_and_coeff(s.clone(), F::one()))
+          .collect(),
+        boundary_generators: Vec::new(),
+        homology_generators,
+      };
+    }
+
+    // For k > 0, proceed with normal homology computation
+    let km1_simplices = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
+      let mut sorted = s.to_vec();
+      sorted.sort_unstable();
+      sorted
+    });
 
     let kp1_simplices = self.simplices_by_dimension(k + 1).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();
@@ -348,12 +399,17 @@ impl SimplicialComplex {
       let rref_result = quotient_matrix.row_echelon_form();
       let num_boundaries = boundaries.len();
 
-      rref_result
-        .pivots
+      // Get the pivot columns from the RREF
+      let pivot_cols: HashSet<usize> = rref_result.pivots.iter().map(|p| p.col).collect();
+
+      // For each cycle, check if it's a boundary
+      cycles
         .iter()
-        .filter_map(|pivot| {
-          if pivot.col >= num_boundaries {
-            Some(cycles[pivot.col - num_boundaries].clone())
+        .enumerate()
+        .filter_map(|(i, cycle)| {
+          let cycle_col = num_boundaries + i;
+          if pivot_cols.contains(&cycle_col) {
+            Some(cycle.clone())
           } else {
             None
           }
@@ -371,53 +427,6 @@ impl SimplicialComplex {
   }
 }
 
-// TODO: Permutation should probably be moved into algebra crate for permutation groups.
-/// Represents whether a permutation of vertices is odd or even.
-/// This is used, for example, in defining the orientation of a simplex, although
-/// the `Chain::eq` method's use of it might need review for standard chain equality.
-#[derive(Debug, PartialEq, Eq)]
-pub enum Permutation {
-  /// An odd permutation (e.g., requires an odd number of transpositions to reach sorted order).
-  Odd,
-  /// An even permutation (e.g., requires an even number of transpositions to reach sorted order).
-  Even,
-}
-
-/// Computes the sign (even or odd) of a permutation by counting the number of inversions.
-/// An inversion is a pair of elements `(item[i], item[j])` such that `i < j` but `item[i] >
-/// item[j]`.
-///
-/// # Arguments
-/// * `item`: A slice of ordered items (e.g., vertex indices of a simplex before sorting).
-///
-/// # Returns
-/// * `Permutation::Even` if the number of inversions is even.
-/// * `Permutation::Odd` if the number of inversions is odd.
-pub fn permutation_sign<V: Ord>(item: &[V]) -> Permutation {
-  let mut count = 0;
-  for i in 0..item.len() {
-    for j in i + 1..item.len() {
-      if item[i] > item[j] {
-        count += 1;
-      }
-    }
-  }
-  if count % 2 == 0 {
-    Permutation::Even
-  } else {
-    Permutation::Odd
-  }
-}
-
-impl Permutation {
-  pub fn into_ring<R: Ring>(self) -> R {
-    match self {
-      Self::Even => R::one(),
-      Self::Odd => -R::one(),
-    }
-  }
-}
-
 impl Topology for Simplex {
   // TODO (autoparallel): Implement this. It  is the "star" of the simplex.
   fn neighborhood(&self) -> Vec<Self> { todo!() }
@@ -426,12 +435,27 @@ impl Topology for Simplex {
     if self.dimension == 0 {
       return Chain::new();
     }
-    let mut boundary = Chain::new();
-    for face in self.faces() {
-      let coeff = permutation_sign(face.vertices()).into_ring::<R>();
-      boundary = boundary + Chain::from_items_and_coeffs(vec![face], vec![coeff]);
+
+    let mut boundary_chain_items = Vec::with_capacity(self.dimension + 1);
+    let mut boundary_chain_coeffs = Vec::with_capacity(self.dimension + 1);
+
+    // self.vertices are sorted: v_0, v_1, ..., v_k
+    // Boundary is sum_{i=0 to k} (-1)^i * [v_0, ..., ^v_i, ..., v_k]
+    for i in 0..=self.dimension {
+      let mut face_vertices = self.vertices.clone();
+      face_vertices.remove(i);
+
+      let face_simplex = Self::new(self.dimension - 1, face_vertices);
+      boundary_chain_items.push(face_simplex);
+
+      let coeff = if i % 2 == 0 {
+        R::one()
+      } else {
+        -R::one() // Requires R: Neg
+      };
+      boundary_chain_coeffs.push(coeff);
     }
-    boundary
+    Chain::from_items_and_coeffs(boundary_chain_items, boundary_chain_coeffs)
   }
 }
 
