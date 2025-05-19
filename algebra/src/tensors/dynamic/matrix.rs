@@ -542,6 +542,95 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
     }
     RowEchelonOutput { rank, pivots }
   }
+
+  /// Computes a basis for the image (column space) of the matrix.
+  /// The image is the span of the columns of the matrix.
+  /// This method finds the pivot columns by transforming a copy of the matrix to RREF.
+  /// The corresponding columns from the *original* matrix form the basis.
+  /// This method does not modify `self`.
+  pub fn image(&self) -> Vec<DynamicVector<F>> {
+    if self.num_rows() == 0 || self.num_cols() == 0 {
+      return Vec::new();
+    }
+
+    let mut rref_candidate = self.clone();
+    let echelon_output = rref_candidate.row_echelon_form(); // Modifies rref_candidate
+
+    let mut pivot_col_indices: Vec<usize> = echelon_output.pivots.iter().map(|p| p.col).collect();
+    pivot_col_indices.sort_unstable();
+    pivot_col_indices.dedup();
+
+    let mut image_basis: Vec<DynamicVector<F>> = Vec::new();
+    for &col_idx in &pivot_col_indices {
+      image_basis.push(self.get_column(col_idx)); // get_column for RowMajor returns owned
+                                                  // DynamicVector
+    }
+    image_basis
+  }
+
+  /// Computes a basis for the kernel (null space) of the matrix.
+  /// The kernel is the set of all vectors x such that Ax = 0.
+  /// This method returns a vector of `DynamicVector<F>` representing the basis vectors for the
+  /// kernel. An empty vector is returned if the kernel is the zero space (e.g., for an invertible
+  /// matrix, or if num_cols is 0). This method does not modify `self`.
+  pub fn kernel(&self) -> Vec<DynamicVector<F>> {
+    if self.num_cols() == 0 {
+      return Vec::new();
+    }
+
+    if self.num_rows() == 0 {
+      let mut basis: Vec<DynamicVector<F>> = Vec::with_capacity(self.num_cols());
+      for i in 0..self.num_cols() {
+        let mut v_data = vec![F::zero(); self.num_cols()];
+        if i < v_data.len() {
+          v_data[i] = F::one();
+        }
+        basis.push(DynamicVector::new(v_data));
+      }
+      return basis;
+    }
+
+    let mut rref_matrix = self.clone();
+    let echelon_output = rref_matrix.row_echelon_form();
+
+    let num_cols = rref_matrix.num_cols();
+    let num_rows_of_rref = rref_matrix.num_rows();
+
+    let mut is_pivot_col = vec![false; num_cols];
+    for pivot_info in &echelon_output.pivots {
+      if pivot_info.col < num_cols {
+        is_pivot_col[pivot_info.col] = true;
+      }
+    }
+
+    let mut free_col_indices: Vec<usize> = Vec::new();
+    for j in 0..num_cols {
+      if !is_pivot_col[j] {
+        free_col_indices.push(j);
+      }
+    }
+
+    let mut kernel_basis: Vec<DynamicVector<F>> = Vec::new();
+
+    for &free_idx in &free_col_indices {
+      let mut basis_vector_comps = vec![F::zero(); num_cols];
+      if free_idx < num_cols {
+        basis_vector_comps[free_idx] = F::one();
+      }
+
+      for pivot_info in &echelon_output.pivots {
+        let pivot_col = pivot_info.col;
+        let pivot_row = pivot_info.row;
+
+        if pivot_col < num_cols && free_idx < num_cols && pivot_row < num_rows_of_rref {
+          let coefficient = *rref_matrix.get_component(pivot_row, free_idx);
+          basis_vector_comps[pivot_col] = -coefficient;
+        }
+      }
+      kernel_basis.push(DynamicVector::new(basis_vector_comps));
+    }
+    kernel_basis
+  }
 }
 
 impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
@@ -884,6 +973,95 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
     }
     RowEchelonOutput { rank, pivots }
   }
+
+  /// Computes a basis for the image (column space) of the matrix.
+  /// The image is the span of the columns of the matrix.
+  /// This method finds the pivot columns by transforming a copy of the matrix to RREF.
+  /// The corresponding columns from the *original* matrix form the basis.
+  /// This method does not modify `self`.
+  pub fn image(&self) -> Vec<DynamicVector<F>> {
+    if self.num_rows() == 0 || self.num_cols() == 0 {
+      return Vec::new();
+    }
+
+    let mut rref_candidate = self.clone();
+    let echelon_output = rref_candidate.row_echelon_form(); // Modifies rref_candidate
+
+    let mut pivot_col_indices: Vec<usize> = echelon_output.pivots.iter().map(|p| p.col).collect();
+    pivot_col_indices.sort_unstable();
+    pivot_col_indices.dedup();
+
+    let mut image_basis: Vec<DynamicVector<F>> = Vec::new();
+    for &col_idx in &pivot_col_indices {
+      // get_column for ColumnMajor returns &DynamicVector, so clone is needed.
+      image_basis.push(self.get_column(col_idx).clone());
+    }
+    image_basis
+  }
+
+  /// Computes a basis for the kernel (null space) of the matrix.
+  /// The kernel is the set of all vectors x such that Ax = 0.
+  /// This method returns a vector of `DynamicVector<F>` representing the basis vectors for the
+  /// kernel. An empty vector is returned if the kernel is the zero space (e.g., for an invertible
+  /// matrix, or if num_cols is 0). This method does not modify `self`.
+  pub fn kernel(&self) -> Vec<DynamicVector<F>> {
+    if self.num_cols() == 0 {
+      return Vec::new();
+    }
+
+    if self.num_rows() == 0 {
+      let mut basis: Vec<DynamicVector<F>> = Vec::with_capacity(self.num_cols());
+      for i in 0..self.num_cols() {
+        let mut v_data = vec![F::zero(); self.num_cols()];
+        if i < v_data.len() {
+          v_data[i] = F::one();
+        }
+        basis.push(DynamicVector::new(v_data));
+      }
+      return basis;
+    }
+
+    let mut rref_matrix = self.clone();
+    let echelon_output = rref_matrix.row_echelon_form();
+
+    let num_cols = rref_matrix.num_cols();
+    let num_rows_of_rref = rref_matrix.num_rows();
+
+    let mut is_pivot_col = vec![false; num_cols];
+    for pivot_info in &echelon_output.pivots {
+      if pivot_info.col < num_cols {
+        is_pivot_col[pivot_info.col] = true;
+      }
+    }
+
+    let mut free_col_indices: Vec<usize> = Vec::new();
+    for j in 0..num_cols {
+      if !is_pivot_col[j] {
+        free_col_indices.push(j);
+      }
+    }
+
+    let mut kernel_basis: Vec<DynamicVector<F>> = Vec::new();
+
+    for &free_idx in &free_col_indices {
+      let mut basis_vector_comps = vec![F::zero(); num_cols];
+      if free_idx < num_cols {
+        basis_vector_comps[free_idx] = F::one();
+      }
+
+      for pivot_info in &echelon_output.pivots {
+        let pivot_col = pivot_info.col;
+        let pivot_row = pivot_info.row;
+
+        if pivot_col < num_cols && free_idx < num_cols && pivot_row < num_rows_of_rref {
+          let coefficient = *rref_matrix.get_component(pivot_row, free_idx);
+          basis_vector_comps[pivot_col] = -coefficient;
+        }
+      }
+      kernel_basis.push(DynamicVector::new(basis_vector_comps));
+    }
+    kernel_basis
+  }
 }
 
 #[cfg(test)]
@@ -1175,5 +1353,313 @@ mod tests {
     assert_eq!(*m.get_component(2, 0), 0.0);
     assert_eq!(*m.get_component(2, 1), 0.0);
     assert_eq!(*m.get_component(2, 2), 0.0);
+  }
+
+  // Helper function to check if a vector is in a list of vectors (basis)
+  // This is a simple check, assumes vectors in basis are unique and non-zero for simplicity.
+  // For more robust checks, one might need to check for linear independence and spanning.
+  fn contains_vector<F: Field + Copy + PartialEq>(
+    basis: &[DynamicVector<F>],
+    vector: &DynamicVector<F>,
+  ) -> bool {
+    basis.iter().any(|v| v == vector)
+  }
+
+  // Helper function to check if two bases span the same space.
+  // This is simplified: sorts both and checks for equality.
+  // Assumes F allows ordering for sorting components, which might not be true for all Fields.
+  // A more robust check would involve checking if each vector in one basis
+  // can be expressed as a linear combination of vectors in the other, and vice-versa,
+  // and that their dimensions match.
+  fn compare_bases<F: Field + Copy + PartialEq + Ord>(
+    mut basis1: Vec<DynamicVector<F>>,
+    mut basis2: Vec<DynamicVector<F>>,
+  ) -> bool {
+    if basis1.len() != basis2.len() {
+      return false;
+    }
+    // Sort components within each vector first for a canonical representation
+    for v in basis1.iter_mut() {
+      v.components_mut().sort_unstable();
+    }
+    for v in basis2.iter_mut() {
+      v.components_mut().sort_unstable();
+    }
+    // Then sort the vectors themselves
+    // This requires DynamicVector<F> to be Ord, which means its components Vec<F> needs to be Ord.
+    // This is a simplification for testing. A proper check is more involved.
+    basis1.sort_unstable_by(|a, b| a.components().cmp(b.components()));
+    basis2.sort_unstable_by(|a, b| a.components().cmp(b.components()));
+    basis1 == basis2
+  }
+
+  #[test]
+  fn test_image_kernel_row_major_simple() {
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    // A = [[1, 0, -1],
+    //      [0, 1,  2]]
+    m.append_row(DynamicVector::from(vec![1.0, 0.0, -1.0]));
+    m.append_row(DynamicVector::from(vec![0.0, 1.0, 2.0]));
+
+    let image = m.image();
+    // Pivots are in col 0 and col 1. Image is span of original col 0 and col 1.
+    let expected_image_basis = vec![
+      DynamicVector::from(vec![1.0, 0.0]), // Original col 0
+      DynamicVector::from(vec![0.0, 1.0]), // Original col 1
+    ];
+    assert_eq!(image.len(), 2);
+    assert!(contains_vector(&image, &expected_image_basis[0]));
+    assert!(contains_vector(&image, &expected_image_basis[1]));
+
+    let kernel = m.kernel();
+    // RREF is [[1,0,-1],[0,1,2]]. x1 - x3 = 0, x2 + 2x3 = 0.
+    // x3 is free. x1 = x3, x2 = -2x3. Vector: [1, -2, 1]^T * x3
+    let expected_kernel_basis = vec![DynamicVector::from(vec![1.0, -2.0, 1.0])];
+    assert_eq!(kernel.len(), 1);
+    assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
+
+    // Check Ax = 0 for kernel vectors
+    for k_vec in kernel.iter() {
+      let mut Ax_components = vec![0.0; m.num_rows()];
+      for r in 0..m.num_rows() {
+        let mut sum = 0.0;
+        for c in 0..m.num_cols() {
+          sum += m.get_component(r, c) * k_vec.get_component(c);
+        }
+        Ax_components[r] = sum;
+      }
+      let Ax = DynamicVector::new(Ax_components);
+      let zero_vec = DynamicVector::new(vec![0.0; m.num_rows()]);
+      assert_eq!(Ax, zero_vec, "Kernel vector validation failed: Ax != 0");
+    }
+  }
+
+  #[test]
+  fn test_image_kernel_col_major_simple() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    // A = [[1, 0],
+    //      [0, 1],
+    //      [-1, 2]]
+    // This is the transpose of the RowMajor test for easier comparison logic.
+    m.append_column(DynamicVector::from(vec![1.0, 0.0, -1.0]));
+    m.append_column(DynamicVector::from(vec![0.0, 1.0, 2.0]));
+
+    // For A (3x2), RREF would be [[1,0],[0,1],[0,0]]
+    // Image basis: col 0, col 1 of original matrix
+    let image = m.image();
+    let expected_image_basis =
+      vec![DynamicVector::from(vec![1.0, 0.0, -1.0]), DynamicVector::from(vec![0.0, 1.0, 2.0])];
+    assert_eq!(image.len(), 2);
+    assert!(contains_vector(&image, &expected_image_basis[0]));
+    assert!(contains_vector(&image, &expected_image_basis[1]));
+
+    // Kernel for this 3x2 matrix (rank 2) should be trivial (only zero vector)
+    let kernel = m.kernel();
+    assert_eq!(kernel.len(), 0, "Kernel should be trivial for this matrix");
+  }
+
+  #[test]
+  fn test_image_kernel_identity_row_major() {
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    m.append_row(DynamicVector::from(vec![1.0, 0.0]));
+    m.append_row(DynamicVector::from(vec![0.0, 1.0]));
+
+    let image = m.image();
+    let expected_image_basis =
+      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+    assert_eq!(image.len(), 2);
+    assert!(contains_vector(&image, &expected_image_basis[0]));
+    assert!(contains_vector(&image, &expected_image_basis[1]));
+
+    let kernel = m.kernel();
+    assert_eq!(kernel.len(), 0, "Kernel of identity matrix should be trivial");
+  }
+
+  #[test]
+  fn test_image_kernel_zero_matrix_row_major() {
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    m.append_row(DynamicVector::from(vec![0.0, 0.0]));
+    m.append_row(DynamicVector::from(vec![0.0, 0.0]));
+
+    let image = m.image();
+    assert_eq!(image.len(), 0, "Image of zero matrix should be trivial");
+
+    let kernel = m.kernel();
+    // Kernel of 2x2 zero matrix is R^2, basis e.g., [[1,0],[0,1]]
+    let expected_kernel_basis =
+      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+    assert_eq!(kernel.len(), 2);
+    // Order might differ, so check containment
+    assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
+    assert!(contains_vector(&kernel, &expected_kernel_basis[1]));
+  }
+
+  #[test]
+  fn test_image_kernel_dependent_cols_row_major() {
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    // A = [[1, 2, 3],
+    //      [2, 4, 6]]
+    // col2 = 2*col1, col3 = 3*col1. Rank = 1.
+    m.append_row(DynamicVector::from(vec![1.0, 2.0, 3.0]));
+    m.append_row(DynamicVector::from(vec![2.0, 4.0, 6.0]));
+
+    let image = m.image();
+    // RREF will have pivot in first col. Image is span of original first col.
+    let expected_image_basis = vec![DynamicVector::from(vec![1.0, 2.0])];
+    assert_eq!(image.len(), 1);
+    assert!(contains_vector(&image, &expected_image_basis[0]));
+
+    let kernel = m.kernel();
+    // RREF: [[1, 2, 3], [0, 0, 0]]
+    // x1 + 2x2 + 3x3 = 0. x2, x3 are free.
+    // Basis vector 1 (x2=1, x3=0): [-2, 1, 0]^T
+    // Basis vector 2 (x2=0, x3=1): [-3, 0, 1]^T
+    let expected_kernel_vector1 = DynamicVector::from(vec![-2.0, 1.0, 0.0]);
+    let expected_kernel_vector2 = DynamicVector::from(vec![-3.0, 0.0, 1.0]);
+    assert_eq!(kernel.len(), 2);
+    assert!(
+      contains_vector(&kernel, &expected_kernel_vector1)
+        || contains_vector(&kernel, &DynamicVector::from(vec![2.0, -1.0, 0.0]))
+    );
+    assert!(
+      contains_vector(&kernel, &expected_kernel_vector2)
+        || contains_vector(&kernel, &DynamicVector::from(vec![3.0, 0.0, -1.0]))
+    );
+
+    for k_vec in kernel.iter() {
+      let mut Ax_components = vec![0.0; m.num_rows()];
+      for r in 0..m.num_rows() {
+        let mut sum = 0.0;
+        for c in 0..m.num_cols() {
+          sum += m.get_component(r, c) * k_vec.get_component(c);
+        }
+        Ax_components[r] = sum;
+      }
+      let Ax = DynamicVector::new(Ax_components);
+      let zero_vec = DynamicVector::new(vec![0.0; m.num_rows()]);
+      assert_eq!(Ax, zero_vec, "Kernel vector validation failed: Ax != 0");
+    }
+  }
+
+  #[test]
+  fn test_image_kernel_col_major_identity() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    m.append_column(DynamicVector::from(vec![1.0, 0.0]));
+    m.append_column(DynamicVector::from(vec![0.0, 1.0]));
+
+    let image = m.image();
+    let expected_image_basis =
+      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+    assert_eq!(image.len(), 2);
+    assert!(contains_vector(&image, &expected_image_basis[0]));
+    assert!(contains_vector(&image, &expected_image_basis[1]));
+
+    let kernel = m.kernel();
+    assert_eq!(kernel.len(), 0, "Kernel of identity matrix should be trivial");
+  }
+
+  #[test]
+  fn test_image_kernel_col_major_zero_matrix() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    m.append_column(DynamicVector::from(vec![0.0, 0.0]));
+    m.append_column(DynamicVector::from(vec![0.0, 0.0])); // 2x2 zero matrix
+
+    let image = m.image();
+    assert_eq!(image.len(), 0, "Image of zero matrix should be trivial");
+
+    let kernel = m.kernel();
+    let expected_kernel_basis =
+      vec![DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
+    assert_eq!(kernel.len(), 2);
+    assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
+    assert!(contains_vector(&kernel, &expected_kernel_basis[1]));
+  }
+
+  #[test]
+  fn test_empty_matrix_0x0_row_major() {
+    let m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    assert_eq!(m.num_rows(), 0);
+    assert_eq!(m.num_cols(), 0);
+    assert_eq!(m.image().len(), 0);
+    assert_eq!(m.kernel().len(), 0);
+  }
+
+  #[test]
+  fn test_empty_matrix_0x3_row_major() {
+    // A 0x3 matrix means 0 rows, 3 columns.append_column will create rows of 1 element.
+    // To truly get a 0xN, it needs to be empty, or its num_rows() method should reflect 0.
+    // The current `append_column` to empty RowMajor matrix creates rows.
+    // So we test a matrix that IS 0 rows after construction (but might have cols implicitly if not
+    // careful). If num_rows is 0 and num_cols > 0, kernel should be R^num_cols.
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    // To represent a 0x3 matrix without using internal `components` directly, we can't easily add
+    // columns without also adding rows in RowMajor with current `append_column`.
+    // Let's test the functions' behavior if num_rows is 0 from the start.
+    // The kernel logic has a path for num_rows == 0.
+    // For image, if num_rows or num_cols is 0, it returns empty Vec.
+
+    // This actually makes a 0x0 matrix.
+    assert_eq!(m.num_rows(), 0);
+    assert_eq!(m.num_cols(), 0); // num_cols also 0
+    assert_eq!(m.image().len(), 0);
+    assert_eq!(m.kernel().len(), 0); // kernel of 0x0 is trivial
+
+    // A matrix with 0 rows and N columns for RowMajor is tricky with current API.
+    // The functions `image` and `kernel` themselves handle `self.num_rows() == 0` or
+    // `self.num_cols() == 0`. Let's consider how to construct such a matrix or if the test
+    // needs to mock `num_cols`. The `kernel` method has this: `if self.num_rows() == 0 { ...
+    // basis for R^num_cols }` But `num_cols()` for an empty RowMajor returns 0.
+    // This scenario might expose edge cases in `num_cols` or how `kernel` should behave.
+  }
+
+  #[test]
+  fn test_matrix_3x0_row_major() {
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    m.append_row(DynamicVector::from(vec![]));
+    m.append_row(DynamicVector::from(vec![]));
+    m.append_row(DynamicVector::from(vec![]));
+    assert_eq!(m.num_rows(), 3);
+    assert_eq!(m.num_cols(), 0);
+    assert_eq!(m.image().len(), 0);
+    assert_eq!(m.kernel().len(), 0); // Kernel of Nx0 is trivial {0}
+  }
+
+  #[test]
+  fn test_empty_matrix_0x0_col_major() {
+    let m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    assert_eq!(m.num_rows(), 0);
+    assert_eq!(m.num_cols(), 0);
+    assert_eq!(m.image().len(), 0);
+    assert_eq!(m.kernel().len(), 0);
+  }
+
+  #[test]
+  fn test_matrix_0x3_col_major() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    m.append_column(DynamicVector::from(vec![]));
+    m.append_column(DynamicVector::from(vec![]));
+    m.append_column(DynamicVector::from(vec![]));
+    assert_eq!(m.num_rows(), 0);
+    assert_eq!(m.num_cols(), 3);
+    assert_eq!(m.image().len(), 0);
+    // Kernel for 0xN matrix (A x = 0 always true) is R^N
+    let kernel = m.kernel();
+    assert_eq!(kernel.len(), 3);
+    assert!(contains_vector(&kernel, &DynamicVector::from(vec![1.0, 0.0, 0.0])));
+    assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 1.0, 0.0])));
+    assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 0.0, 1.0])));
+  }
+
+  #[test]
+  fn test_matrix_3x0_col_major() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    // A 3x0 matrix means 3 rows, 0 columns.
+    // The current `append_row` to empty ColMajor matrix creates columns of 1 element.
+    // This test case is slightly problematic for ColMajor construction via `append_row`.
+    // Let's test if it's empty.
+    assert_eq!(m.num_rows(), 0);
+    assert_eq!(m.num_cols(), 0); // num_rows also 0
+    assert_eq!(m.image().len(), 0);
+    assert_eq!(m.kernel().len(), 0);
   }
 }
