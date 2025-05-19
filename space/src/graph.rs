@@ -7,10 +7,7 @@
 
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
-use crate::{
-  definitions::TopologicalSpace,
-  set::{Collection, Set},
-};
+use crate::set::{Collection, Set};
 
 /// Private module to implement the sealed trait pattern.
 /// This prevents other crates from implementing DirectedType.
@@ -48,11 +45,11 @@ impl DirectedType for Directed {
 /// # Type Parameters
 /// * `V` - The type of vertex identifiers
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum GraphPoint<V> {
+pub enum VertexOrEdge<V> {
   /// A vertex in the graph
   Vertex(V),
-  /// A point on an edge between two vertices
-  EdgePoint(V, V),
+  /// An edge between two vertices
+  Edge(V, V),
 }
 
 /// A graph data structure supporting both directed and undirected graphs.
@@ -113,7 +110,7 @@ impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
 }
 
 impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Collection for Graph<V, D> {
-  type Point = GraphPoint<V>;
+  type Point = VertexOrEdge<V>;
 
   fn is_empty(&self) -> bool { self.vertices.is_empty() }
 
@@ -127,8 +124,8 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Collection for Graph<V,
   /// * `false` otherwise
   fn contains(&self, point: &Self::Point) -> bool {
     match point {
-      GraphPoint::Vertex(v) => self.vertices.contains(v),
-      GraphPoint::EdgePoint(u, v) =>
+      VertexOrEdge::Vertex(v) => self.vertices.contains(v),
+      VertexOrEdge::Edge(u, v) =>
         self.edges.contains(&(u.clone(), v.clone())) | self.edges.contains(&(v.clone(), u.clone())),
     }
   }
@@ -172,33 +169,6 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
     let vertices: HashSet<V> = self.vertices.union(&other.vertices).cloned().collect();
     let edges: HashSet<(V, V)> = self.edges.union(&other.edges).cloned().collect();
     Self::new(vertices, edges)
-  }
-}
-
-impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> TopologicalSpace for Graph<V, D> {
-  type OpenSet = HashSet<GraphPoint<V>>;
-  type Point = GraphPoint<V>;
-
-  fn neighborhood(&self, point: Self::Point) -> Self::OpenSet {
-    let mut neighborhood = HashSet::new();
-    match point {
-      GraphPoint::Vertex(v) => {
-        neighborhood.insert(GraphPoint::Vertex(v.clone()));
-        for (u, w) in self.edges.clone().into_iter().filter(|(u, _)| *u == v) {
-          neighborhood.insert(GraphPoint::EdgePoint(u, w));
-        }
-      },
-      GraphPoint::EdgePoint(u, v) => {
-        neighborhood.insert(GraphPoint::EdgePoint(u.clone(), v.clone()));
-        neighborhood.insert(GraphPoint::Vertex(v));
-        neighborhood.insert(GraphPoint::Vertex(u));
-      },
-    }
-    neighborhood
-  }
-
-  fn is_open(&self, open_set: Self::OpenSet) -> bool {
-    open_set.iter().all(|point| self.contains(point))
   }
 }
 

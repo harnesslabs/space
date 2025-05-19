@@ -45,10 +45,10 @@ use harness_algebra::{rings::Field, tensors::fixed::FixedVector};
 
 use crate::{
   definitions::{MetricSpace, NormedSpace},
-  set::Collection,
+  set::{Collection, Set},
 };
 
-/// Defines the `Cloud` struct, representing a collection of points (vectors)
+/// Defines the [`Cloud`] struct, representing a collection of points (vectors)
 /// in an N-dimensional space.
 ///
 /// This module provides the `Cloud` type, which can be used to store and
@@ -69,30 +69,11 @@ impl<F: Field, const N: usize> Cloud<N, F> {
   /// # Arguments
   ///
   /// * `points`: A `HashSet` of `Vector<N, F>` representing the points in the cloud.
-  pub fn new(points: Vec<FixedVector<N, F>>) -> Self { Self { points } }
+  pub const fn new(points: Vec<FixedVector<N, F>>) -> Self { Self { points } }
 
   /// Returns a reference to the points in the cloud.
-  pub fn points_ref(&self) -> &Vec<FixedVector<N, F>> { &self.points }
+  pub const fn points_ref(&self) -> &Vec<FixedVector<N, F>> { &self.points }
 }
-
-// impl<F: Field + Copy, const N: usize> Set for Cloud<N, F> {
-//   type Point = Vector<N, F>;
-
-//   /// Checks if the cloud contains a given point.
-//   fn contains(&self, point: &Self::Point) -> bool { self.points.contains(point) }
-
-//   /// Returns a new cloud containing points that are in `self` but not in `other`.
-//   fn minus(&self, other: &Self) -> Self { Self { points: self.points.minus(&other.points) } }
-
-//   /// Returns a new cloud containing points that are common to both `self` and `other`.
-//   fn meet(&self, other: &Self) -> Self { Self { points: self.points.meet(&other.points) } }
-
-//   /// Returns a new cloud containing all points from `self` and `other`.
-//   fn join(&self, other: &Self) -> Self { Self { points: self.points.join(&other.points) } }
-
-//   /// Checks if the cloud is empty.
-//   fn is_empty(&self) -> bool { self.points.is_empty() }
-// }
 
 impl<const N: usize, F: Field + Copy + Sum<F>> Collection for Cloud<N, F> {
   type Point = FixedVector<N, F>;
