@@ -282,33 +282,31 @@ fn test_homology_edge_all_fields() {
 }
 
 fn test_homology_two_disjoint_points_generic<F: TestField>() {
-  todo!();
-  // let mut complex = SimplicialComplex::new();
-  // let p0_s = Simplex::new(0, vec![0]);
-  // let p1_s = Simplex::new(0, vec![1]);
-  // complex.join_simplex(p0_s.clone());
-  // complex.join_simplex(p1_s.clone());
+  let mut complex = SimplicialComplex::new();
+  let p0_s = Simplex::new(0, vec![0]);
+  let p1_s = Simplex::new(0, vec![1]);
+  complex.join_simplex(p0_s.clone());
+  complex.join_simplex(p1_s.clone());
 
-  // let h0 = complex.compute_homology::<F>(0);
-  // assert_eq!(h0.dimension, 0, "H0: Dimension check");
-  // assert_eq!(h0.betti_number, 2, "H0: Betti for two points");
-  // assert_eq!(h0.homology_generators.len(), 2, "H0: Two generators");
-  // let expected_gen1_h0 = Chain::from_simplex_and_coeff(p0_s, F::one());
-  // let expected_gen2_h0 = Chain::from_simplex_and_coeff(p1_s, F::one());
-  // assert!(
-  //   h0.homology_generators.contains(&expected_gen1_h0),
-  //   "H0: Gen [0] missing field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   h0.homology_generators.contains(&expected_gen2_h0),
-  //   "H0: Gen [1] missing field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h0 = complex.homology::<F>(0);
+  assert_eq!(h0.dimension, 0, "H0: Dimension check");
+  assert_eq!(h0.betti_number, 2, "H0: Betti for two points");
+  assert_eq!(h0.homology_generators.len(), 2, "H0: Two generators");
+  let expected_gen1_h0 = Chain::from_item_and_coeff(p0_s, F::one());
+  let expected_gen2_h0 = Chain::from_item_and_coeff(p1_s, F::one());
+  assert!(
+    h0.homology_generators.contains(&expected_gen1_h0),
+    "H0: Gen [0] missing field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    h0.homology_generators.contains(&expected_gen2_h0),
+    "H0: Gen [1] missing field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let h1 = complex.compute_homology::<F>(1);
-  // assert_eq!(h1.betti_number, 0, "H1: Betti for two points field {:?}",
-  // std::any::type_name::<F>());
+  let h1 = complex.homology::<F>(1);
+  assert_eq!(h1.betti_number, 0, "H1: Betti for two points field {:?}", std::any::type_name::<F>());
 }
 
 #[test]
@@ -318,40 +316,38 @@ fn test_homology_two_disjoint_points_all_fields() {
 }
 
 fn test_homology_filled_triangle_generic<F: TestField>() {
-  todo!()
-  // let mut complex = SimplicialComplex::new();
-  // let triangle012 = Simplex::new(2, vec![0, 1, 2]);
-  // complex.join_simplex(triangle012.clone());
+  let mut complex = SimplicialComplex::new();
+  let triangle012 = Simplex::new(2, vec![0, 1, 2]);
+  complex.join_simplex(triangle012);
 
-  // let h0 = complex.compute_homology::<F>(0);
-  // assert_eq!(h0.betti_number, 1, "H0: Betti for triangle field {:?}",
-  // std::any::type_name::<F>());
+  let h0 = complex.homology::<F>(0);
+  assert_eq!(h0.betti_number, 1, "H0: Betti for triangle field {:?}", std::any::type_name::<F>());
 
-  // let h1 = complex.compute_homology::<F>(1);
-  // assert_eq!(
-  //   h1.betti_number,
-  //   0,
-  //   "H1: Betti for filled triangle field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   h1.homology_generators.is_empty(),
-  //   "H1: No 1D generators field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h1 = complex.homology::<F>(1);
+  assert_eq!(
+    h1.betti_number,
+    0,
+    "H1: Betti for filled triangle field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    h1.homology_generators.is_empty(),
+    "H1: No 1D generators field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let h2 = complex.compute_homology::<F>(2);
-  // assert_eq!(
-  //   h2.betti_number,
-  //   0,
-  //   "H2: Betti for filled triangle field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   h2.homology_generators.is_empty(),
-  //   "H2: No 2D generators field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h2 = complex.homology::<F>(2);
+  assert_eq!(
+    h2.betti_number,
+    0,
+    "H2: Betti for filled triangle field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    h2.homology_generators.is_empty(),
+    "H2: No 2D generators field {:?}",
+    std::any::type_name::<F>()
+  );
 }
 
 #[test]
@@ -361,78 +357,77 @@ fn test_homology_filled_triangle_all_fields() {
 }
 
 fn test_homology_circle_generic<F: TestField>() {
-  todo!()
-  // let mut complex = SimplicialComplex::new();
-  // let s01 = Simplex::new(1, vec![0, 1]);
-  // let s12 = Simplex::new(1, vec![1, 2]);
-  // let s02 = Simplex::new(1, vec![0, 2]);
+  let mut complex = SimplicialComplex::new();
+  let s01 = Simplex::new(1, vec![0, 1]);
+  let s12 = Simplex::new(1, vec![1, 2]);
+  let s02 = Simplex::new(1, vec![0, 2]);
 
-  // complex.join_simplex(s01.clone());
-  // complex.join_simplex(s12.clone());
-  // complex.join_simplex(s02.clone());
+  complex.join_simplex(s01.clone());
+  complex.join_simplex(s12.clone());
+  complex.join_simplex(s02.clone());
 
-  // let h0 = complex.compute_homology::<F>(0);
-  // assert_eq!(h0.betti_number, 1, "H0: Betti for circle field {:?}", std::any::type_name::<F>());
+  let h0 = complex.homology::<F>(0);
+  assert_eq!(h0.betti_number, 1, "H0: Betti for circle field {:?}", std::any::type_name::<F>());
 
-  // let h1 = complex.compute_homology::<F>(1);
-  // assert_eq!(h1.betti_number, 1, "H1: Betti for circle field {:?}", std::any::type_name::<F>());
-  // assert_eq!(
-  //   h1.homology_generators.len(),
-  //   1,
-  //   "H1: One 1D generator field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let h1 = complex.homology::<F>(1);
+  assert_eq!(h1.betti_number, 1, "H1: Betti for circle field {:?}", std::any::type_name::<F>());
+  assert_eq!(
+    h1.homology_generators.len(),
+    1,
+    "H1: One 1D generator field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let generator_h1 = h1.homology_generators[0].clone();
-  // assert_eq!(
-  //   generator_h1.simplices.len(),
-  //   3,
-  //   "H1: Circle generator 3 simplices field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   generator_h1.simplices.contains(&s01),
-  //   "H1: Gen missing s01 field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   generator_h1.simplices.contains(&s12),
-  //   "H1: Gen missing s12 field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // assert!(
-  //   generator_h1.simplices.contains(&s02),
-  //   "H1: Gen missing s02 field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  let generator_h1 = h1.homology_generators[0].clone();
+  assert_eq!(
+    generator_h1.items.len(),
+    3,
+    "H1: Circle generator 3 simplices field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    generator_h1.items.contains(&s01),
+    "H1: Gen missing s01 field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    generator_h1.items.contains(&s12),
+    "H1: Gen missing s12 field {:?}",
+    std::any::type_name::<F>()
+  );
+  assert!(
+    generator_h1.items.contains(&s02),
+    "H1: Gen missing s02 field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // // Check that all coefficients of the generator are F::one() or -F::one().
-  // assert!(
-  //   !generator_h1.coefficients.is_empty(),
-  //   "H1: Generator should have coefficients for field {:?}",
-  //   std::any::type_name::<F>()
-  // );
-  // let one = F::one();
-  // let neg_one = -F::one();
+  // Check that all coefficients of the generator are F::one() or -F::one().
+  assert!(
+    !generator_h1.coefficients.is_empty(),
+    "H1: Generator should have coefficients for field {:?}",
+    std::any::type_name::<F>()
+  );
+  let one = F::one();
+  let neg_one = -F::one();
 
-  // for coeff in generator_h1.coefficients.iter() {
-  //   assert!(
-  //     *coeff == one || *coeff == neg_one,
-  //     "H1: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
-  //      field {:?}",
-  //     *coeff,
-  //     std::any::type_name::<F>()
-  //   );
-  // }
+  for coeff in &generator_h1.coefficients {
+    assert!(
+      *coeff == one || *coeff == neg_one,
+      "H1: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
+       field {:?}",
+      *coeff,
+      std::any::type_name::<F>()
+    );
+  }
 
-  // assert!(
-  //   generator_h1.boundary().simplices.is_empty(),
-  //   "H1: Generator boundary zero field {:?}",
-  //   std::any::type_name::<F>()
-  // );
+  assert!(
+    generator_h1.boundary().items.is_empty(),
+    "H1: Generator boundary zero field {:?}",
+    std::any::type_name::<F>()
+  );
 
-  // let h2 = complex.compute_homology::<F>(2);
-  // assert_eq!(h2.betti_number, 0, "H2: Betti for circle field {:?}", std::any::type_name::<F>());
+  let h2 = complex.homology::<F>(2);
+  assert_eq!(h2.betti_number, 0, "H2: Betti for circle field {:?}", std::any::type_name::<F>());
 }
 
 #[test]

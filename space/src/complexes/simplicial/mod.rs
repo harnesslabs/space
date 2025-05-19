@@ -256,11 +256,16 @@ impl SimplicialComplex {
       return Homology::trivial(k);
     }
 
-    let km1_simplices = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
-      let mut sorted = s.to_vec();
-      sorted.sort_unstable();
-      sorted
-    });
+    // Special case for k=0: no (-1)-simplices exist
+    let km1_simplices = if k == 0 {
+      Vec::new()
+    } else {
+      self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
+        let mut sorted = s.to_vec();
+        sorted.sort_unstable();
+        sorted
+      })
+    };
 
     let kp1_simplices = self.simplices_by_dimension(k + 1).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();
