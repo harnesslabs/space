@@ -41,8 +41,8 @@
 //! use harness_algebra::tensors::fixed::FixedVector;
 //! use harness_space::{
 //!   cloud::Cloud,
+//!   complexes::simplicial::SimplicialComplex,
 //!   filtration::{vietoris_rips::VietorisRips, Filtration},
-//!   simplicial::SimplicialComplex,
 //! };
 //!
 //! // Example: Create a cloud of 3 points forming a triangle
@@ -288,19 +288,16 @@ where
     param: Self::InputParameter,          // epsilon
     output_param: &Self::OutputParameter, // dimensions for homology
   ) -> Self::OutputSpace {
-    todo!();
-    // // First, build the Vietoris-Rips complex at the given epsilon.
-    // // This reuses the existing VietorisRips builder logic for SimplicialComplex.
-    // let complex_builder = VietorisRips::<N, F, SimplicialComplex>::new();
-    // let complex = complex_builder.build_complex(input, param);
+    let complex_builder = VietorisRips::<N, F, SimplicialComplex>::new();
+    let complex = complex_builder.build_complex(input, param);
 
-    // let mut homology_groups = HashMap::new();
-    // // For each dimension requested in output_param, compute homology.
-    // for dim in output_param {
-    //   let homology_group = complex.compute_homology(*dim); // Pass R by type inference
-    //   homology_groups.insert(*dim, homology_group);
-    // }
-    // homology_groups
+    let mut homology_groups = HashMap::new();
+    // For each dimension requested in output_param, compute homology.
+    for dim in output_param {
+      let homology_group = complex.homology(*dim); // Pass R by type inference
+      homology_groups.insert(*dim, homology_group);
+    }
+    homology_groups
   }
 }
 

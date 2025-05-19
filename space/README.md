@@ -55,7 +55,7 @@ impl TopologicalSpace for MySpace {
 ### Simplicial Complexes
 
 ```rust
-use harness_space::simplicial::{Simplex, SimplicialComplex, Chain};
+use harness_space::complexes::simplicial::{Simplex, SimplicialComplex};
 
 // Create a simplex (e.g., a triangle)
 let triangle = Simplex::new(2, vec![0, 1, 2]);
@@ -63,9 +63,6 @@ let triangle = Simplex::new(2, vec![0, 1, 2]);
 // Create a simplicial complex
 let mut complex = SimplicialComplex::new();
 complex.join_simplex(triangle);
-
-// Compute boundaries
-let boundary = complex.boundary::<i32>(2);
 ```
 
 ### Graphs
@@ -83,35 +80,6 @@ let mut edges = HashSet::new();
 edges.insert((1, 2));
 
 let graph: Graph<_, Undirected> = Graph::new(vertices, edges);
-```
-
-## Dependencies
-
-- `itertools`: For combinatorial operations
-- `num`: For numeric traits and operations
-
-## Examples
-
-### Creating a Simplicial Complex
-
-```rust
-use harness_space::simplicial::{Simplex, SimplicialComplex};
-
-// Create a tetrahedron
-let mut complex = SimplicialComplex::new();
-complex.join_simplex(Simplex::new(3, vec![0, 1, 2, 3]));
-```
-
-### Working with Graphs
-
-```rust
-use harness_space::graph::{Graph, Directed};
-use std::collections::HashSet;
-
-// Create a directed graph
-let vertices: HashSet<_> = [1, 2, 3].into_iter().collect();
-let edges: HashSet<_> = [(1, 2), (2, 3)].into_iter().collect();
-let graph: Graph<_, Directed> = Graph::new(vertices, edges);
 ```
 
 
