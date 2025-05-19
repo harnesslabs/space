@@ -567,8 +567,6 @@ pub fn get_boundary_matrix<F: Field + Copy>(
     ordered_km1_simplices.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
 
   for k_simplex in ordered_k_simplices {
-    // For each k-simplex, compute its boundary.
-    // The boundary is a (k-1)-chain.
     let boundary_chain = k_simplex.boundary();
 
     // Convert this boundary_chain into a column vector for the matrix.
@@ -583,5 +581,16 @@ pub fn chain_to_coeff_vector<F: Field + Copy>(
   simplex_to_idx: &HashMap<Simplex, usize>,
   num_rows: usize,
 ) -> DynamicVector<F> {
-  todo!()
+  let mut coeffs = vec![F::zero(); num_rows];
+
+  // For each simplex in the chain, get its coefficient and place it in the correct position
+  for (simplex, coeff) in chain.items.iter().zip(chain.coefficients.iter()) {
+    if let Some(&idx) = simplex_to_idx.get(simplex) {
+      if idx < num_rows {
+        coeffs[idx] = *coeff;
+      }
+    }
+  }
+
+  DynamicVector::new(coeffs)
 }
