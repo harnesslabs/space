@@ -18,7 +18,7 @@ use crate::{
 pub trait Topology
 where Self: Sized {
   fn neighborhood(&self) -> Vec<Self>;
-  fn boundary<R: Ring>(&self) -> Chain<Self, R>;
+  fn boundary<R: Ring + Copy>(&self) -> Chain<Self, R>;
 }
 
 /// A trait for topological spaces.

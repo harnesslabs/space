@@ -442,8 +442,9 @@ impl Topology for Simplex {
     // self.vertices are sorted: v_0, v_1, ..., v_k
     // Boundary is sum_{i=0 to k} (-1)^i * [v_0, ..., ^v_i, ..., v_k]
     for i in 0..=self.dimension {
+      // i from 0 to k (k = self.dimension)
       let mut face_vertices = self.vertices.clone();
-      face_vertices.remove(i);
+      face_vertices.remove(i); // Removes element at original index i (v_i)
 
       let face_simplex = Self::new(self.dimension - 1, face_vertices);
       boundary_chain_items.push(face_simplex);
