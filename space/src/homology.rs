@@ -10,45 +10,45 @@ use harness_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
 use super::*;
 use crate::definitions::Topology;
 
-#[derive(Clone, Debug, Default)]
-pub struct Chain<T, R> {
+#[derive(Clone, Debug)]
+pub struct Chain<'a, T: Topology, R> {
+  /// The topological space this chain is part of.
+  space:            &'a T,
   /// A vector of objects that are part of this chain.
-  pub items:        Vec<T>,
+  pub items:        Vec<T::Item>,
   /// A vector of coefficients of type `R`, corresponding one-to-one with the `simplices`.
   /// `coefficients[i]` is the coefficient for `simplices[i]`.
   pub coefficients: Vec<R>,
 }
 
-impl<T, R> Chain<T, R> {
-  pub const fn new() -> Self { Self { items: vec![], coefficients: vec![] } }
+impl<'a, T: Topology, R: Ring + Copy> Chain<'a, T, R>
+where T::Item: PartialEq
+{
+  pub const fn new(space: &'a T) -> Self { Self { space, items: vec![], coefficients: vec![] } }
 
-  pub fn from_item_and_coeff(item: T, coeff: R) -> Self {
-    Self { items: vec![item], coefficients: vec![coeff] }
+  pub fn from_item_and_coeff(space: &'a T, item: T::Item, coeff: R) -> Self {
+    Self { space, items: vec![item], coefficients: vec![coeff] }
   }
 
-  pub fn from_items_and_coeffs(items: Vec<T>, coeffs: Vec<R>) -> Self {
-    Self { items, coefficients: coeffs }
+  pub fn from_items_and_coeffs(space: &'a T, items: Vec<T::Item>, coeffs: Vec<R>) -> Self {
+    Self { space, items, coefficients: coeffs }
   }
 
   // TODO: Get rid of this method and implement the algebraic operations on chains instead.
   /// Scales the chain by a scalar coefficient.
   /// If the scalar is zero, an empty chain is returned.
-  pub fn scaled(self, scalar: R) -> Self
-  where R: Ring + Copy {
+  pub fn scaled(self, scalar: R) -> Self {
     if scalar.is_zero() {
-      return Chain::new();
+      return Chain::new(self.space);
     }
     let new_coefficients = self.coefficients.into_iter().map(|c| c * scalar).collect();
-    Chain::from_items_and_coeffs(self.items, new_coefficients)
+    Chain::from_items_and_coeffs(self.space, self.items, new_coefficients)
   }
 
-  pub fn boundary(&self) -> Self
-  where
-    T: Topology + PartialEq,
-    R: Ring + Copy, {
-    let mut total_boundary = Chain::new();
+  pub fn boundary(&self) -> Self {
+    let mut total_boundary = Chain::new(self.space);
     for (item, coeff) in self.items.iter().zip(self.coefficients.iter()) {
-      let simplex_boundary_chain = item.boundary::<R>();
+      let simplex_boundary_chain = self.space.boundary(item);
       let scaled_simplex_boundary = simplex_boundary_chain.scaled(*coeff);
       total_boundary = total_boundary + scaled_simplex_boundary;
     }
@@ -60,11 +60,11 @@ impl<T, R> Chain<T, R> {
   /// The resulting vector will have length equal to the basis size.
   pub fn to_coeff_vector(
     &self,
-    basis_map: &HashMap<T, usize>,
+    basis_map: &HashMap<&T::Item, usize>,
     basis_size: usize,
   ) -> DynamicVector<R>
   where
-    T: Hash + Eq,
+    T::Item: Hash + Eq,
     R: Ring + Copy,
   {
     let mut coeffs = vec![R::zero(); basis_size];
@@ -77,7 +77,9 @@ impl<T, R> Chain<T, R> {
   }
 }
 
-impl<T: PartialEq, R: PartialEq> PartialEq for Chain<T, R> {
+impl<'a, T: Topology, R: PartialEq> PartialEq for Chain<'a, T, R>
+where T::Item: PartialEq
+{
   /// Checks if two chains are equal.
   ///
   /// Two chains are considered equal if they represent the same formal sum of simplices.
@@ -101,7 +103,9 @@ impl<T: PartialEq, R: PartialEq> PartialEq for Chain<T, R> {
   }
 }
 
-impl<T: PartialEq, R: Ring> Add for Chain<T, R> {
+impl<'a, T: Topology, R: Ring> Add for Chain<'a, T, R>
+where T::Item: PartialEq
+{
   type Output = Self;
 
   /// Adds two chains together, combining like terms by adding their coefficients.
@@ -202,19 +206,27 @@ impl<T: PartialEq, R: Ring> Add for Chain<T, R> {
       }
     }
 
-    Self { items: result_items, coefficients: result_coefficients }
+    Self { space: self.space, items: result_items, coefficients: result_coefficients }
   }
 }
 
-impl<T, R: Ring + Copy> Neg for Chain<T, R> {
+impl<'a, T: Topology, R: Ring + Copy> Neg for Chain<'a, T, R>
+where T::Item: PartialEq
+{
   type Output = Self;
 
   fn neg(self) -> Self::Output {
-    Self { items: self.items, coefficients: self.coefficients.iter().map(|c| -*c).collect() }
+    Self {
+      space:        self.space,
+      items:        self.items,
+      coefficients: self.coefficients.iter().map(|c| -*c).collect(),
+    }
   }
 }
 
-impl<T: PartialEq, R: Ring + Copy> Sub for Chain<T, R> {
+impl<'a, T: Topology, R: Ring + Copy> Sub for Chain<'a, T, R>
+where T::Item: PartialEq
+{
   type Output = Self;
 
   fn sub(self, other: Self) -> Self::Output { self + (-other) }
@@ -226,31 +238,22 @@ impl<T: PartialEq, R: Ring + Copy> Sub for Chain<T, R> {
 // }
 
 #[derive(Debug, Clone)]
-pub struct Homology<T, R> {
+pub struct Homology<'a, T: Topology, R>
+where T::Item: std::fmt::Debug + Clone {
   /// The dimension $k$ for which this homology group $H_k$ is computed.
   pub dimension:           usize,
   /// The Betti number $b_k = \text{rank}(H_k(X; R))$. For field coefficients,
   /// this is the dimension of $H_k$ as a vector space over $R$.
   pub betti_number:        usize,
-  /// A basis for the $k$-cycles $Z_k = \ker \partial_k$.
-  /// Each element is a [`Chain<R>`] representing a cycle.
-  pub cycle_generators:    Vec<Chain<T, R>>,
-  /// A basis for the $k$-boundaries $B_k = \text{im } \partial_{k+1}$.
-  /// Each element is a [`Chain<R>`] representing a boundary.
-  pub boundary_generators: Vec<Chain<T, R>>,
   /// A basis for the homology group $H_k = Z_k / B_k$.
   /// Each element is a [`Chain<R>`] representing a homology class generator.
-  pub homology_generators: Vec<Chain<T, R>>,
+  pub homology_generators: Vec<Chain<'a, T, R>>,
 }
 
-impl<T, R> Homology<T, R> {
+impl<'a, T: Topology, R> Homology<'a, T, R>
+where T::Item: std::fmt::Debug + Clone
+{
   pub const fn trivial(dimension: usize) -> Self {
-    Self {
-      dimension,
-      betti_number: 0,
-      cycle_generators: Vec::new(),
-      boundary_generators: Vec::new(),
-      homology_generators: Vec::new(),
-    }
+    Self { dimension, betti_number: 0, homology_generators: Vec::new() }
   }
 }

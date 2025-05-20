@@ -242,7 +242,7 @@ impl SimplicialComplex {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
-  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<Simplex, F> {
+  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<SimplicialComplex, F> {
     // Get ordered bases for simplices of dimensions k-1, k, and k+1
     let k_simplices = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();
@@ -289,12 +289,12 @@ impl SimplicialComplex {
       }
 
       // Create one generator per connected component
-      let homology_generators: Vec<Chain<Simplex, F>> = components
+      let homology_generators: Vec<Chain<SimplicialComplex, F>> = components
         .into_iter()
         .map(|comp| {
-          let mut chain = Chain::new();
+          let mut chain = Chain::new(self);
           for vertex in comp {
-            chain = chain + Chain::from_item_and_coeff(vertex, F::one());
+            chain = chain + Chain::from_item_and_coeff(self, vertex, F::one());
           }
           chain
         })
@@ -303,154 +303,115 @@ impl SimplicialComplex {
       return Homology {
         dimension: k,
         betti_number: homology_generators.len(),
-        cycle_generators: k_simplices
-          .iter()
-          .map(|s| Chain::from_item_and_coeff(s.clone(), F::one()))
-          .collect(),
-        boundary_generators: Vec::new(),
         homology_generators,
       };
     }
 
-    // For k > 0, proceed with normal homology computation
-    let km1_simplices = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
-      let mut sorted = s.to_vec();
-      sorted.sort_unstable();
-      sorted
-    });
-
-    let kp1_simplices = self.simplices_by_dimension(k + 1).map_or_else(Vec::new, |s| {
-      let mut sorted = s.to_vec();
-      sorted.sort_unstable();
-      sorted
-    });
-
-    // Create basis chains for k-simplices
-    let k_chain_basis: Vec<Chain<Simplex, F>> =
-      k_simplices.iter().map(|s| Chain::from_item_and_coeff(s.clone(), F::one())).collect();
-
     // Compute boundary matrices
-    let boundary_k = if km1_simplices.is_empty() {
-      DynamicDenseMatrix::<F, RowMajor>::new()
-    } else {
-      get_boundary_matrix(&k_simplices, &km1_simplices)
-    };
+    let boundary_k: DynamicDenseMatrix<F, RowMajor> = self.get_boundary_matrix(k);
 
-    let boundary_kp1 = if kp1_simplices.is_empty() {
-      DynamicDenseMatrix::<F, RowMajor>::new()
-    } else {
-      get_boundary_matrix(&kp1_simplices, &k_simplices)
-    };
+    let boundary_k_plus_1: DynamicDenseMatrix<F, RowMajor> = self.get_boundary_matrix(k + 1);
 
     // Find cycles (kernel of ∂k) and boundaries (image of ∂k+1)
-    let cycles = if km1_simplices.is_empty() {
-      k_chain_basis
-    } else {
-      let kernel_vectors = boundary_k.kernel();
-      kernel_vectors
-        .into_iter()
-        .map(|v| {
-          let mut chain = Chain::new();
-          for (i, &coeff) in v.components().iter().enumerate() {
-            if !coeff.is_zero() {
-              chain = chain + Chain::from_item_and_coeff(k_simplices[i].clone(), coeff);
-            }
-          }
-          chain
-        })
-        .collect()
-    };
+    let cycles = boundary_k.kernel();
 
-    let boundaries = if kp1_simplices.is_empty() {
-      Vec::new()
-    } else {
-      let image_vectors = boundary_kp1.image();
-      image_vectors
-        .into_iter()
-        .map(|v| {
-          let mut chain = Chain::new();
-          for (i, &coeff) in v.components().iter().enumerate() {
-            if !coeff.is_zero() {
-              chain = chain + Chain::from_item_and_coeff(k_simplices[i].clone(), coeff);
-            }
-          }
-          chain
-        })
-        .collect()
-    };
-
-    // Map k-simplices to their indices for converting chains to coefficient vectors.
-    let k_simplex_to_idx: HashMap<Simplex, usize> =
-      k_simplices.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
-    let num_k_simplices = k_simplices.len();
-
-    // Convert cycles (chains) to coefficient vectors.
-    // These are vectors in the basis of k_simplices.
-    let cycle_vectors: Vec<_> = cycles // Using Vec<_> for DynamicVector<F>
-      .iter()
-      .map(|chain| chain.to_coeff_vector(&k_simplex_to_idx, num_k_simplices))
-      .collect();
-
-    // Convert boundaries (chains) to coefficient vectors.
-    // These are also vectors in the basis of k_simplices.
-    let boundary_vectors: Vec<_> = boundaries // Using Vec<_> for DynamicVector<F>
-      .iter()
-      .map(|chain| chain.to_coeff_vector(&k_simplex_to_idx, num_k_simplices))
-      .collect();
+    // Find boundaries (image of ∂k+1)
+    let boundaries = boundary_k_plus_1.image();
 
     // Compute a basis for the quotient space Z_k / B_k using the imported function.
     // The result is a list of vectors (in k_simplices basis) representing homology generators.
     let quotient_basis_vectors = // Type is Vec<DynamicVector<F>>
-        compute_quotient_basis(&boundary_vectors, &cycle_vectors);
+        compute_quotient_basis(&boundaries, &cycles);
 
     // Convert these basis vectors back into chains.
-    let homology_generators: Vec<Chain<Simplex, F>> = quotient_basis_vectors
+    let homology_generators: Vec<Chain<SimplicialComplex, F>> = quotient_basis_vectors
       .into_iter()
       .map(|v_coeff| {
         // v_coeff is a coefficient vector for a homology generator
-        let mut generator_chain = Chain::new();
+        let mut generator_chain = Chain::new(self);
         for (idx_in_k_basis, &coeff) in v_coeff.components().iter().enumerate() {
           if !coeff.is_zero() {
             generator_chain = generator_chain
-              + Chain::from_item_and_coeff(k_simplices[idx_in_k_basis].clone(), coeff);
+              + Chain::from_item_and_coeff(self, k_simplices[idx_in_k_basis].clone(), coeff);
           }
         }
         generator_chain
       })
       .collect();
 
-    Homology {
-      dimension: k,
-      betti_number: homology_generators.len(),
-      cycle_generators: cycles,
-      boundary_generators: boundaries,
-      homology_generators,
+    Homology { dimension: k, betti_number: homology_generators.len(), homology_generators }
+  }
+
+  /// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary operator.
+  ///
+  /// The matrix columns are indexed by an ordered list of $k$-simplices (`ordered_k_simplices`),
+  /// and rows are indexed by an ordered list of $(k-1)$-simplices (`ordered_km1_simplices`).
+  /// The entry $(i,j)$ of the matrix is the coefficient of the $i$-th $(k-1)$-simplex in the
+  /// boundary of the $j$-th $k$-simplex.
+  ///
+  /// The boundary of a $k$-simplex $\sigma_j = [v_0, \dots, v_k]$ is $\sum_{m=0}^{k} (-1)^m [v_0,
+  /// \dots, \hat{v}_m, \dots, v_k]$. The coefficient for $\sigma_i^{\prime}$ (the $i$-th
+  /// $(k-1)$-simplex) in $\partial \sigma_j$ is determined accordingly.
+  ///
+  /// # Arguments
+  /// * `ordered_k_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
+  ///   $k$-chain group $C_k$.
+  /// * `ordered_km1_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
+  ///   $(k-1)$-chain group $C_{k-1}$.
+  ///
+  /// # Type Parameters
+  /// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
+  ///
+  /// # Returns
+  /// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have
+  /// `ordered_km1_simplices.len()` rows and `ordered_k_simplices.len()` columns.
+  /// Returns an empty or specially-dimensioned matrix if either basis is empty.
+  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor> {
+    let k_simplex_basis = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
+      let mut sorted = s.to_vec();
+      sorted.sort_unstable();
+      sorted
+    });
+
+    let k_plus_1_simplices = self.simplices_by_dimension(k + 1).unwrap_or_default();
+
+    let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
+
+    for k_plus_1_simplex in k_plus_1_simplices {
+      let boundary_chain = self.boundary(&k_plus_1_simplex);
+
+      // Convert this boundary_chain into a column vector for the matrix.
+      let basis_map = k_simplex_basis.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
+      let num_k_simplices = k_simplex_basis.len();
+      let col_vector = boundary_chain.to_coeff_vector(&basis_map, num_k_simplices);
+      matrix.append_column(&col_vector);
     }
+    matrix
   }
 }
 
-impl Topology for Simplex {
-  type Space = SimplicialComplex;
+impl Topology for SimplicialComplex {
+  type Item = Simplex;
 
   // TODO (autoparallel): Implement this. It  is the "star" of the simplex.
-  fn neighborhood(&self) -> Vec<Self> { todo!() }
+  fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item> { todo!() }
 
-  fn boundary<R: Ring>(&self) -> Chain<Self, R> {
-    if self.dimension == 0 {
-      return Chain::new();
+  fn boundary<R: Ring + Copy>(&self, item: &Self::Item) -> Chain<Self, R> {
+    if item.dimension == 0 {
+      return Chain::new(self);
     }
 
-    let mut boundary_chain_items = Vec::with_capacity(self.dimension + 1);
-    let mut boundary_chain_coeffs = Vec::with_capacity(self.dimension + 1);
+    let mut boundary_chain_items = Vec::with_capacity(item.dimension + 1);
+    let mut boundary_chain_coeffs = Vec::with_capacity(item.dimension + 1);
 
     // self.vertices are sorted: v_0, v_1, ..., v_k
     // Boundary is sum_{i=0 to k} (-1)^i * [v_0, ..., ^v_i, ..., v_k]
-    for i in 0..=self.dimension {
+    for i in 0..=item.dimension {
       // i from 0 to k (k = self.dimension)
-      let mut face_vertices = self.vertices.clone();
+      let mut face_vertices = item.vertices.clone();
       face_vertices.remove(i); // Removes element at original index i (v_i)
 
-      let face_simplex = Self::new(self.dimension - 1, face_vertices);
+      let face_simplex = Simplex::new(item.dimension - 1, face_vertices);
       boundary_chain_items.push(face_simplex);
 
       let coeff = if i % 2 == 0 {
@@ -460,58 +421,8 @@ impl Topology for Simplex {
       };
       boundary_chain_coeffs.push(coeff);
     }
-    Chain::from_items_and_coeffs(boundary_chain_items, boundary_chain_coeffs)
+    Chain::from_items_and_coeffs(self, boundary_chain_items, boundary_chain_coeffs)
   }
-}
-
-/// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary operator.
-///
-/// The matrix columns are indexed by an ordered list of $k$-simplices (`ordered_k_simplices`),
-/// and rows are indexed by an ordered list of $(k-1)$-simplices (`ordered_km1_simplices`).
-/// The entry $(i,j)$ of the matrix is the coefficient of the $i$-th $(k-1)$-simplex in the
-/// boundary of the $j$-th $k$-simplex.
-///
-/// The boundary of a $k$-simplex $\sigma_j = [v_0, \dots, v_k]$ is $\sum_{m=0}^{k} (-1)^m [v_0,
-/// \dots, \hat{v}_m, \dots, v_k]$. The coefficient for $\sigma_i^{\prime}$ (the $i$-th
-/// $(k-1)$-simplex) in $\partial \sigma_j$ is determined accordingly.
-///
-/// # Arguments
-/// * `ordered_k_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
-///   $k$-chain group $C_k$.
-/// * `ordered_km1_simplices`: A slice of [`Simplex`] objects, forming an ordered basis for the
-///   $(k-1)$-chain group $C_{k-1}$.
-///
-/// # Type Parameters
-/// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
-///
-/// # Returns
-/// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have
-/// `ordered_km1_simplices.len()` rows and `ordered_k_simplices.len()` columns.
-/// Returns an empty or specially-dimensioned matrix if either basis is empty.
-pub fn get_boundary_matrix<F: Field + Copy>(
-  ordered_k_simplices: &[Simplex],   // Basis for C_k (domain)
-  ordered_km1_simplices: &[Simplex], // Basis for C_{k-1} (codomain)
-) -> DynamicDenseMatrix<F, RowMajor> {
-  if ordered_k_simplices.is_empty() || ordered_km1_simplices.is_empty() {
-    return DynamicDenseMatrix::<F, RowMajor>::new();
-  }
-
-  let num_rows = ordered_km1_simplices.len();
-
-  let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
-
-  // Create a map for quick lookup of (k-1)-simplex indices
-  let km1_simplex_to_idx: HashMap<Simplex, usize> =
-    ordered_km1_simplices.iter().enumerate().map(|(i, s)| (s.clone(), i)).collect();
-
-  for k_simplex in ordered_k_simplices {
-    let boundary_chain = k_simplex.boundary();
-
-    // Convert this boundary_chain into a column vector for the matrix.
-    let col_vector = boundary_chain.to_coeff_vector(&km1_simplex_to_idx, num_rows);
-    matrix.append_column(&col_vector);
-  }
-  matrix
 }
 
 #[cfg(test)]
@@ -551,12 +462,15 @@ mod tests {
 
   #[test]
   fn test_chain_addition_disjoint() {
+    let mut complex = SimplicialComplex::new();
     // Create two chains with different simplices
     let simplex1 = Simplex::new(1, vec![0, 1]);
     let simplex2 = Simplex::new(1, vec![1, 2]);
+    complex.join_simplex(simplex1.clone());
+    complex.join_simplex(simplex2.clone());
 
-    let chain1 = Chain::from_item_and_coeff(simplex1, 1_i32);
-    let chain2 = Chain::from_item_and_coeff(simplex2, 2_i32);
+    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 1_i32);
+    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, 2_i32);
 
     let result = chain1 + chain2;
 
@@ -571,11 +485,14 @@ mod tests {
   #[test]
   fn test_chain_addition_same_simplex() {
     // Create two chains with the same simplex
+    let mut complex = SimplicialComplex::new();
     let simplex1 = Simplex::new(1, vec![0, 1]);
     let simplex2 = Simplex::new(1, vec![0, 1]);
+    complex.join_simplex(simplex1.clone());
+    complex.join_simplex(simplex2.clone());
 
-    let chain1 = Chain::from_item_and_coeff(simplex1, 2);
-    let chain2 = Chain::from_item_and_coeff(simplex2, 3);
+    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 2);
+    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, 3);
 
     let result = chain1 + chain2;
 
@@ -588,11 +505,14 @@ mod tests {
   #[test]
   fn test_chain_addition_canceling_coefficients() {
     // Create two chains with the same simplex but opposite coefficients
+    let mut complex = SimplicialComplex::new();
     let simplex1 = Simplex::new(1, vec![0, 1]);
     let simplex2 = Simplex::new(1, vec![0, 1]);
+    complex.join_simplex(simplex1.clone());
+    complex.join_simplex(simplex2.clone());
 
-    let chain1 = Chain::from_item_and_coeff(simplex1, 2);
-    let chain2 = Chain::from_item_and_coeff(simplex2, -2);
+    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 2);
+    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, -2);
 
     let result = chain1 + chain2;
 
@@ -604,8 +524,10 @@ mod tests {
   #[test]
   fn test_chain_boundary_edge() {
     // The boundary of an edge is its two vertices with opposite signs
+    let mut complex = SimplicialComplex::new();
     let edge = Simplex::new(1, vec![0, 1]);
-    let chain = Chain::from_item_and_coeff(edge, 1);
+    complex.join_simplex(edge.clone());
+    let chain = Chain::from_item_and_coeff(&complex, edge, 1);
 
     let boundary = chain.boundary();
 
@@ -626,7 +548,9 @@ mod tests {
   fn test_chain_boundary_triangle() {
     // The boundary of a triangle is its three edges
     let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let chain = Chain::from_item_and_coeff(triangle, 1);
+    let mut complex = SimplicialComplex::new();
+    complex.join_simplex(triangle.clone());
+    let chain = Chain::from_item_and_coeff(&complex, triangle, 1);
 
     let boundary = chain.boundary();
 
@@ -646,7 +570,9 @@ mod tests {
   fn test_boundary_squared_is_zero() {
     // Verify that ∂² = 0 for a triangle
     let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let chain = Chain::from_item_and_coeff(triangle, 1);
+    let mut complex = SimplicialComplex::new();
+    complex.join_simplex(triangle.clone());
+    let chain = Chain::from_item_and_coeff(&complex, triangle, 1);
 
     let boundary = chain.boundary();
     let boundary_squared = boundary.boundary();
@@ -661,9 +587,12 @@ mod tests {
     // Create a 2-chain with two triangles sharing an edge
     let triangle1 = Simplex::new(2, vec![0, 1, 2]);
     let triangle2 = Simplex::new(2, vec![1, 2, 3]);
+    let mut complex = SimplicialComplex::new();
+    complex.join_simplex(triangle1.clone());
+    complex.join_simplex(triangle2.clone());
 
-    let chain1 = Chain::from_item_and_coeff(triangle1, 1);
-    let chain2 = Chain::from_item_and_coeff(triangle2, -1);
+    let chain1 = Chain::from_item_and_coeff(&complex, triangle1, 1);
+    let chain2 = Chain::from_item_and_coeff(&complex, triangle2, -1);
 
     let combined_chain = chain1 + chain2;
     let boundary = combined_chain.boundary();
@@ -733,7 +662,7 @@ mod tests {
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 1, "H0: Betti number for a point should be 1");
     assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
-    let expected_gen_h0 = Chain::from_item_and_coeff(p0, F::one());
+    let expected_gen_h0 = Chain::from_item_and_coeff(&complex, p0, F::one());
     assert!(
       h0.homology_generators.contains(&expected_gen_h0),
       "H0: Generator mismatch for field {:?}",
@@ -776,7 +705,7 @@ mod tests {
     assert_eq!(h0.betti_number, 1, "H0: Betti for an edge");
     assert_eq!(h0.homology_generators.len(), 1, "H0: One generator");
     let p0 = Simplex::new(0, vec![0]);
-    let expected_gen_h0 = Chain::from_item_and_coeff(p0, F::one());
+    let expected_gen_h0 = Chain::from_item_and_coeff(&complex, p0, F::one());
     assert!(
       h0.homology_generators.contains(&expected_gen_h0),
       "H0: Generator for edge field {:?}",
@@ -810,8 +739,8 @@ mod tests {
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 2, "H0: Betti for two points");
     assert_eq!(h0.homology_generators.len(), 2, "H0: Two generators");
-    let expected_gen1_h0 = Chain::from_item_and_coeff(p0_s, F::one());
-    let expected_gen2_h0 = Chain::from_item_and_coeff(p1_s, F::one());
+    let expected_gen1_h0 = Chain::from_item_and_coeff(&complex, p0_s, F::one());
+    let expected_gen2_h0 = Chain::from_item_and_coeff(&complex, p1_s, F::one());
     assert!(
       h0.homology_generators.contains(&expected_gen1_h0),
       "H0: Gen [0] missing field {:?}",
@@ -901,7 +830,7 @@ mod tests {
       std::any::type_name::<F>()
     );
 
-    let generator_h1 = h1.homology_generators[0].clone();
+    let generator_h1 = &h1.homology_generators[0];
     assert_eq!(
       generator_h1.items.len(),
       3,
@@ -991,7 +920,7 @@ mod tests {
       std::any::type_name::<F>()
     );
 
-    let generator_h2 = h2.homology_generators[0].clone();
+    let generator_h2 = &h2.homology_generators[0];
     assert_eq!(
       generator_h2.items.len(),
       4,

@@ -91,7 +91,7 @@ pub struct LatticeNode<T> {
 /// This implementation stores elements of type `T` and their relationships.
 /// The type `T` must implement `Hash`, `Eq`, and `Clone`.
 /// For DOT file generation, `T` must also implement `Display` and `Ord`.
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Lattice<T> {
   /// Map of elements to their nodes. Each key is an element in the lattice,
   /// and its value is the `LatticeNode` containing the element's relationships.
