@@ -90,6 +90,7 @@ use super::*;
 use crate::{
   definitions::Topology,
   homology::{Chain, Homology},
+  set::{Collection, Set},
 };
 
 /// A simplex represents a $k$-dimensional geometric object, defined as the convex hull of $k+1$
@@ -242,7 +243,7 @@ impl SimplicialComplex {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
-  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<SimplicialComplex, F> {
+  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
     // Get ordered bases for simplices of dimensions k-1, k, and k+1
     let k_simplices = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();
@@ -254,65 +255,12 @@ impl SimplicialComplex {
       return Homology::trivial(k);
     }
 
-    // Special case for k=0: we need to handle connected components
-    if k == 0 {
-      // For H₀, we need to find connected components
-      // Start with each vertex in its own component
-      let mut components: Vec<Vec<Simplex>> = k_simplices.iter().map(|s| vec![s.clone()]).collect();
-
-      // For each edge, merge the components of its vertices
-      if let Some(edges) = self.simplices_by_dimension(1) {
-        for edge in edges {
-          let v0 = Simplex::new(0, vec![edge.vertices()[0]]);
-          let v1 = Simplex::new(0, vec![edge.vertices()[1]]);
-
-          // Find components containing v0 and v1
-          let mut i0 = None;
-          let mut i1 = None;
-          for (i, comp) in components.iter().enumerate() {
-            if comp.contains(&v0) {
-              i0 = Some(i);
-            }
-            if comp.contains(&v1) {
-              i1 = Some(i);
-            }
-          }
-
-          // If vertices are in different components, merge them
-          if let (Some(i0), Some(i1)) = (i0, i1) {
-            if i0 != i1 {
-              let comp1 = components.remove(i1);
-              components[i0].extend(comp1);
-            }
-          }
-        }
-      }
-
-      // Create one generator per connected component
-      let homology_generators: Vec<Chain<SimplicialComplex, F>> = components
-        .into_iter()
-        .map(|comp| {
-          let mut chain = Chain::new(self);
-          for vertex in comp {
-            chain = chain + Chain::from_item_and_coeff(self, vertex, F::one());
-          }
-          chain
-        })
-        .collect();
-
-      return Homology {
-        dimension: k,
-        betti_number: homology_generators.len(),
-        homology_generators,
-      };
-    }
-
     // Compute boundary matrices
     let boundary_k: DynamicDenseMatrix<F, RowMajor> = self.get_boundary_matrix(k);
 
     let boundary_k_plus_1: DynamicDenseMatrix<F, RowMajor> = self.get_boundary_matrix(k + 1);
 
-    // Find cycles (kernel of ∂k) and boundaries (image of ∂k+1)
+    // Find cycles (kernel of ∂k)
     let cycles = boundary_k.kernel();
 
     // Find boundaries (image of ∂k+1)
@@ -321,25 +269,13 @@ impl SimplicialComplex {
     // Compute a basis for the quotient space Z_k / B_k using the imported function.
     // The result is a list of vectors (in k_simplices basis) representing homology generators.
     let quotient_basis_vectors = // Type is Vec<DynamicVector<F>>
-        compute_quotient_basis(&boundaries, &cycles);
+      compute_quotient_basis(&boundaries, &cycles);
 
-    // Convert these basis vectors back into chains.
-    let homology_generators: Vec<Chain<SimplicialComplex, F>> = quotient_basis_vectors
-      .into_iter()
-      .map(|v_coeff| {
-        // v_coeff is a coefficient vector for a homology generator
-        let mut generator_chain = Chain::new(self);
-        for (idx_in_k_basis, &coeff) in v_coeff.components().iter().enumerate() {
-          if !coeff.is_zero() {
-            generator_chain = generator_chain
-              + Chain::from_item_and_coeff(self, k_simplices[idx_in_k_basis].clone(), coeff);
-          }
-        }
-        generator_chain
-      })
-      .collect();
-
-    Homology { dimension: k, betti_number: homology_generators.len(), homology_generators }
+    Homology {
+      dimension:           k,
+      betti_number:        quotient_basis_vectors.len(),
+      homology_generators: quotient_basis_vectors,
+    }
   }
 
   /// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary operator.
@@ -381,7 +317,7 @@ impl SimplicialComplex {
       let boundary_chain = self.boundary(&k_plus_1_simplex);
 
       // Convert this boundary_chain into a column vector for the matrix.
-      let basis_map = k_simplex_basis.iter().cloned().enumerate().map(|(i, s)| (s, i)).collect();
+      let basis_map = k_simplex_basis.iter().enumerate().map(|(i, s)| (s, i)).collect();
       let num_k_simplices = k_simplex_basis.len();
       let col_vector = boundary_chain.to_coeff_vector(&basis_map, num_k_simplices);
       matrix.append_column(&col_vector);
@@ -390,9 +326,25 @@ impl SimplicialComplex {
   }
 }
 
-impl Topology for SimplicialComplex {
+impl Collection for SimplicialComplex {
   type Item = Simplex;
 
+  fn contains(&self, item: &Self::Item) -> bool {
+    self.simplices.get(&item.dimension).map_or(false, |s| s.contains(item))
+  }
+
+  fn is_empty(&self) -> bool { todo!() }
+}
+
+impl Set for SimplicialComplex {
+  fn minus(&self, other: &Self) -> Self { todo!() }
+
+  fn meet(&self, other: &Self) -> Self { todo!() }
+
+  fn join(&self, other: &Self) -> Self { todo!() }
+}
+
+impl Topology for SimplicialComplex {
   // TODO (autoparallel): Implement this. It  is the "star" of the simplex.
   fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item> { todo!() }
 
@@ -655,19 +607,13 @@ mod tests {
   fn test_homology_point_generic<F: TestField>() {
     let mut complex = SimplicialComplex::new();
     let p0 = Simplex::new(0, vec![0]);
-    complex.join_simplex(p0.clone());
+    complex.join_simplex(p0);
 
     // H_0
     let h0 = complex.homology::<F>(0);
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 1, "H0: Betti number for a point should be 1");
     assert_eq!(h0.homology_generators.len(), 1, "H0: Should have one generator");
-    let expected_gen_h0 = Chain::from_item_and_coeff(&complex, p0, F::one());
-    assert!(
-      h0.homology_generators.contains(&expected_gen_h0),
-      "H0: Generator mismatch for field {:?}",
-      std::any::type_name::<F>()
-    );
 
     // H_1
     let h1 = complex.homology::<F>(1);
@@ -704,13 +650,6 @@ mod tests {
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 1, "H0: Betti for an edge");
     assert_eq!(h0.homology_generators.len(), 1, "H0: One generator");
-    let p0 = Simplex::new(0, vec![0]);
-    let expected_gen_h0 = Chain::from_item_and_coeff(&complex, p0, F::one());
-    assert!(
-      h0.homology_generators.contains(&expected_gen_h0),
-      "H0: Generator for edge field {:?}",
-      std::any::type_name::<F>()
-    );
 
     let h1 = complex.homology::<F>(1);
     assert_eq!(h1.dimension, 1, "H1: Dimension check");
@@ -732,25 +671,13 @@ mod tests {
     let mut complex = SimplicialComplex::new();
     let p0_s = Simplex::new(0, vec![0]);
     let p1_s = Simplex::new(0, vec![1]);
-    complex.join_simplex(p0_s.clone());
-    complex.join_simplex(p1_s.clone());
+    complex.join_simplex(p0_s);
+    complex.join_simplex(p1_s);
 
     let h0 = complex.homology::<F>(0);
     assert_eq!(h0.dimension, 0, "H0: Dimension check");
     assert_eq!(h0.betti_number, 2, "H0: Betti for two points");
     assert_eq!(h0.homology_generators.len(), 2, "H0: Two generators");
-    let expected_gen1_h0 = Chain::from_item_and_coeff(&complex, p0_s, F::one());
-    let expected_gen2_h0 = Chain::from_item_and_coeff(&complex, p1_s, F::one());
-    assert!(
-      h0.homology_generators.contains(&expected_gen1_h0),
-      "H0: Gen [0] missing field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      h0.homology_generators.contains(&expected_gen2_h0),
-      "H0: Gen [1] missing field {:?}",
-      std::any::type_name::<F>()
-    );
 
     let h1 = complex.homology::<F>(1);
     assert_eq!(
@@ -830,54 +757,6 @@ mod tests {
       std::any::type_name::<F>()
     );
 
-    let generator_h1 = &h1.homology_generators[0];
-    assert_eq!(
-      generator_h1.items.len(),
-      3,
-      "H1: Circle generator 3 simplices field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      generator_h1.items.contains(&s01),
-      "H1: Gen missing s01 field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      generator_h1.items.contains(&s12),
-      "H1: Gen missing s12 field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      generator_h1.items.contains(&s02),
-      "H1: Gen missing s02 field {:?}",
-      std::any::type_name::<F>()
-    );
-
-    // Check that all coefficients of the generator are F::one() or -F::one().
-    assert!(
-      !generator_h1.coefficients.is_empty(),
-      "H1: Generator should have coefficients for field {:?}",
-      std::any::type_name::<F>()
-    );
-    let one = F::one();
-    let neg_one = -F::one();
-
-    for coeff in &generator_h1.coefficients {
-      assert!(
-        *coeff == one || *coeff == neg_one,
-        "H1: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
-         field {:?}",
-        *coeff,
-        std::any::type_name::<F>()
-      );
-    }
-
-    assert!(
-      generator_h1.boundary().items.is_empty(),
-      "H1: Generator boundary zero field {:?}",
-      std::any::type_name::<F>()
-    );
-
     let h2 = complex.homology::<F>(2);
     assert_eq!(h2.betti_number, 0, "H2: Betti for circle field {:?}", std::any::type_name::<F>());
   }
@@ -917,59 +796,6 @@ mod tests {
       h2.homology_generators.len(),
       1,
       "H2: One 2D generator field {:?}",
-      std::any::type_name::<F>()
-    );
-
-    let generator_h2 = &h2.homology_generators[0];
-    assert_eq!(
-      generator_h2.items.len(),
-      4,
-      "H2: Sphere generator 4 faces field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      generator_h2.items.contains(&f012),
-      "H2: Gen missing f012 field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      generator_h2.items.contains(&f013),
-      "H2: Gen missing f013 field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      generator_h2.items.contains(&f023),
-      "H2: Gen missing f023 field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      generator_h2.items.contains(&f123),
-      "H2: Gen missing f123 field {:?}",
-      std::any::type_name::<F>()
-    );
-
-    // Check that all coefficients of the generator are F::one() or -F::one().
-    assert!(
-      !generator_h2.coefficients.is_empty(),
-      "H2: Generator should have coefficients for field {:?}",
-      std::any::type_name::<F>()
-    );
-    let one = F::one();
-    let neg_one = -F::one();
-
-    for coeff in &generator_h2.coefficients {
-      assert!(
-        *coeff == one || *coeff == neg_one,
-        "H2: Each coefficient in the generator should be F::one() or -F::one(). Found: {:?} for \
-         field {:?}",
-        *coeff,
-        std::any::type_name::<F>()
-      );
-    }
-
-    assert!(
-      generator_h2.boundary().items.is_empty(),
-      "H2: Generator boundary zero field {:?}",
       std::any::type_name::<F>()
     );
 

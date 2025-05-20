@@ -238,8 +238,8 @@ where T::Item: PartialEq
 // }
 
 #[derive(Debug, Clone)]
-pub struct Homology<'a, T: Topology, R>
-where T::Item: std::fmt::Debug + Clone {
+pub struct Homology<R>
+where R: Ring + Copy {
   /// The dimension $k$ for which this homology group $H_k$ is computed.
   pub dimension:           usize,
   /// The Betti number $b_k = \text{rank}(H_k(X; R))$. For field coefficients,
@@ -247,11 +247,11 @@ where T::Item: std::fmt::Debug + Clone {
   pub betti_number:        usize,
   /// A basis for the homology group $H_k = Z_k / B_k$.
   /// Each element is a [`Chain<R>`] representing a homology class generator.
-  pub homology_generators: Vec<Chain<'a, T, R>>,
+  pub homology_generators: Vec<DynamicVector<R>>,
 }
 
-impl<'a, T: Topology, R> Homology<'a, T, R>
-where T::Item: std::fmt::Debug + Clone
+impl<R> Homology<R>
+where R: Ring + Copy
 {
   pub const fn trivial(dimension: usize) -> Self {
     Self { dimension, betti_number: 0, homology_generators: Vec::new() }

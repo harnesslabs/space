@@ -152,8 +152,6 @@ impl Poset for CellComplex {
 }
 
 impl Topology for CellComplex {
-  type Item = Cell;
-
   fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item> {
     self
       .attachment_lattice

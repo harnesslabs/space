@@ -15,8 +15,7 @@ use crate::{
 // TODO (autoparallel): It may be good to have this generic over a `Collection` trait at some point.
 // TODO (autoparallel): This is a bit of a hack to get the boundary operator to work nicely, it may
 // not be the best way to do this.
-pub trait Topology: Sized {
-  type Item;
+pub trait Topology: Sized + Set {
   fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item>;
   fn boundary<R: Ring + Copy>(&self, item: &Self::Item) -> Chain<'_, Self, R>;
 }

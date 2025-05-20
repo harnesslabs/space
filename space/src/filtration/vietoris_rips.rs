@@ -252,7 +252,7 @@ where
 ///
 /// # Type Parameters
 /// * `R`: The coefficient [`Field`] for homology computations.
-impl<const N: usize, F, R> Filtration for VietorisRips<N, F, Homology<Simplex, R>>
+impl<const N: usize, F, R> Filtration for VietorisRips<N, F, Homology<R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync, // Send + Sync for potential parallelism
   R: Field + Copy + Send + Sync,                       // Send + Sync for homology result
@@ -264,7 +264,7 @@ where
   type InputSpace = Cloud<N, F>;
   type OutputParameter = HashSet<usize>;
   // Set of dimensions for which to compute homology
-  type OutputSpace = HashMap<usize, Homology<Simplex, R>>;
+  type OutputSpace = HashMap<usize, Homology<R>>;
 
   // Map from dimension to HomologyGroup
 
@@ -310,12 +310,12 @@ where
 /// and then computing homology; these steps themselves might also have parallel potential
 /// depending on their implementations.
 #[cfg(feature = "parallel")]
-impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, Homology<Simplex, R>>
+impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, Homology<R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
   R: Field + Copy + Send + Sync,
   Cloud<N, F>: Sync,
-  Homology<Simplex, R>: Send,
+  Homology<R>: Send,
 {
 }
 
@@ -402,7 +402,7 @@ mod tests {
     let p0 = FixedVector([0.0, 0.0]);
     let p1 = FixedVector([1.0, 0.0]);
     let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1]);
-    let vr_builder = VietorisRips::<2, f64, Homology<Simplex, Mod7>>::new();
+    let vr_builder = VietorisRips::<2, f64, Homology<Mod7>>::new();
 
     let epsilons = vec![0.5, 1.5]; // Epsilon_0: 2 components, Epsilon_1: 1 component
     let dims = HashSet::from([0, 1]);
@@ -458,7 +458,7 @@ mod tests {
     let p2 = FixedVector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
-    let vr_builder = VietorisRips::<2, f64, Homology<Simplex, Boolean>>::new();
+    let vr_builder = VietorisRips::<2, f64, Homology<Boolean>>::new();
     // Distances: d(p0,p1)=1, d(p0,p2)=1, d(p1,p2)=1
     let epsilons = vec![0.5, 1.1];
     // eps=0.5: 3 points (3 components in H0)
