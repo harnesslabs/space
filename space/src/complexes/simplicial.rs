@@ -91,7 +91,7 @@ use super::*;
 use crate::{
   definitions::Topology,
   homology::{Chain, Homology},
-  set::{Collection, Set},
+  set::Collection,
 };
 
 /// A simplex represents a $k$-dimensional geometric object, defined as the convex hull of $k+1$
@@ -356,13 +356,13 @@ impl Collection for SimplicialComplex {
   fn is_empty(&self) -> bool { todo!() }
 }
 
-impl Set for SimplicialComplex {
-  fn minus(&self, other: &Self) -> Self { todo!() }
+// impl Set for SimplicialComplex {
+//   fn minus(&self, other: &Self) -> Self { todo!() }
 
-  fn meet(&self, other: &Self) -> Self { todo!() }
+//   fn meet(&self, other: &Self) -> Self { todo!() }
 
-  fn join(&self, other: &Self) -> Self { todo!() }
-}
+//   fn join(&self, other: &Self) -> Self { todo!() }
+// }
 
 impl Topology for SimplicialComplex {
   // TODO (autoparallel): Implement this. It  is the "star" of the simplex.

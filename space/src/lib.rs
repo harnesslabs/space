@@ -20,7 +20,7 @@ pub mod prelude {
   //! It provides a convenient way to import these types and traits into your code without
   //! having to specify the crate name each time.
   pub use crate::{
-    definitions::{MetricSpace, NormedSpace, TopologicalSpace},
-    set::{Collection, Set},
+    definitions::{MetricSpace, NormedSpace, Topology},
+    set::Collection,
   };
 }

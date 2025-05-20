@@ -7,7 +7,7 @@
 
 use std::{collections::HashSet, hash::Hash, marker::PhantomData};
 
-use crate::set::{Collection, Set};
+use crate::set::Collection;
 
 /// Private module to implement the sealed trait pattern.
 /// This prevents other crates from implementing DirectedType.
@@ -131,46 +131,46 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Collection for Graph<V,
   }
 }
 
-impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
-  /// Computes the set difference of two graphs (self - other).
-  ///
-  /// The resulting graph contains vertices and edges that are in `self` but not in `other`.
-  /// Note that edges are only included if both their vertices are in the result.
-  fn minus(&self, other: &Self) -> Self {
-    let vertices: HashSet<V> = self.vertices.difference(&other.vertices).cloned().collect();
+// impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Set for Graph<V, D> {
+//   /// Computes the set difference of two graphs (self - other).
+//   ///
+//   /// The resulting graph contains vertices and edges that are in `self` but not in `other`.
+//   /// Note that edges are only included if both their vertices are in the result.
+//   fn minus(&self, other: &Self) -> Self {
+//     let vertices: HashSet<V> = self.vertices.difference(&other.vertices).cloned().collect();
 
-    let edges: HashSet<(V, V)> = self
-      .edges
-      .iter()
-      .filter(|(u, v)| {
-        self.vertices.contains(u)
-          && self.vertices.contains(v)
-          && !other.edges.contains(&(u.clone(), v.clone()))
-      })
-      .cloned()
-      .collect();
+//     let edges: HashSet<(V, V)> = self
+//       .edges
+//       .iter()
+//       .filter(|(u, v)| {
+//         self.vertices.contains(u)
+//           && self.vertices.contains(v)
+//           && !other.edges.contains(&(u.clone(), v.clone()))
+//       })
+//       .cloned()
+//       .collect();
 
-    Self::new(vertices, edges)
-  }
+//     Self::new(vertices, edges)
+//   }
 
-  /// Computes the intersection of two graphs.
-  ///
-  /// The resulting graph contains vertices and edges that are in both graphs.
-  fn meet(&self, other: &Self) -> Self {
-    let vertices: HashSet<V> = self.vertices.intersection(&other.vertices).cloned().collect();
-    let edges: HashSet<(V, V)> = self.edges.intersection(&other.edges).cloned().collect();
-    Self::new(vertices, edges)
-  }
+//   /// Computes the intersection of two graphs.
+//   ///
+//   /// The resulting graph contains vertices and edges that are in both graphs.
+//   fn meet(&self, other: &Self) -> Self {
+//     let vertices: HashSet<V> = self.vertices.intersection(&other.vertices).cloned().collect();
+//     let edges: HashSet<(V, V)> = self.edges.intersection(&other.edges).cloned().collect();
+//     Self::new(vertices, edges)
+//   }
 
-  /// Computes the union of two graphs.
-  ///
-  /// The resulting graph contains all vertices and edges from both graphs.
-  fn join(&self, other: &Self) -> Self {
-    let vertices: HashSet<V> = self.vertices.union(&other.vertices).cloned().collect();
-    let edges: HashSet<(V, V)> = self.edges.union(&other.edges).cloned().collect();
-    Self::new(vertices, edges)
-  }
-}
+//   /// Computes the union of two graphs.
+//   ///
+//   /// The resulting graph contains all vertices and edges from both graphs.
+//   fn join(&self, other: &Self) -> Self {
+//     let vertices: HashSet<V> = self.vertices.union(&other.vertices).cloned().collect();
+//     let edges: HashSet<(V, V)> = self.edges.union(&other.edges).cloned().collect();
+//     Self::new(vertices, edges)
+//   }
+// }
 
 #[cfg(test)]
 mod tests {

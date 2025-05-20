@@ -34,7 +34,7 @@
 //!
 //! This structure is fundamental in applications like distributed consensus, signal processing
 //! on graphs, and modeling systems where local data must satisfy global constraints.
-use std::{collections::HashMap, hash::Hash, marker::PhantomData};
+use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use harness_algebra::{
   rings::Field,
@@ -46,6 +46,8 @@ use harness_algebra::{
 
 use crate::{definitions::Topology, set::Poset};
 
+// TODO: We should make this have a nice construction setup so you can build the underlying space
+// and the restrictions simultaneously
 pub struct Sheaf<T: Topology + Poset, C: Category>
 where T::Item: Hash + Eq {
   space:        T,
@@ -55,17 +57,42 @@ where T::Item: Hash + Eq {
 impl<T, C> Sheaf<T, C>
 where
   T: Topology + Poset,
-  T::Item: Hash + Eq + Clone,
-  C: Category + Clone,
-  C::Morphism: Clone,
+  T::Item: Hash + Eq + Clone + Debug,
+  C: Category + Clone + Eq + Debug,
+  C::Morphism: Clone + Debug,
 {
-  pub fn new(space: T) -> Self { Self { space, restrictions: HashMap::new() } }
+  pub fn new(space: T, restrictions: HashMap<(T::Item, T::Item), C::Morphism>) -> Self {
+    assert!(restrictions.iter().all(|(k, v)| space.leq(&k.0, &k.1).unwrap()));
+    // TODO: Assert that there is a restriction for every "upset" of points
+    Self { space, restrictions }
+  }
 
   pub fn restrict(&self, item: T::Item, restriction: T::Item, section: HashMap<T::Item, C>) -> C {
     assert!(self.space.leq(&item, &restriction).unwrap());
     let restriction = self.restrictions.get(&(item.clone(), restriction)).unwrap();
     let data = section.get(&item).unwrap().clone();
     C::apply(restriction.clone(), data)
+  }
+
+  pub fn is_global_section(&self, section: HashMap<T::Item, C>) -> bool {
+    // TODO: Go through the poset and check if the section is compatible with the restrictions
+    let space = &self.space;
+    for element in self.space.minimal_elements() {
+      let upset = space.upset(element.clone());
+      for other in upset {
+        let restriction = self.restrictions.get(&(element.clone(), other.clone())).unwrap();
+        let data = section.get(&other).unwrap().clone();
+        let restricted = C::apply(restriction.clone(), data);
+        if !section.contains_key(&element) {
+          return false;
+        }
+        let data = section.get(&element).unwrap().clone();
+        if !(data == restricted) {
+          return false;
+        }
+      }
+    }
+    true
   }
 }
 
@@ -89,20 +116,50 @@ impl<F: Field + Copy> Category for DynamicVector<F> {
 
 #[cfg(test)]
 mod tests {
+  use harness_algebra::{modular, prime_field};
+
   use super::*;
   use crate::complexes::cell::{Cell, CellComplex};
 
-  fn cell_complex() -> CellComplex {
+  modular!(Mod7, u32, 7);
+  prime_field!(Mod7);
+
+  fn cell_complex() -> (
+    CellComplex,
+    HashMap<Cell, DynamicVector<Mod7>>,
+    HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>,
+  ) {
     let mut cc = CellComplex::new();
     let v1 = cc.add_cell(0, vec![]);
     let v2 = cc.add_cell(0, vec![]);
     let e1 = cc.add_cell(1, vec![&v1, &v2]);
-    cc
+    let section = HashMap::from([
+      (v1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
+      (v2.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
+      (e1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+    ]);
+    let restrictions = HashMap::from([
+      ((v1.clone(), e1.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
+        mat
+      }),
+      ((v2.clone(), e1.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
+        mat
+      }),
+    ]);
+    (cc, section, restrictions)
   }
 
   #[test]
   fn test_sheaf() {
-    let cc = cell_complex();
-    let sheaf = Sheaf::<CellComplex, DynamicVector<f64>>::new(cc);
+    let (cc, section, restrictions) = cell_complex();
+
+    let sheaf = Sheaf::<CellComplex, DynamicVector<Mod7>>::new(cc, restrictions);
+
+    assert!(sheaf.is_global_section(section));
   }
 }

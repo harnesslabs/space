@@ -64,32 +64,32 @@ pub trait Collection {
   fn is_empty(&self) -> bool;
 }
 
-/// A trait for sets that support basic set operations.
-///
-/// This trait defines the fundamental operations that can be performed on sets:
-/// containment testing, set difference, intersection, and union.
-///
-/// # Type Parameters
-/// * `Point` - The type of elements contained in the set
-pub trait Set: Collection {
-  /// Computes the set difference (self - other).
-  ///
-  /// # Arguments
-  /// * `other` - The set to subtract from this set
-  fn minus(&self, other: &Self) -> Self;
+// /// A trait for sets that support basic set operations.
+// ///
+// /// This trait defines the fundamental operations that can be performed on sets:
+// /// containment testing, set difference, intersection, and union.
+// ///
+// /// # Type Parameters
+// /// * `Point` - The type of elements contained in the set
+// pub trait Set: Collection {
+//   /// Computes the set difference (self - other).
+//   ///
+//   /// # Arguments
+//   /// * `other` - The set to subtract from this set
+//   fn minus(&self, other: &Self) -> Self;
 
-  /// Computes the intersection (meet) of two sets.
-  ///
-  /// # Arguments
-  /// * `other` - The set to intersect with this set
-  fn meet(&self, other: &Self) -> Self;
+//   /// Computes the intersection (meet) of two sets.
+//   ///
+//   /// # Arguments
+//   /// * `other` - The set to intersect with this set
+//   fn meet(&self, other: &Self) -> Self;
 
-  /// Computes the union (join) of two sets.
-  ///
-  /// # Arguments
-  /// * `other` - The set to union with this set
-  fn join(&self, other: &Self) -> Self;
-}
+//   /// Computes the union (join) of two sets.
+//   ///
+//   /// # Arguments
+//   /// * `other` - The set to union with this set
+//   fn join(&self, other: &Self) -> Self;
+// }
 
 /// A trait for sets that support partial order relations.
 ///
@@ -110,6 +110,22 @@ pub trait Poset: Collection {
   /// * `Some(false)` if `a` is not less than or equal to `b` (and both are in the set)
   /// * `None` if the relation cannot be determined (e.g., one point is not in the set)
   fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool>;
+
+  fn upset(&self, a: Self::Item) -> HashSet<Self::Item>;
+
+  fn downset(&self, a: Self::Item) -> HashSet<Self::Item>;
+
+  fn minimal_elements(&self) -> HashSet<Self::Item>;
+
+  fn maximal_elements(&self) -> HashSet<Self::Item>;
+
+  fn join(&self, a: Self::Item, b: Self::Item) -> Option<Self::Item>;
+
+  fn meet(&self, a: Self::Item, b: Self::Item) -> Option<Self::Item>;
+
+  fn successors(&self, a: Self::Item) -> HashSet<Self::Item>;
+
+  fn predecessors(&self, a: Self::Item) -> HashSet<Self::Item>;
 }
 
 impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Collection for HashSet<T, S> {
@@ -120,13 +136,13 @@ impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Collection for HashSet<T, S
   fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
 
-impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
-  fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
+// impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
+//   fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
 
-  fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
+//   fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
 
-  fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
-}
+//   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
+// }
 
 impl<T: Ord + Clone> Collection for BTreeSet<T> {
   type Item = T;
@@ -136,13 +152,13 @@ impl<T: Ord + Clone> Collection for BTreeSet<T> {
   fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
 
-impl<T: Ord + Clone> Set for BTreeSet<T> {
-  fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
+// impl<T: Ord + Clone> Set for BTreeSet<T> {
+//   fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
 
-  fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
+//   fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
 
-  fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
-}
+//   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
+// }
 
 impl<T: PartialEq> Collection for Vec<T> {
   type Item = T;
@@ -150,36 +166,4 @@ impl<T: PartialEq> Collection for Vec<T> {
   fn contains(&self, point: &Self::Item) -> bool { self.iter().any(|p| p == point) }
 
   fn is_empty(&self) -> bool { self.is_empty() }
-}
-
-#[cfg(test)]
-mod tests {
-  use std::collections::HashSet;
-
-  use super::*;
-
-  #[test]
-  fn test_set_operations() {
-    let a: HashSet<_> = [1, 2, 3].into_iter().collect();
-    let b: HashSet<_> = [2, 3, 4].into_iter().collect();
-
-    let intersection = a.meet(&b);
-    assert_eq!(intersection.len(), 2);
-    assert!(intersection.contains(&2));
-    assert!(intersection.contains(&3));
-
-    let union = a.join(&b);
-    assert_eq!(union.len(), 4);
-    assert!(union.contains(&1));
-    assert!(union.contains(&2));
-    assert!(union.contains(&3));
-    assert!(union.contains(&4));
-
-    let difference = a.minus(&b);
-    assert_eq!(difference.len(), 1);
-    assert!(difference.contains(&1));
-
-    assert!(!a.is_empty());
-    assert!(!b.is_empty());
-  }
 }

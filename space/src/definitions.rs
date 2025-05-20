@@ -6,48 +6,15 @@
 
 use harness_algebra::rings::Ring;
 
-use crate::{
-  homology::Chain,
-  set::{Collection, Set},
-};
+use crate::{homology::Chain, set::Collection};
 
 // TODO: This is a much simpler trait to work with and for discrete things this is fine.
 // TODO (autoparallel): It may be good to have this generic over a `Collection` trait at some point.
 // TODO (autoparallel): This is a bit of a hack to get the boundary operator to work nicely, it may
 // not be the best way to do this.
-pub trait Topology: Sized + Set {
+pub trait Topology: Sized + Collection {
   fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item>;
   fn boundary<R: Ring + Copy>(&self, item: &Self::Item) -> Chain<'_, Self, R>;
-}
-
-/// A trait for topological spaces.
-///
-/// A topological space consists of a set of points together with a collection of open sets
-/// that satisfy certain axioms. This trait provides methods for working with neighborhoods
-/// and testing if sets are open.
-///
-/// # Type Parameters
-/// * `Point` - The type of points in the space
-/// * `OpenSet` - The type representing open sets in the space
-pub trait TopologicalSpace {
-  /// The type of points in the space
-  type Point;
-  /// The type representing open sets in the space
-  type OpenSet: Set<Item = Self::Point>;
-
-  /// Returns a neighborhood of a given point.
-  ///
-  /// In topology, a neighborhood of a point is an open set containing that point.
-  ///
-  /// # Arguments
-  /// * `point` - The point whose neighborhood to compute
-  fn neighborhood(&self, point: Self::Point) -> Self::OpenSet;
-
-  /// Tests if a given set is open in this topological space.
-  ///
-  /// # Arguments
-  /// * `open_set` - The set to test for openness
-  fn is_open(&self, open_set: Self::OpenSet) -> bool;
 }
 
 // TODO: If a metric space is also a normed space, then it should implement both traits and have a

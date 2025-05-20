@@ -24,7 +24,7 @@ use std::{
 use crate::{
   definitions::Topology,
   lattice::Lattice,
-  set::{Collection, Poset, Set},
+  set::{Collection, Poset},
 };
 
 // TODO: This has not been optimized at all, and for certain operations this may be an inefficient
@@ -137,17 +137,74 @@ impl Collection for CellComplex {
   fn is_empty(&self) -> bool { self.cells.is_empty() }
 }
 
-impl Set for CellComplex {
-  fn minus(&self, other: &Self) -> Self { todo!() }
+// impl Set for CellComplex {
+//   fn minus(&self, other: &Self) -> Self { todo!() }
 
-  fn meet(&self, other: &Self) -> Self { todo!() }
+//   fn meet(&self, other: &Self) -> Self { todo!() }
 
-  fn join(&self, other: &Self) -> Self { todo!() }
-}
+//   fn join(&self, other: &Self) -> Self { todo!() }
+// }
 
 impl Poset for CellComplex {
   fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool> {
-    Some(self.attachment_lattice.leq(&a.id, &b.id))
+    self.attachment_lattice.leq(&a.id, &b.id)
+  }
+
+  fn upset(&self, a: Self::Item) -> std::collections::HashSet<Self::Item> {
+    self.attachment_lattice.upset(a.id()).into_iter().map(|id| self.get_cell(id).unwrap()).collect()
+  }
+
+  fn downset(&self, a: Self::Item) -> std::collections::HashSet<Self::Item> {
+    self
+      .attachment_lattice
+      .downset(a.id())
+      .into_iter()
+      .map(|id| self.get_cell(id).unwrap())
+      .collect()
+  }
+
+  fn minimal_elements(&self) -> std::collections::HashSet<Self::Item> {
+    self
+      .attachment_lattice
+      .minimal_elements()
+      .into_iter()
+      .map(|id| self.get_cell(id).unwrap())
+      .collect()
+  }
+
+  fn maximal_elements(&self) -> std::collections::HashSet<Self::Item> {
+    self
+      .attachment_lattice
+      .maximal_elements()
+      .into_iter()
+      .map(|id| self.get_cell(id).unwrap())
+      .collect()
+  }
+
+  fn join(&self, a: Self::Item, b: Self::Item) -> Option<Self::Item> {
+    self.attachment_lattice.join(a.id(), b.id()).map(|id| self.get_cell(id).unwrap())
+  }
+
+  fn meet(&self, a: Self::Item, b: Self::Item) -> Option<Self::Item> {
+    self.attachment_lattice.meet(a.id(), b.id()).map(|id| self.get_cell(id).unwrap())
+  }
+
+  fn successors(&self, a: Self::Item) -> std::collections::HashSet<Self::Item> {
+    self
+      .attachment_lattice
+      .successors(a.id())
+      .into_iter()
+      .map(|id| self.get_cell(id).unwrap())
+      .collect()
+  }
+
+  fn predecessors(&self, a: Self::Item) -> std::collections::HashSet<Self::Item> {
+    self
+      .attachment_lattice
+      .predecessors(a.id())
+      .into_iter()
+      .map(|id| self.get_cell(id).unwrap())
+      .collect()
   }
 }
 

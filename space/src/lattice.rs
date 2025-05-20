@@ -204,7 +204,17 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
       }
     }
   }
+}
 
+impl<T: Hash + Eq + Clone> Collection for Lattice<T> {
+  type Item = T;
+
+  fn contains(&self, point: &Self::Item) -> bool { self.nodes.contains_key(point) }
+
+  fn is_empty(&self) -> bool { self.nodes.is_empty() }
+}
+
+impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
   /// Checks if `a ≤ b` in the lattice.
   ///
   /// This method determines if element `a` is less than or equal to element `b`
@@ -231,8 +241,12 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// assert!(lattice.leq(&1, &3)); // Transitive: 1 ≤ 2 and 2 ≤ 3 => 1 ≤ 3
   /// assert!(!lattice.leq(&3, &1));
   /// ```
-  pub fn leq(&self, a: &T, b: &T) -> bool {
-    self.nodes.get(a).is_some_and(|node_a| node_a.successors.contains(b) || a == b)
+  fn leq(&self, a: &T, b: &T) -> Option<bool> {
+    if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
+      return None;
+    }
+    let node_a = self.nodes.get(&a).unwrap();
+    Some(node_a.successors.contains(&b))
   }
 
   /// Returns all minimal elements in the lattice.
@@ -254,7 +268,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// let minimal = lattice.minimal_elements();
   /// assert!(minimal.contains(&1) && minimal.len() == 1);
   /// ```
-  pub fn minimal_elements(&self) -> HashSet<T> {
+  fn minimal_elements(&self) -> HashSet<T> {
     self
       .nodes
       .iter()
@@ -282,7 +296,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// let maximal = lattice.maximal_elements();
   /// assert!(maximal.contains(&3) && maximal.len() == 1);
   /// ```
-  pub fn maximal_elements(&self) -> HashSet<T> {
+  fn maximal_elements(&self) -> HashSet<T> {
     self
       .nodes
       .iter()
@@ -322,7 +336,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// assert_eq!(lattice.join(2, 3), Some(1));
   /// assert_eq!(lattice.join(4, 2), Some(2));
   /// ```
-  pub fn join(&self, a: T, b: T) -> Option<T> {
+  fn join(&self, a: T, b: T) -> Option<T> {
     if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
       return None; // Elements must be in the lattice
     }
@@ -345,7 +359,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
 
     let minimal_common_upper_bounds: Vec<T> = common_upper_bounds
       .iter()
-      .filter(|&x| common_upper_bounds.iter().all(|y| x == y || !self.leq(y, x)))
+      .filter(|&x| common_upper_bounds.iter().all(|y| x == y || !self.leq(y, x).unwrap_or(false)))
       .cloned()
       .collect();
 
@@ -387,7 +401,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// assert_eq!(lattice.meet(2, 3), Some(4));
   /// assert_eq!(lattice.meet(1, 2), Some(2));
   /// ```
-  pub fn meet(&self, a: T, b: T) -> Option<T> {
+  fn meet(&self, a: T, b: T) -> Option<T> {
     if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
       return None; // Elements must be in the lattice
     }
@@ -410,7 +424,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
 
     let maximal_common_lower_bounds: Vec<T> = common_lower_bounds
       .iter()
-      .filter(|&x| common_lower_bounds.iter().all(|y| x == y || !self.leq(x, y)))
+      .filter(|&x| common_lower_bounds.iter().all(|y| x == y || !self.leq(x, y).unwrap_or(false)))
       .cloned()
       .collect();
 
@@ -434,11 +448,11 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// # Returns
   ///
   /// A `HashSet` containing all elements in the lattice that are less than or equal to `a`.
-  pub fn downset(&self, a: T) -> HashSet<T> {
+  fn downset(&self, a: T) -> HashSet<T> {
     self
       .nodes
       .iter()
-      .filter(|(_, node)| self.leq(&node.element, &a))
+      .filter(|(_, node)| self.leq(&node.element, &a).unwrap_or(false))
       .map(|(element, _)| element.clone())
       .collect()
   }
@@ -456,11 +470,11 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// # Returns
   ///
   /// A `HashSet` containing all elements in the lattice that are greater than or equal to `a`.
-  pub fn upset(&self, a: T) -> HashSet<T> {
+  fn upset(&self, a: T) -> HashSet<T> {
     self
       .nodes
       .iter()
-      .filter(|(_, node)| self.leq(&a, &node.element))
+      .filter(|(_, node)| self.leq(&a, &node.element).unwrap_or(false))
       .map(|(element, _)| element.clone())
       .collect()
   }
@@ -470,7 +484,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// This method returns a `HashSet` containing all elements in the lattice
   /// that are direct successors of `a`. If `a` is not in the lattice,
   /// the method returns an empty set.
-  pub fn successors(&self, a: T) -> HashSet<T> {
+  fn successors(&self, a: T) -> HashSet<T> {
     self.nodes.get(&a).map_or_else(HashSet::new, |node_a| {
       // Filter to only include direct successors
       let all_successors = &node_a.successors;
@@ -492,7 +506,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// This method returns a `HashSet` containing all elements in the lattice
   /// that are direct predecessors of `a`. If `a` is not in the lattice,
   /// the method returns an empty set.
-  pub fn predecessors(&self, a: T) -> HashSet<T> {
+  fn predecessors(&self, a: T) -> HashSet<T> {
     self.nodes.get(&a).map_or_else(HashSet::new, |node_a| {
       // Filter to only include direct predecessors
       let all_predecessors = &node_a.predecessors;
@@ -507,25 +521,6 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
         .cloned()
         .collect()
     })
-  }
-}
-
-impl<T: Hash + Eq + Clone> Collection for Lattice<T> {
-  type Item = T;
-
-  fn contains(&self, point: &Self::Item) -> bool { self.nodes.contains_key(point) }
-
-  fn is_empty(&self) -> bool { self.nodes.is_empty() }
-}
-
-impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
-  fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool> {
-    if self.nodes.contains_key(a) && self.nodes.contains_key(b) {
-      // Call the inherent leq method of Lattice<T>
-      Some(self.leq(a, b))
-    } else {
-      None // One or both elements are not in the lattice.
-    }
   }
 }
 
@@ -702,10 +697,10 @@ mod tests {
     lattice.add_relation(1, 2);
     lattice.add_relation(2, 3);
 
-    assert!(lattice.leq(&1, &2));
-    assert!(lattice.leq(&2, &3));
-    assert!(lattice.leq(&1, &3));
-    assert!(!lattice.leq(&2, &1));
+    assert!(lattice.leq(&1, &2).unwrap_or(false));
+    assert!(lattice.leq(&2, &3).unwrap_or(false));
+    assert!(lattice.leq(&1, &3).unwrap_or(false));
+    assert!(!lattice.leq(&2, &1).unwrap_or(false));
 
     let minimal = lattice.minimal_elements();
     assert_eq!(minimal.len(), 1);
@@ -719,9 +714,9 @@ mod tests {
   #[test]
   fn test_diamond_lattice() {
     let lattice = diamond_lattice();
-    assert!(lattice.leq(&1, &4));
-    assert!(!lattice.leq(&2, &3));
-    assert!(!lattice.leq(&3, &2));
+    assert!(lattice.leq(&1, &4).unwrap_or(false));
+    assert!(!lattice.leq(&2, &3).unwrap_or(false));
+    assert!(!lattice.leq(&3, &2).unwrap_or(false));
 
     let minimal = lattice.minimal_elements();
     assert_eq!(minimal.len(), 1);

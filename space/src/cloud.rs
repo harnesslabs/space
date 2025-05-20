@@ -45,7 +45,7 @@ use harness_algebra::{rings::Field, tensors::fixed::FixedVector};
 
 use crate::{
   definitions::{MetricSpace, NormedSpace},
-  set::{Collection, Set},
+  set::Collection,
 };
 
 /// Defines the [`Cloud`] struct, representing a collection of points (vectors)
