@@ -78,15 +78,20 @@ where
     // TODO: Go through the poset and check if the section is compatible with the restrictions
     let space = &self.space;
     for element in self.space.minimal_elements() {
+      dbg!(&element);
       let upset = space.upset(element.clone());
       for other in upset {
+        dbg!(&other);
         let restriction = self.restrictions.get(&(element.clone(), other.clone())).unwrap();
-        let data = section.get(&other).unwrap().clone();
+        dbg!(&restriction);
+        let data = section.get(&element).unwrap().clone();
+        dbg!(&data);
         let restricted = C::apply(restriction.clone(), data);
+        dbg!(&restricted);
         if !section.contains_key(&element) {
           return false;
         }
-        let data = section.get(&element).unwrap().clone();
+        let data = section.get(&other).unwrap().clone();
         if !(data == restricted) {
           return false;
         }
