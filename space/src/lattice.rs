@@ -54,12 +54,16 @@
 //! // }
 //! ```
 
+// TODO (autoparallel): Implement Poset here?
+
 use std::{
   collections::{HashMap, HashSet},
   fs::File,
   hash::Hash,
   io::{Result as IoResult, Write as IoWrite},
 };
+
+use crate::set::{Collection, Poset};
 
 /// A node in a lattice representing an element and its relationships.
 ///
@@ -228,11 +232,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// assert!(!lattice.leq(&3, &1));
   /// ```
   pub fn leq(&self, a: &T, b: &T) -> bool {
-    if let Some(node_a) = self.nodes.get(a) {
-      node_a.successors.contains(b)
-    } else {
-      false
-    }
+    self.nodes.get(a).is_some_and(|node_a| node_a.successors.contains(b) || a == b)
   }
 
   /// Returns all minimal elements in the lattice.
@@ -420,6 +420,87 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
       None
     }
   }
+
+  /// Returns the set of elements that are less than or equal to `a`.
+  ///
+  /// This method returns a `HashSet` containing all elements in the lattice
+  /// that are less than or equal to `a`. If `a` is not in the lattice,
+  /// the method returns an empty set.
+  ///
+  /// # Arguments
+  ///
+  /// * `a`: The element to get the lower bounds of.
+  ///
+  /// # Returns
+  ///
+  /// A `HashSet` containing all elements in the lattice that are less than or equal to `a`.
+  pub fn downset(&self, a: T) -> HashSet<T> {
+    self
+      .nodes
+      .iter()
+      .filter(|(_, node)| self.leq(&node.element, &a))
+      .map(|(element, _)| element.clone())
+      .collect()
+  }
+
+  /// Returns the set of elements that are greater than or equal to `a`.
+  ///
+  /// This method returns a `HashSet` containing all elements in the lattice
+  /// that are greater than or equal to `a`. If `a` is not in the lattice,
+  /// the method returns an empty set.
+  ///
+  /// # Arguments
+  ///
+  /// * `a`: The element to get the upper bounds of.
+  ///
+  /// # Returns
+  ///
+  /// A `HashSet` containing all elements in the lattice that are greater than or equal to `a`.
+  pub fn upset(&self, a: T) -> HashSet<T> {
+    self
+      .nodes
+      .iter()
+      .filter(|(_, node)| self.leq(&a, &node.element))
+      .map(|(element, _)| element.clone())
+      .collect()
+  }
+
+  /// Returns the set of elements that are successors of `a`.
+  ///
+  /// This method returns a `HashSet` containing all elements in the lattice
+  /// that are successors of `a`. If `a` is not in the lattice,
+  /// the method returns an empty set.
+  pub fn successors(&self, a: T) -> HashSet<T> {
+    self.nodes.get(&a).map_or_else(|| HashSet::new(), |node| node.successors.clone())
+  }
+
+  /// Returns the set of elements that are predecessors of `a`.
+  ///
+  /// This method returns a `HashSet` containing all elements in the lattice
+  /// that are predecessors of `a`. If `a` is not in the lattice,
+  /// the method returns an empty set.
+  pub fn predecessors(&self, a: T) -> HashSet<T> {
+    self.nodes.get(&a).map_or_else(|| HashSet::new(), |node| node.predecessors.clone())
+  }
+}
+
+impl<T: Hash + Eq + Clone> Collection for Lattice<T> {
+  type Item = T;
+
+  fn contains(&self, point: &Self::Item) -> bool { self.nodes.contains_key(point) }
+
+  fn is_empty(&self) -> bool { self.nodes.is_empty() }
+}
+
+impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
+  fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool> {
+    if self.nodes.contains_key(a) && self.nodes.contains_key(b) {
+      // Call the inherent leq method of Lattice<T>
+      Some(self.leq(a, b))
+    } else {
+      None // One or both elements are not in the lattice.
+    }
+  }
 }
 
 // Helper function to escape strings for DOT format
@@ -568,6 +649,27 @@ mod tests {
     m_lattice
   }
 
+  fn diamond_lattice() -> Lattice<i32> {
+    // Create a diamond lattice:
+    //     1
+    //    / \
+    //   2   3
+    //    \ /
+    //     4
+    let mut diamond_lattice: Lattice<i32> = Lattice::new();
+    diamond_lattice.add_element(1);
+    diamond_lattice.add_element(2);
+    diamond_lattice.add_element(3);
+    diamond_lattice.add_element(4);
+
+    diamond_lattice.add_relation(1, 2);
+    diamond_lattice.add_relation(1, 3);
+    diamond_lattice.add_relation(2, 4);
+    diamond_lattice.add_relation(3, 4);
+
+    diamond_lattice
+  }
+
   #[test]
   fn test_basic_lattice() {
     let mut lattice = Lattice::new();
@@ -590,19 +692,7 @@ mod tests {
 
   #[test]
   fn test_diamond_lattice() {
-    let mut lattice = Lattice::new();
-
-    // Create a diamond lattice:
-    //     1
-    //    / \
-    //   2   3
-    //    \ /
-    //     4
-    lattice.add_relation(1, 2);
-    lattice.add_relation(1, 3);
-    lattice.add_relation(2, 4);
-    lattice.add_relation(3, 4);
-
+    let lattice = diamond_lattice();
     assert!(lattice.leq(&1, &4));
     assert!(!lattice.leq(&2, &3));
     assert!(!lattice.leq(&3, &2));
@@ -712,5 +802,45 @@ mod tests {
     let filename = "test_m_shape_lattice.dot";
     println!("--- M-shape Example - Saving to {filename} ---");
     m_lattice().save_to_dot_file(filename).expect("Failed to save M-shape lattice");
+  }
+
+  #[test]
+  fn test_downset() {
+    let lattice = diamond_lattice();
+    let downset = lattice.downset(4);
+    assert_eq!(downset, HashSet::from([1, 2, 3, 4]));
+
+    let downset = lattice.downset(2);
+    assert_eq!(downset, HashSet::from([1, 2]));
+
+    let downset = lattice.downset(1);
+    assert_eq!(downset, HashSet::from([1]));
+  }
+
+  #[test]
+  fn test_upset() {
+    let lattice = diamond_lattice();
+    let upset = lattice.upset(4);
+    assert_eq!(upset, HashSet::from([4]));
+
+    let upset = lattice.upset(2);
+    assert_eq!(upset, HashSet::from([2, 4]));
+
+    let upset = lattice.upset(1);
+    assert_eq!(upset, HashSet::from([1, 2, 3, 4]));
+  }
+
+  #[test]
+  fn test_successors() {
+    let lattice = diamond_lattice();
+    let successors = lattice.successors(1);
+    assert_eq!(successors, HashSet::from([2, 3]));
+  }
+
+  #[test]
+  fn test_predecessors() {
+    let lattice = diamond_lattice();
+    let predecessors = lattice.predecessors(4);
+    assert_eq!(predecessors, HashSet::from([2, 3]));
   }
 }

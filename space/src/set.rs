@@ -29,6 +29,7 @@
 //! ```
 
 use std::{
+  cmp::PartialOrd,
   collections::{BTreeSet, HashSet},
   hash::{BuildHasher, Hash},
 };
@@ -47,13 +48,13 @@ use std::{
 /// * `Vec<T>` where `T: PartialEq`
 pub trait Collection {
   /// The type of elements contained in the collection
-  type Point;
+  type Item;
 
   /// Tests if a point is contained in the collection.
   ///
   /// # Arguments
   /// * `point` - The point to test for containment
-  fn contains(&self, point: &Self::Point) -> bool;
+  fn contains(&self, point: &Self::Item) -> bool;
 
   /// Tests if the set is empty.
   ///
@@ -97,7 +98,7 @@ pub trait Set: Collection {
 ///
 /// # Type Parameters
 /// * `Point` - The type of elements contained in the set
-pub trait Poset: Set {
+pub trait Poset: Collection {
   /// Tests if one point is less than or equal to another.
   ///
   /// # Arguments
@@ -106,13 +107,15 @@ pub trait Poset: Set {
   ///
   /// # Returns
   /// * `Some(true)` if `a` is less than or equal to `b`
-  fn leq(&self, a: &Self::Point, b: &Self::Point) -> Option<bool>;
+  /// * `Some(false)` if `a` is not less than or equal to `b` (and both are in the set)
+  /// * `None` if the relation cannot be determined (e.g., one point is not in the set)
+  fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool>;
 }
 
 impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Collection for HashSet<T, S> {
-  type Point = T;
+  type Item = T;
 
-  fn contains(&self, point: &Self::Point) -> bool { Self::contains(self, point) }
+  fn contains(&self, point: &Self::Item) -> bool { Self::contains(self, point) }
 
   fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
@@ -126,9 +129,9 @@ impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
 }
 
 impl<T: Ord + Clone> Collection for BTreeSet<T> {
-  type Point = T;
+  type Item = T;
 
-  fn contains(&self, point: &Self::Point) -> bool { Self::contains(self, point) }
+  fn contains(&self, point: &Self::Item) -> bool { Self::contains(self, point) }
 
   fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
@@ -141,20 +144,10 @@ impl<T: Ord + Clone> Set for BTreeSet<T> {
   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
 }
 
-impl<T: Ord + Clone> Poset for BTreeSet<T> {
-  fn leq(&self, a: &Self::Point, b: &Self::Point) -> Option<bool> {
-    if self.contains(a) && self.contains(b) {
-      Some(a <= b)
-    } else {
-      None
-    }
-  }
-}
-
 impl<T: PartialEq> Collection for Vec<T> {
-  type Point = T;
+  type Item = T;
 
-  fn contains(&self, point: &Self::Point) -> bool { self.iter().any(|p| p == point) }
+  fn contains(&self, point: &Self::Item) -> bool { self.iter().any(|p| p == point) }
 
   fn is_empty(&self) -> bool { self.is_empty() }
 }

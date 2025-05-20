@@ -110,7 +110,7 @@ impl<V: PartialOrd + Eq + Hash, D: DirectedType> Graph<V, D> {
 }
 
 impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Collection for Graph<V, D> {
-  type Point = VertexOrEdge<V>;
+  type Item = VertexOrEdge<V>;
 
   fn is_empty(&self) -> bool { self.vertices.is_empty() }
 
@@ -122,7 +122,7 @@ impl<V: PartialOrd + Eq + Hash + Clone, D: DirectedType> Collection for Graph<V,
   /// # Returns
   /// * `true` if the point is a vertex or edge point in the graph
   /// * `false` otherwise
-  fn contains(&self, point: &Self::Point) -> bool {
+  fn contains(&self, point: &Self::Item) -> bool {
     match point {
       VertexOrEdge::Vertex(v) => self.vertices.contains(v),
       VertexOrEdge::Edge(u, v) =>

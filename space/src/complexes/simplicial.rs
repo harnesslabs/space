@@ -430,6 +430,8 @@ impl SimplicialComplex {
 }
 
 impl Topology for Simplex {
+  type Space = SimplicialComplex;
+
   // TODO (autoparallel): Implement this. It  is the "star" of the simplex.
   fn neighborhood(&self) -> Vec<Self> { todo!() }
 

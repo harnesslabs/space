@@ -76,9 +76,9 @@ impl<F: Field, const N: usize> Cloud<N, F> {
 }
 
 impl<const N: usize, F: Field + Copy + Sum<F>> Collection for Cloud<N, F> {
-  type Point = FixedVector<N, F>;
+  type Item = FixedVector<N, F>;
 
-  fn contains(&self, point: &Self::Point) -> bool { self.points.contains(point) }
+  fn contains(&self, point: &Self::Item) -> bool { self.points.contains(point) }
 
   fn is_empty(&self) -> bool { self.points.is_empty() }
 }
@@ -89,7 +89,7 @@ impl<const N: usize, F: Field + Copy + Sum<F>> MetricSpace for Cloud<N, F> {
   /// Calculates the distance between two points in the cloud.
   ///
   /// The distance is defined as the norm of the difference between the two points.
-  fn distance(point_a: Self::Point, point_b: Self::Point) -> Self::Distance {
+  fn distance(point_a: Self::Item, point_b: Self::Item) -> Self::Distance {
     <Self as NormedSpace>::norm(point_a - point_b)
   }
 }
@@ -100,7 +100,7 @@ impl<const N: usize, F: Field + Copy + Sum<F>> NormedSpace for Cloud<N, F> {
   /// Calculates the norm of a point.
   ///
   /// The norm is defined as the sum of the squares of its components (Euclidean norm).
-  fn norm(point: Self::Point) -> Self::Norm { point.0.iter().map(|p| *p * *p).sum() }
+  fn norm(point: Self::Item) -> Self::Norm { point.0.iter().map(|p| *p * *p).sum() }
 }
 
 #[cfg(test)]

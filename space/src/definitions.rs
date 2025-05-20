@@ -17,6 +17,7 @@ use crate::{
 // not be the best way to do this.
 pub trait Topology
 where Self: Sized {
+  type Space;
   fn neighborhood(&self) -> Vec<Self>;
   fn boundary<R: Ring + Copy>(&self) -> Chain<Self, R>;
 }
@@ -34,7 +35,7 @@ pub trait TopologicalSpace {
   /// The type of points in the space
   type Point;
   /// The type representing open sets in the space
-  type OpenSet: Set<Point = Self::Point>;
+  type OpenSet: Set<Item = Self::Point>;
 
   /// Returns a neighborhood of a given point.
   ///
@@ -72,8 +73,8 @@ pub trait MetricSpace: Collection {
   /// * `point_a` - The first point
   /// * `point_b` - The second point
   fn distance(
-    point_a: <Self as Collection>::Point,
-    point_b: <Self as Collection>::Point,
+    point_a: <Self as Collection>::Item,
+    point_b: <Self as Collection>::Item,
   ) -> Self::Distance;
 }
 
@@ -92,7 +93,7 @@ pub trait NormedSpace: MetricSpace {
   ///
   /// # Arguments
   /// * `point` - The point whose norm to compute
-  fn norm(point: Self::Point) -> Self::Norm;
+  fn norm(point: Self::Item) -> Self::Norm;
 }
 
 /// A trait for inner product spaces.
@@ -112,5 +113,5 @@ pub trait InnerProductSpace: NormedSpace {
   /// # Arguments
   /// * `point_a` - The first point
   /// * `point_b` - The second point
-  fn inner_product(&self, point_a: Self::Point, point_b: Self::Point) -> Self::InnerProduct;
+  fn inner_product(&self, point_a: Self::Item, point_b: Self::Item) -> Self::InnerProduct;
 }
