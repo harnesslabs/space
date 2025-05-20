@@ -1064,8 +1064,38 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 }
 
-impl<T> Fn(DynamicVector<T>) -> DynamicVector<T> for DynamicDenseMatrix<T, RowMajor> {
-  fn call(&self, arg: DynamicVector<T>) -> DynamicVector<T> { todo!() }
+impl<T: Field + Copy> Mul<DynamicVector<T>> for DynamicDenseMatrix<T, RowMajor> {
+  type Output = DynamicVector<T>;
+
+  fn mul(self, rhs: DynamicVector<T>) -> Self::Output {
+    assert_eq!(self.num_cols(), rhs.dimension(), "Matrix-vector dimension mismatch");
+
+    let mut result = vec![T::zero(); self.num_rows()];
+    (0..self.num_rows()).for_each(|i| {
+      for j in 0..self.num_cols() {
+        result[i] += *self.get_component(i, j) * *rhs.get_component(j);
+      }
+    });
+
+    DynamicVector::new(result)
+  }
+}
+
+impl<T: Field + Copy> Mul<DynamicVector<T>> for DynamicDenseMatrix<T, ColumnMajor> {
+  type Output = DynamicVector<T>;
+
+  fn mul(self, rhs: DynamicVector<T>) -> Self::Output {
+    assert_eq!(self.num_cols(), rhs.dimension(), "Matrix-vector dimension mismatch");
+
+    let mut result = vec![T::zero(); self.num_rows()];
+    (0..self.num_rows()).for_each(|i| {
+      for j in 0..self.num_cols() {
+        result[i] += *self.get_component(i, j) * *rhs.get_component(j);
+      }
+    });
+
+    DynamicVector::new(result)
+  }
 }
 
 // TODO: Should implement algebraic traits on these matrices then use them in the tests below as
@@ -1598,5 +1628,27 @@ mod tests {
     assert!(contains_vector(&kernel, &DynamicVector::from(vec![1.0, 0.0, 0.0])));
     assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 1.0, 0.0])));
     assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 0.0, 1.0])));
+  }
+
+  #[test]
+  fn test_matrix_vector_mul_row_major() {
+    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    m.append_row(DynamicVector::from(vec![1.0, 2.0, 3.0]));
+    m.append_row(DynamicVector::from(vec![4.0, 5.0, 6.0]));
+    m.append_row(DynamicVector::from(vec![7.0, 8.0, 9.0]));
+    let v = DynamicVector::from(vec![1.0, 2.0, 3.0]);
+    let result = m * v;
+    assert_eq!(result, DynamicVector::from(vec![14.0, 32.0, 50.0]));
+  }
+
+  #[test]
+  fn test_matrix_vector_mul_col_major() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    m.append_row(&DynamicVector::from(vec![1.0, 2.0, 3.0]));
+    m.append_row(&DynamicVector::from(vec![4.0, 5.0, 6.0]));
+    m.append_row(&DynamicVector::from(vec![7.0, 8.0, 9.0]));
+    let v = DynamicVector::from(vec![1.0, 2.0, 3.0]);
+    let result = m * v;
+    assert_eq!(result, DynamicVector::from(vec![14.0, 32.0, 50.0]));
   }
 }

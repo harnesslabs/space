@@ -21,7 +21,11 @@ use std::{
   rc::{Rc, Weak},
 };
 
-use crate::{definitions::Topology, lattice::Lattice, set::Collection};
+use crate::{
+  definitions::Topology,
+  lattice::Lattice,
+  set::{Collection, Poset, Set},
+};
 
 // TODO: This has not been optimized at all, and for certain operations this may be an inefficient
 // data structure, but it works for now.
@@ -154,7 +158,21 @@ impl Collection for CellComplex {
   fn is_empty(&self) -> bool { self.inner.borrow().cells.is_empty() }
 }
 
-impl Topology for Cell {
+impl Set for CellComplex {
+  fn minus(&self, other: &Self) -> Self { todo!() }
+
+  fn meet(&self, other: &Self) -> Self { todo!() }
+
+  fn join(&self, other: &Self) -> Self { todo!() }
+}
+
+impl Poset for CellComplex {
+  fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool> {
+    Some(self.inner.borrow().attachment_lattice.leq(&a.id, &b.id))
+  }
+}
+
+impl Topology for CellComplex {
   type Space = CellComplex;
 
   fn neighborhood(&self) -> Vec<Self> {
