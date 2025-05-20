@@ -71,6 +71,19 @@ struct CellComplexInner {
   cells:              HashMap<usize, Cell>,
 }
 
+impl CellComplexInner {
+  /// Returns a reference to a cell by its ID
+  fn get_cell(&self, id: usize) -> Option<Cell> { self.cells.get(&id).cloned() }
+
+  /// Returns all cells of a given dimension
+  fn cells_of_dimension(&self, dimension: usize) -> Vec<Cell> {
+    self.cells.values().filter(|cell| cell.dimension() == dimension).cloned().collect()
+  }
+
+  /// Returns the maximal dimension of any cell in the complex
+  fn max_dimension(&self) -> usize { self.cells.values().map(Cell::dimension).max().unwrap_or(0) }
+}
+
 impl CellComplex {
   /// Creates a new empty cell complex
   pub fn new() -> Self { Self { inner: Rc::new(RefCell::new(CellComplexInner::default())) } }
@@ -87,7 +100,7 @@ impl CellComplex {
   /// # Panics
   /// * If any of the attachment IDs don't exist in the complex
   /// * If any of the attachments are not of dimension (k-1)
-  pub fn add_cell(&mut self, dimension: usize, attachments: Vec<usize>) -> usize {
+  pub fn add_cell_by_id(&mut self, dimension: usize, attachments: Vec<usize>) -> Cell {
     // Validate attachments exist and have correct dimension
     for &att_id in &attachments {
       let inner = self.inner.borrow();
@@ -100,37 +113,34 @@ impl CellComplex {
     inner.next_id += 1;
 
     let cell = Cell { space: Rc::downgrade(&self.inner), dimension, id };
-    inner.cells.insert(id, cell);
+    inner.cells.insert(id, cell.clone());
 
     // Add to lattice
     inner.attachment_lattice.add_element(id);
     for &att_id in &attachments {
       inner.attachment_lattice.add_relation(att_id, id);
     }
-    id
+    cell
   }
 
-  /// Returns a reference to a cell by its ID
+  pub fn add_cell(&mut self, dimension: usize, attachments: Vec<&Cell>) -> Cell {
+    let ids = attachments.into_iter().map(Cell::id).collect();
+    self.add_cell_by_id(dimension, ids)
+  }
+
   pub fn get_cell(&self, id: usize) -> Option<Cell> {
     let inner = self.inner.borrow();
-    inner.cells.get(&id).cloned()
+    inner.get_cell(id)
   }
 
-  /// Returns all cells of a given dimension
   pub fn cells_of_dimension(&self, dimension: usize) -> Vec<Cell> {
-    self
-      .inner
-      .borrow()
-      .cells
-      .values()
-      .filter(|cell| cell.dimension() == dimension)
-      .cloned()
-      .collect()
+    let inner = self.inner.borrow();
+    inner.cells_of_dimension(dimension)
   }
 
-  /// Returns the maximal dimension of any cell in the complex
   pub fn max_dimension(&self) -> usize {
-    self.inner.borrow().cells.values().map(Cell::dimension).max().unwrap_or(0)
+    let inner = self.inner.borrow();
+    inner.max_dimension()
   }
 }
 
@@ -147,7 +157,16 @@ impl Collection for CellComplex {
 impl Topology for Cell {
   type Space = CellComplex;
 
-  fn neighborhood(&self) -> Vec<Self> { todo!() }
+  fn neighborhood(&self) -> Vec<Self> {
+    let space = self.space.upgrade().unwrap();
+    let inner = space.borrow();
+    inner
+      .attachment_lattice
+      .successors(self.id)
+      .into_iter()
+      .map(|id| inner.get_cell(id).unwrap())
+      .collect()
+  }
 
   fn boundary<R: harness_algebra::prelude::Ring + Copy>(&self) -> crate::homology::Chain<Self, R> {
     todo!()
@@ -166,29 +185,27 @@ mod tests {
     let v1 = complex.add_cell(0, vec![]);
 
     // Add a 1-cell (edge) attached to the vertex
-    let e1 = complex.add_cell(1, vec![v1]);
+    let e1 = complex.add_cell(1, vec![&v1]);
 
     // Add a 2-cell (triangle) attached to the edge
-    let t1 = complex.add_cell(2, vec![e1]);
+    let t1 = complex.add_cell(2, vec![&e1]);
 
     // Check dimensions
-    assert_eq!(complex.get_cell(v1).unwrap().dimension(), 0);
-    assert_eq!(complex.get_cell(e1).unwrap().dimension(), 1);
-    assert_eq!(complex.get_cell(t1).unwrap().dimension(), 2);
+    assert_eq!(v1.dimension(), 0);
+    assert_eq!(e1.dimension(), 1);
+    assert_eq!(t1.dimension(), 2);
+    assert_eq!(complex.get_cell(v1.id()).unwrap().id(), v1.id());
+    assert_eq!(complex.get_cell(e1.id()).unwrap().id(), e1.id());
+    assert_eq!(complex.get_cell(t1.id()).unwrap().id(), t1.id());
 
     // Check attachments
-    assert_eq!(complex.get_cell(e1).unwrap().attachments(), &[v1]);
-    assert_eq!(complex.get_cell(t1).unwrap().attachments(), &[e1]);
+    assert_eq!(complex.get_cell(e1.id()).unwrap().attachments(), &[t1.id()]);
+    assert_eq!(complex.get_cell(t1.id()).unwrap().attachments(), &[]);
 
-    todo!()
-    // // Check boundary
-    // assert_eq!(complex.boundary(e1).len(), 1);
-    // assert_eq!(complex.boundary(t1).len(), 1);
-
-    // // Check open star
-    // assert_eq!(complex.star(v1).len(), 1); // v1 has one 1-cell attached
-    // assert_eq!(complex.star(e1).len(), 1); // e1 has one 2-cell attached
-    // assert_eq!(complex.star(t1).len(), 0); // t1 has no 3-cells attached
+    // Check neighborhood (open star)
+    assert_eq!(v1.neighborhood().len(), 1); // v1 has one 1-cell attached
+    assert_eq!(e1.neighborhood().len(), 1); // e1 has one 2-cell attached
+    assert_eq!(t1.neighborhood().len(), 0); // t1 has no 3-cells attached
   }
 
   #[test]
@@ -199,9 +216,9 @@ mod tests {
     let v2 = complex.add_cell(0, vec![]);
 
     // Try to attach a 1-cell to two 0-cells (should be valid)
-    let _e1 = complex.add_cell(1, vec![v1, v2]);
+    let _e1 = complex.add_cell(1, vec![&v1, &v2]);
 
     // Try to attach a 2-cell to a 0-cell (should panic)
-    complex.add_cell(2, vec![v1]);
+    complex.add_cell(2, vec![&v1]);
   }
 }

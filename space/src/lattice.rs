@@ -468,19 +468,45 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// Returns the set of elements that are successors of `a`.
   ///
   /// This method returns a `HashSet` containing all elements in the lattice
-  /// that are successors of `a`. If `a` is not in the lattice,
+  /// that are direct successors of `a`. If `a` is not in the lattice,
   /// the method returns an empty set.
   pub fn successors(&self, a: T) -> HashSet<T> {
-    self.nodes.get(&a).map_or_else(|| HashSet::new(), |node| node.successors.clone())
+    self.nodes.get(&a).map_or_else(HashSet::new, |node_a| {
+      // Filter to only include direct successors
+      let all_successors = &node_a.successors;
+      all_successors
+        .iter()
+        .filter(|&b| {
+          // A successor b is direct if there's no other element c where a < c < b
+          !all_successors.iter().any(|c| {
+            c != b && self.nodes.get(c).is_some_and(|node_c| node_c.successors.contains(b))
+          })
+        })
+        .cloned()
+        .collect()
+    })
   }
 
   /// Returns the set of elements that are predecessors of `a`.
   ///
   /// This method returns a `HashSet` containing all elements in the lattice
-  /// that are predecessors of `a`. If `a` is not in the lattice,
+  /// that are direct predecessors of `a`. If `a` is not in the lattice,
   /// the method returns an empty set.
   pub fn predecessors(&self, a: T) -> HashSet<T> {
-    self.nodes.get(&a).map_or_else(|| HashSet::new(), |node| node.predecessors.clone())
+    self.nodes.get(&a).map_or_else(HashSet::new, |node_a| {
+      // Filter to only include direct predecessors
+      let all_predecessors = &node_a.predecessors;
+      all_predecessors
+        .iter()
+        .filter(|&b| {
+          // A predecessor b is direct if there's no other element c where b < c < a
+          !all_predecessors.iter().any(|c| {
+            c != b && self.nodes.get(c).is_some_and(|node_c| node_c.predecessors.contains(b))
+          })
+        })
+        .cloned()
+        .collect()
+    })
   }
 }
 
