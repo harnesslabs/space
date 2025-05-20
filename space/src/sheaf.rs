@@ -34,110 +34,141 @@
 //!
 //! This structure is fundamental in applications like distributed consensus, signal processing
 //! on graphs, and modeling systems where local data must satisfy global constraints.
-use std::{
-  collections::{HashMap, HashSet},
-  hash::{BuildHasher, Hash},
-  marker::PhantomData,
+use std::{collections::HashMap, hash::Hash, marker::PhantomData};
+
+use harness_algebra::tensors::dynamic::{
+  matrix::{DynamicDenseMatrix, RowMajor},
+  vector::DynamicVector,
 };
 
-use harness_algebra::{rings::Field, tensors::dynamic::vector::DynamicVector};
+use crate::{definitions::Topology, set::Poset};
 
-use crate::{
-  definitions::TopologicalSpace,
-  graph::{Graph, Undirected, VertexOrEdge},
-  set::{Collection, Set},
-};
-
-/// A trait representing a cellular sheaf over a topological space.
-///
-/// A sheaf assigns a vector space (stalk) to each cell and provides
-/// restriction maps between stalks when cells are incident.
-pub trait Presheaf<T: TopologicalSpace> {
-  /// The type of the data at each point
-  type Data;
-  /// The type of sections over open sets
-  type Section: Section<T, Stalk = Self::Data> + Clone;
-
-  /// Restricts a section from a larger open set to a smaller one
-  fn restrict(
-    &self,
-    section: &Self::Section,
-    from: &<T as TopologicalSpace>::OpenSet,
-    to: &<T as TopologicalSpace>::OpenSet,
-  ) -> Self::Section;
+pub struct Sheaf<T: Topology + Poset, C: Category>
+where T::Item: Hash + Eq {
+  space:        T,
+  restrictions: HashMap<(T::Item, T::Item), C::Morphism>,
 }
 
-/// A trait representing a sheaf over a topological space, extending `Presheaf`.
-///
-/// A sheaf satisfies the gluing axiom: locally compatible sections can be uniquely glued
-/// to a global section over the union of their domains.
-pub trait Sheaf<T: TopologicalSpace>: Presheaf<T>
-where <T as TopologicalSpace>::OpenSet: Clone {
-  /// Attempts to glue a list of local sections into a single global section.
-  ///
-  /// Returns `Some(section)` if all sections agree on overlaps, giving a section over
-  /// the union of their domains; otherwise returns `None`
-  fn glue(&self, sections: &[Self::Section]) -> Option<Self::Section>
-  where <Self as Presheaf<T>>::Section: 'static {
-    // collect domains
-    let domains: Vec<_> = sections.iter().map(Self::Section::domain).collect();
-    let sections = sections.to_vec();
-    // union them all up
-    let mut big_union = domains.first().cloned()?;
-    for dom in domains.iter().skip(1) {
-      big_union = big_union.join(dom);
-    }
+impl<T: Topology + Poset, C: Category> Sheaf<T, C>
+where
+  T::Item: Hash + Eq + Clone,
+  C: Clone,
+{
+  pub fn new(space: T) -> Self { Self { space, restrictions: HashMap::new() } }
 
-    // check pairwise compatibility
-    for (i, si) in sections.iter().enumerate() {
-      let ui = si.domain();
-      for sj in sections.iter().skip(i + 1) {
-        let uj = sj.domain();
-        let overlap = ui.meet(&uj);
-        if !overlap.is_empty() {
-          let ri = self.restrict(si, &ui, &overlap);
-          let rj = self.restrict(sj, &uj, &overlap);
-          if ri != rj {
-            // conflict on the overlap → no glue
-            return None;
-          }
-        }
-      }
-    }
-
-    // piecewise construction
-    //—you'll need a constructor like Section::from_closure(domain, f)
-    Some(Self::Section::from_closure(big_union, move |pt| {
-      // pick the first local section whose domain contains pt
-      for sec in sections.clone() {
-        if sec.domain().contains(pt) {
-          return sec.evaluate(pt);
-        }
-      }
-      // outside all domains? should never happen since pt∈big_union
-      None
-    }))
+  pub fn restrict(&self, item: T::Item, restriction: T::Item, section: HashMap<T::Item, C>) -> C {
+    assert!(self.space.leq(&item, &restriction).unwrap());
+    let restriction = self.restrictions.get(&(item.clone(), restriction)).unwrap();
+    let data = section.get(&item).unwrap().clone();
+    restriction(data)
   }
 }
 
-/// A trait representing a section of a presheaf over an open set.
-///
-/// A section assigns to each point in its domain an element of the stalk,
-/// and two sections can be compared for equality on overlaps.
-pub trait Section<T: TopologicalSpace>: PartialEq {
-  /// The type of the stalk this section takes values in
-  type Stalk;
+pub trait Category: Sized {
+  type Morphism: Fn(Self) -> Self;
 
-  /// Evaluates the section at a point in its domain, returning an element of the stalk
-  fn evaluate(&self, point: &<T as TopologicalSpace>::Point) -> Option<Self::Stalk>;
-
-  /// Gets the open set over which this section is defined
-  fn domain(&self) -> <T as TopologicalSpace>::OpenSet;
-
-  /// Construct a section by giving its domain and a pointwise evaluation function
-  fn from_closure<F>(domain: <T as TopologicalSpace>::OpenSet, f: F) -> Self
-  where F: Fn(&<T as TopologicalSpace>::Point) -> Option<Self::Stalk>;
+  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism;
+  fn identity(a: Self) -> Self::Morphism;
 }
+
+impl<T> Category for DynamicVector<T> {
+  type Morphism = DynamicDenseMatrix<T, RowMajor>;
+
+  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism { Box::new(move |x| f(g(x))) }
+
+  fn identity(a: Self) -> Self::Morphism { todo!() }
+}
+
+// // /// A trait representing a cellular sheaf over a topological space.
+// // ///
+// // /// A sheaf assigns a vector space (stalk) to each cell and provides
+// // /// restriction maps between stalks when cells are incident.
+// // pub trait Presheaf<T: TopologicalSpace> {
+// //   /// The type of the data at each point
+// //   type Data;
+// //   /// The type of sections over open sets
+// //   type Section: Section<T, Stalk = Self::Data> + Clone;
+
+// //   /// Restricts a section from a larger open set to a smaller one
+// //   fn restrict(
+// //     &self,
+// //     section: &Self::Section,
+// //     from: &<T as TopologicalSpace>::OpenSet,
+// //     to: &<T as TopologicalSpace>::OpenSet,
+// //   ) -> Self::Section;
+// // }
+
+// /// A trait representing a sheaf over a topological space, extending `Presheaf`.
+// ///
+// /// A sheaf satisfies the gluing axiom: locally compatible sections can be uniquely glued
+// /// to a global section over the union of their domains.
+// pub trait Sheaf<T: TopologicalSpace>: Presheaf<T>
+// where <T as TopologicalSpace>::OpenSet: Clone {
+//   /// Attempts to glue a list of local sections into a single global section.
+//   ///
+//   /// Returns `Some(section)` if all sections agree on overlaps, giving a section over
+//   /// the union of their domains; otherwise returns `None`
+//   fn glue(&self, sections: &[Self::Section]) -> Option<Self::Section>
+//   where <Self as Presheaf<T>>::Section: 'static {
+//     // collect domains
+//     let domains: Vec<_> = sections.iter().map(Self::Section::domain).collect();
+//     let sections = sections.to_vec();
+//     // union them all up
+//     let mut big_union = domains.first().cloned()?;
+//     for dom in domains.iter().skip(1) {
+//       big_union = big_union.join(dom);
+//     }
+
+//     // check pairwise compatibility
+//     for (i, si) in sections.iter().enumerate() {
+//       let ui = si.domain();
+//       for sj in sections.iter().skip(i + 1) {
+//         let uj = sj.domain();
+//         let overlap = ui.meet(&uj);
+//         if !overlap.is_empty() {
+//           let ri = self.restrict(si, &ui, &overlap);
+//           let rj = self.restrict(sj, &uj, &overlap);
+//           if ri != rj {
+//             // conflict on the overlap → no glue
+//             return None;
+//           }
+//         }
+//       }
+//     }
+
+//     // piecewise construction
+//     //—you'll need a constructor like Section::from_closure(domain, f)
+//     Some(Self::Section::from_closure(big_union, move |pt| {
+//       // pick the first local section whose domain contains pt
+//       for sec in sections.clone() {
+//         if sec.domain().contains(pt) {
+//           return sec.evaluate(pt);
+//         }
+//       }
+//       // outside all domains? should never happen since pt∈big_union
+//       None
+//     }))
+//   }
+// }
+
+// /// A trait representing a section of a presheaf over an open set.
+// ///
+// /// A section assigns to each point in its domain an element of the stalk,
+// /// and two sections can be compared for equality on overlaps.
+// pub trait Section<T: TopologicalSpace>: PartialEq {
+//   /// The type of the stalk this section takes values in
+//   type Stalk;
+
+//   /// Evaluates the section at a point in its domain, returning an element of the stalk
+//   fn evaluate(&self, point: &<T as TopologicalSpace>::Point) -> Option<Self::Stalk>;
+
+//   /// Gets the open set over which this section is defined
+//   fn domain(&self) -> <T as TopologicalSpace>::OpenSet;
+
+//   /// Construct a section by giving its domain and a pointwise evaluation function
+//   fn from_closure<F>(domain: <T as TopologicalSpace>::OpenSet, f: F) -> Self
+//   where F: Fn(&<T as TopologicalSpace>::Point) -> Option<Self::Stalk>;
+// }
 
 // #[cfg(test)]
 // mod tests {

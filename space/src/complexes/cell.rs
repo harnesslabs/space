@@ -190,7 +190,7 @@ mod tests {
     // Add a 2-cell (triangle) attached to the edge
     let t1 = complex.add_cell(2, vec![&e1]);
 
-    // Check dimensions
+    // Check dimensions5
     assert_eq!(v1.dimension(), 0);
     assert_eq!(e1.dimension(), 1);
     assert_eq!(t1.dimension(), 2);

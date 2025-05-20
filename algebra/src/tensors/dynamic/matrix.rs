@@ -1064,6 +1064,10 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
   }
 }
 
+impl<T> Fn(DynamicVector<T>) -> DynamicVector<T> for DynamicDenseMatrix<T, RowMajor> {
+  fn call(&self, arg: DynamicVector<T>) -> DynamicVector<T> { todo!() }
+}
+
 // TODO: Should implement algebraic traits on these matrices then use them in the tests below as
 // well.
 #[cfg(test)]
