@@ -255,7 +255,7 @@ where
 impl<const N: usize, F, R> Filtration for VietorisRips<N, F, Homology<R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync, // Send + Sync for potential parallelism
-  R: Field + Copy + Send + Sync,                       // Send + Sync for homology result
+  R: Field + Copy + Send + Sync + std::fmt::Debug,     // Send + Sync for homology result
   Cloud<N, F>: Sync,
   SimplicialComplex: Send, // SimplicialComplex is built as an intermediate step
 {
@@ -313,7 +313,7 @@ where
 impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, Homology<R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
-  R: Field + Copy + Send + Sync,
+  R: Field + Copy + Send + Sync + std::fmt::Debug,
   Cloud<N, F>: Sync,
   Homology<R>: Send,
 {

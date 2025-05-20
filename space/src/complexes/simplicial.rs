@@ -83,6 +83,7 @@ use std::collections::HashMap;
 use harness_algebra::tensors::dynamic::{
   compute_quotient_basis,
   matrix::{DynamicDenseMatrix, RowMajor},
+  vector::DynamicVector,
 };
 use itertools::Itertools;
 
@@ -243,7 +244,7 @@ impl SimplicialComplex {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
-  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
+  pub fn homology<F: Field + Copy + std::fmt::Debug>(&self, k: usize) -> Homology<F> {
     // Get ordered bases for simplices of dimensions k-1, k, and k+1
     let k_simplices = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();
@@ -262,9 +263,11 @@ impl SimplicialComplex {
 
     // Find cycles (kernel of ∂k)
     let cycles = boundary_k.kernel();
+    dbg!(&cycles);
 
     // Find boundaries (image of ∂k+1)
     let boundaries = boundary_k_plus_1.image();
+    dbg!(&boundaries);
 
     // Compute a basis for the quotient space Z_k / B_k using the imported function.
     // The result is a list of vectors (in k_simplices basis) representing homology generators.
@@ -302,19 +305,34 @@ impl SimplicialComplex {
   /// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have
   /// `ordered_km1_simplices.len()` rows and `ordered_k_simplices.len()` columns.
   /// Returns an empty or specially-dimensioned matrix if either basis is empty.
-  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor> {
-    let k_simplex_basis = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
+  pub fn get_boundary_matrix<F: Field + Copy + std::fmt::Debug>(
+    &self,
+    k: usize,
+  ) -> DynamicDenseMatrix<F, RowMajor> {
+    // Special case for k=0: The boundary operator ∂₀: C₀ → C₋₁ maps to an empty space.
+    // For zeroth homology, this kernel should include all 0-simplices.
+    if k == 0 {
+      // Return a 0×num_cols matrix, whose kernel is all of C₀
+      let num_cols =
+        self.simplices_by_dimension(0).map_or(0, <[complexes::simplicial::Simplex]>::len);
+      let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new(); // 1×num_cols matrix
+      matrix.append_row(DynamicVector::from(vec![F::zero(); num_cols]));
+      return matrix;
+    }
+
+    let k_simplex_basis = self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();
       sorted.sort_unstable();
       sorted
     });
 
-    let k_plus_1_simplices = self.simplices_by_dimension(k + 1).unwrap_or_default();
+    let k_plus_1_simplices = self.simplices_by_dimension(k).unwrap_or_default();
 
     let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
 
     for k_plus_1_simplex in k_plus_1_simplices {
-      let boundary_chain = self.boundary(&k_plus_1_simplex);
+      let boundary_chain = self.boundary(k_plus_1_simplex);
+      dbg!(&boundary_chain);
 
       // Convert this boundary_chain into a column vector for the matrix.
       let basis_map = k_simplex_basis.iter().enumerate().map(|(i, s)| (s, i)).collect();
@@ -741,9 +759,9 @@ mod tests {
     let s12 = Simplex::new(1, vec![1, 2]);
     let s02 = Simplex::new(1, vec![0, 2]);
 
-    complex.join_simplex(s01.clone());
-    complex.join_simplex(s12.clone());
-    complex.join_simplex(s02.clone());
+    complex.join_simplex(s01);
+    complex.join_simplex(s12);
+    complex.join_simplex(s02);
 
     let h0 = complex.homology::<F>(0);
     assert_eq!(h0.betti_number, 1, "H0: Betti for circle field {:?}", std::any::type_name::<F>());
@@ -769,20 +787,22 @@ mod tests {
 
   fn test_homology_sphere_surface_generic<F: TestField>() {
     let mut complex = SimplicialComplex::new();
-    let f012 = Simplex::new(2, vec![0, 1, 2]);
-    let f013 = Simplex::new(2, vec![0, 1, 3]);
-    let f023 = Simplex::new(2, vec![0, 2, 3]);
-    let f123 = Simplex::new(2, vec![1, 2, 3]);
 
-    complex.join_simplex(f012.clone());
-    complex.join_simplex(f013.clone());
-    complex.join_simplex(f023.clone());
-    complex.join_simplex(f123.clone());
+    let f1 = Simplex::new(2, vec![0, 1, 2]);
+    let f2 = Simplex::new(2, vec![0, 1, 3]);
+    let f3 = Simplex::new(2, vec![0, 2, 3]);
+    let f4 = Simplex::new(2, vec![1, 2, 3]);
+
+    complex.join_simplex(f1);
+    complex.join_simplex(f2);
+    complex.join_simplex(f3);
+    complex.join_simplex(f4);
 
     let h0 = complex.homology::<F>(0);
     assert_eq!(h0.betti_number, 1, "H0: Betti sphere field {:?}", std::any::type_name::<F>());
 
     let h1 = complex.homology::<F>(1);
+    dbg!(&h1.homology_generators);
     assert_eq!(h1.betti_number, 0, "H1: Betti sphere field {:?}", std::any::type_name::<F>());
     assert!(
       h1.homology_generators.is_empty(),
