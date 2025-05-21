@@ -35,9 +35,9 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cell {
   /// The dimension of this cell
-  dimension: usize,
+  pub dimension: usize,
   /// The unique identifier for this cell
-  id:        usize,
+  pub id:        usize,
 }
 
 impl Cell {
@@ -54,11 +54,11 @@ impl Cell {
 #[derive(Debug, Default, Clone)]
 pub struct CellComplex {
   /// The attachment relationships between cells, represented as a lattice
-  attachment_lattice: Lattice<usize>,
+  pub attachment_lattice: Lattice<usize>,
   /// The next available cell ID
-  next_id:            usize,
+  pub next_id:            usize,
   /// The cells in the complex, indexed by their IDs
-  cells:              HashMap<usize, Cell>,
+  pub cells:              HashMap<usize, Cell>,
 }
 
 impl CellComplex {

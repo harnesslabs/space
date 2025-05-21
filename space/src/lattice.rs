@@ -245,6 +245,9 @@ impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
     if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
       return None;
     }
+    if a == b {
+      return Some(true);
+    }
     let node_a = self.nodes.get(&a).unwrap();
     Some(node_a.successors.contains(&b))
   }
