@@ -198,25 +198,14 @@ where
   ///   in a restriction) is missing from the `section`.
   pub fn is_global_section(&self, section: &HashMap<T::Item, C>) -> bool {
     for ((parent_item, child_item), restriction_map) in &self.restrictions {
-      // By construction of `restrictions` map: parent_item <= child_item.
-      // restriction_map is rho_{parent_item, child_item}: F(child_item) -> F(parent_item).
-
-      let Some(data_on_parent_from_section) = section.get(parent_item) else {
-        // If data for parent_item is not in the section, it cannot satisfy the condition.
+      let Some(parent_data) = section.get(parent_item) else {
         return false;
       };
-
-      let Some(data_on_child_from_section) = section.get(child_item) else {
-        // If data for child_item is not in the section, it cannot satisfy the condition.
+      let Some(child_data) = section.get(child_item) else {
         return false;
       };
-
-      // Apply rho_{parent,child}(data_on_child_from_section)
-      let restricted_data_from_child =
-        C::apply(restriction_map.clone(), data_on_child_from_section.clone());
-
-      // Check if rho_{parent,child}(data_on_child) == data_on_parent
-      if restricted_data_from_child != *data_on_parent_from_section {
+      let restricted_parent_data = C::apply(restriction_map.clone(), parent_data.clone());
+      if restricted_parent_data != *child_data {
         return false;
       }
     }

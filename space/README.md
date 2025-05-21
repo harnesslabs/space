@@ -79,7 +79,7 @@ vertices.insert(2);
 let mut edges = HashSet::new();
 edges.insert((1, 2));
 
-let graph: Graph<_, Undirected> = Graph::new(vertices, edges);
+let graph = Graph::<usize, Undirected>::new(vertices, edges);
 ```
 
 
