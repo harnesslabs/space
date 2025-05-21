@@ -53,6 +53,7 @@
 // `smallvec` and `tinyvec` if need be.
 
 use super::*;
+use crate::category::Category;
 
 /// # Dynamic Vector
 ///
@@ -198,6 +199,24 @@ impl<F: Field + Clone> From<&[F]> for DynamicVector<F> {
   ///
   /// * `components` - A slice of components
   fn from(components: &[F]) -> Self { Self { components: components.to_vec() } }
+}
+
+impl<F: Field + Copy> Category for DynamicVector<F> {
+  type Morphism = DynamicDenseMatrix<F, RowMajor>;
+
+  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism { f * g }
+
+  fn identity(a: Self) -> Self::Morphism {
+    let mut mat = DynamicDenseMatrix::<F, RowMajor>::new();
+    for i in 0..a.dimension() {
+      let mut col = Self::from(vec![F::zero(); a.dimension()]);
+      col.components[i] = F::one();
+      mat.append_column(&col);
+    }
+    mat
+  }
+
+  fn apply(f: Self::Morphism, x: Self) -> Self { f * x }
 }
 
 // TODO (autoparallel): This does handle the zero case but this is clunky as fuck and I hate it.
