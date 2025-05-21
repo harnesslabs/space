@@ -2,7 +2,6 @@ use std::{collections::HashMap, hash::Hash, mem, ops::Add};
 
 use harness_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
 
-use super::*;
 use crate::definitions::Topology;
 
 #[derive(Clone, Debug)]
@@ -207,6 +206,12 @@ where T::Item: PartialEq
   }
 }
 
+impl<T: Topology, R: Ring + Copy> AddAssign for Chain<'_, T, R>
+where T::Item: PartialEq
+{
+  fn add_assign(&mut self, other: Self) { todo!() }
+}
+
 impl<T: Topology, R: Ring + Copy> Neg for Chain<'_, T, R>
 where T::Item: PartialEq
 {
@@ -229,10 +234,76 @@ where T::Item: PartialEq
   fn sub(self, other: Self) -> Self::Output { self + (-other) }
 }
 
-// TODO: Implement the rest of the algebra traits.
-// impl<T,R> LeftModule<R> for Chain<T, R> {
-//     type Ring = R;
-// }
+impl<T, R> SubAssign for Chain<'_, T, R>
+where
+  T: Topology,
+  R: Ring + Copy,
+{
+  fn sub_assign(&mut self, other: Self) { todo!() }
+}
+
+impl<T, R> Zero for Chain<'_, T, R>
+where
+  T: Topology,
+  R: Ring + Copy,
+  T::Item: PartialEq,
+{
+  fn zero() -> Self { todo!() }
+
+  fn is_zero(&self) -> bool { todo!() }
+}
+
+impl<T, R> Additive for Chain<'_, T, R>
+where
+  T: Topology,
+  R: Ring + Copy,
+  T::Item: PartialEq,
+{
+}
+
+impl<T, R> Group for Chain<'_, T, R>
+where
+  T: Topology,
+  R: Ring + Copy,
+{
+  fn identity() -> Self { todo!() }
+
+  fn inverse(&self) -> Self { todo!() }
+}
+
+impl<T, R> AbelianGroup for Chain<'_, T, R>
+where
+  T: Topology,
+  R: Ring + Copy,
+  T::Item: PartialEq,
+{
+}
+
+impl<'a, T, R> Mul<Chain<'a, T, R>> for R
+where
+  T: Topology,
+  R: Ring + Copy,
+  T::Item: PartialEq,
+{
+  type Output = Chain<'a, T, R>;
+
+  fn mul(self, other: Chain<'a, T, R>) -> Self::Output {
+    Chain::from_items_and_coeffs(
+      other.space,
+      other.items,
+      other.coefficients.iter().map(|c| *c * self).collect(),
+    )
+  }
+}
+
+impl<T, R> LeftModule for Chain<'_, T, R>
+where
+  T: Topology,
+  R: Ring + Copy,
+  T::Item: PartialEq,
+{
+  type Ring = R;
+}
 
 #[derive(Debug, Clone)]
 pub struct Homology<R>
