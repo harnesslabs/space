@@ -1073,11 +1073,11 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
     }
 
     let mut free_col_indices: Vec<usize> = Vec::new();
-    for j in 0..num_cols {
+    (0..num_cols).for_each(|j| {
       if !is_pivot_col[j] {
         free_col_indices.push(j);
       }
-    }
+    });
 
     let mut kernel_basis: Vec<DynamicVector<F>> = Vec::new();
 
@@ -1136,13 +1136,12 @@ impl<T: Field + Copy> Mul<DynamicVector<T>> for DynamicDenseMatrix<T, ColumnMajo
   }
 }
 
-impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatrix<T, RowMajor> {
-  type Output = DynamicDenseMatrix<T, RowMajor>;
+impl<T: Field + Copy> Mul<Self> for DynamicDenseMatrix<T, RowMajor> {
+  type Output = Self;
 
-  fn mul(self, rhs: DynamicDenseMatrix<T, RowMajor>) -> Self::Output {
-    let mut result = DynamicDenseMatrix::<T, RowMajor>::new();
+  fn mul(self, rhs: Self) -> Self::Output {
+    let mut result = Self::new();
     for i in 0..self.num_rows() {
-      let row = self.get_row(i);
       let mut new_row = DynamicVector::<T>::zeros(rhs.num_cols());
       for j in 0..rhs.num_cols() {
         let col = rhs.get_column(j);
@@ -1158,12 +1157,10 @@ impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatri
   }
 }
 
-impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, ColumnMajor>>
-  for DynamicDenseMatrix<T, ColumnMajor>
-{
-  type Output = DynamicDenseMatrix<T, ColumnMajor>;
+impl<T: Field + Copy> Mul<Self> for DynamicDenseMatrix<T, ColumnMajor> {
+  type Output = Self;
 
-  fn mul(self, rhs: DynamicDenseMatrix<T, ColumnMajor>) -> Self::Output {
+  fn mul(self, rhs: Self) -> Self::Output {
     assert_eq!(
       self.num_cols(),
       rhs.num_rows(),
@@ -1173,7 +1170,7 @@ impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, ColumnMajor>>
     let n = self.num_cols(); // common dimension, also rhs.num_rows()
     let p = rhs.num_cols();
 
-    let mut result_matrix = DynamicDenseMatrix::<T, ColumnMajor>::new();
+    let mut result_matrix = Self::new();
 
     for j_res in 0..p {
       // For each column j_res of the result matrix C
@@ -1196,7 +1193,7 @@ impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, ColumnMajor>>
 }
 
 impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatrix<T, ColumnMajor> {
-  type Output = DynamicDenseMatrix<T, ColumnMajor>;
+  type Output = Self;
 
   fn mul(self, rhs: DynamicDenseMatrix<T, RowMajor>) -> Self::Output {
     assert_eq!(
@@ -1208,7 +1205,7 @@ impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatri
     let n = self.num_cols(); // common dimension, also rhs.num_rows()
     let p = rhs.num_cols();
 
-    let mut result_matrix = DynamicDenseMatrix::<T, ColumnMajor>::new();
+    let mut result_matrix = Self::new();
 
     for j_res in 0..p {
       // For each column j_res of the result matrix C
@@ -1230,10 +1227,9 @@ impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatri
   }
 }
 
-// TODO: Should implement algebraic traits on these matrices then use them in the tests below as
-// well.
 #[cfg(test)]
 mod tests {
+  #![allow(non_snake_case)]
   use super::*;
   use crate::{algebras::boolean::Boolean, fixtures::Mod7};
 
@@ -1554,20 +1550,20 @@ mod tests {
     let kernel = m.kernel();
     // RREF is [[1,0,-1],[0,1,2]]. x1 - x3 = 0, x2 + 2x3 = 0.
     // x3 is free. x1 = x3, x2 = -2x3. Vector: [1, -2, 1]^T * x3
-    let expected_kernel_basis = vec![DynamicVector::from(vec![1.0, -2.0, 1.0])];
+    let expected_kernel_basis = [DynamicVector::from(vec![1.0, -2.0, 1.0])];
     assert_eq!(kernel.len(), 1);
     assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
 
     // Check Ax = 0 for kernel vectors
-    for k_vec in kernel.iter() {
+    for k_vec in &kernel {
       let mut Ax_components = vec![0.0; m.num_rows()];
-      for r in 0..m.num_rows() {
+      (0..m.num_rows()).for_each(|r| {
         let mut sum = 0.0;
         for c in 0..m.num_cols() {
           sum += m.get_component(r, c) * k_vec.get_component(c);
         }
         Ax_components[r] = sum;
-      }
+      });
       let Ax = DynamicVector::new(Ax_components);
       let zero_vec = DynamicVector::new(vec![0.0; m.num_rows()]);
       assert_eq!(Ax, zero_vec, "Kernel vector validation failed: Ax != 0");
@@ -1645,7 +1641,7 @@ mod tests {
 
     let image = m.image();
     // RREF will have pivot in first col. Image is span of original first col.
-    let expected_image_basis = vec![DynamicVector::from(vec![1.0, 2.0])];
+    let expected_image_basis = [DynamicVector::from(vec![1.0, 2.0])];
     assert_eq!(image.len(), 1);
     assert!(contains_vector(&image, &expected_image_basis[0]));
 
@@ -1666,15 +1662,15 @@ mod tests {
         || contains_vector(&kernel, &DynamicVector::from(vec![3.0, 0.0, -1.0]))
     );
 
-    for k_vec in kernel.iter() {
+    for k_vec in &kernel {
       let mut Ax_components = vec![0.0; m.num_rows()];
-      for r in 0..m.num_rows() {
+      (0..m.num_rows()).for_each(|r| {
         let mut sum = 0.0;
         for c in 0..m.num_cols() {
           sum += m.get_component(r, c) * k_vec.get_component(c);
         }
         Ax_components[r] = sum;
-      }
+      });
       let Ax = DynamicVector::new(Ax_components);
       let zero_vec = DynamicVector::new(vec![0.0; m.num_rows()]);
       assert_eq!(Ax, zero_vec, "Kernel vector validation failed: Ax != 0");

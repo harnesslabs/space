@@ -229,19 +229,6 @@ where T::Item: PartialEq
   /// The resulting chain will only contain items with non-zero coefficients.
   /// Items are compared for equality to identify like terms.
   ///
-  /// # Example
-  ///
-  /// ```
-  /// // Assuming appropriate types and `new_chain` helper for brevity
-  /// // let chain1 = new_chain(space, vec![item_a, item_b], vec![coeff1, coeff2]);
-  /// // let chain2 = new_chain(space, vec![item_b, item_c], vec![coeff3, coeff4]);
-  /// // let sum_chain = chain1 + chain2;
-  /// // sum_chain might be, for example:
-  /// // items: [item_a, item_b, item_c]
-  /// // coeffs: [coeff1, coeff2 + coeff3, coeff4]
-  /// // (Assuming item_a, item_b, item_c are distinct and all resulting coeffs are non-zero)
-  /// ```
-  ///
   /// # Note
   ///
   /// This implementation iterates through both chains and combines terms. It aims to be

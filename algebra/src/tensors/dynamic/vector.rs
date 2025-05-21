@@ -96,6 +96,7 @@ use crate::category::Category;
 /// ```
 #[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DynamicVector<F> {
+  /// The components of the vector.
   pub components: Vec<F>,
 }
 

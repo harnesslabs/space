@@ -30,7 +30,7 @@
 //!   \dots, v_k] $ where $\hat{v_i}$ means the vertex $v_i$ is omitted. A crucial property is that
 //!   $\partial_{k-1} \circ \partial_k = 0$ (the boundary of a boundary is zero).
 //!
-//! - **Homology Groups**: Represented by the [`HomologyGroup<F>`] struct. The $k$-th homology group
+//! - **Homology Groups**: Represented by the [`Homology<F>`] struct. The $k$-th homology group
 //!   $H_k(X; F)$ with coefficients in a field $F$ is defined as the quotient group: $ H_k(X; F) =
 //!   Z_k(X; F) / B_k(X; F) $ where:
 //!     - $Z_k(X; F) = \ker \partial_k$ is the group of $k$-cycles (chains whose boundary is zero).
@@ -46,7 +46,7 @@
 //! - Computation of simplex faces.
 //! - Implementation of [`Chain`] arithmetic (addition).
 //! - Standard boundary operator $\partial$ for [`Chain`]s.
-//! - Calculation of homology groups [`HomologyGroup<F>`] using Gaussian elimination over a generic
+//! - Calculation of homology groups [`Homology<F>`] using Gaussian elimination over a generic
 //!   [`Field`] `F`. This involves:
 //!     - Constructing boundary matrices.
 //!     - Computing kernel and image bases of these matrices using
@@ -247,6 +247,53 @@ impl SimplicialComplex {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
+  /// Computes the $k$-th homology group $H_k(X; F)$ of the simplicial complex $X$
+  /// with coefficients in a field $F$.
+  ///
+  /// Homology groups are algebraic invariants that capture information about the
+  /// "holes" in a topological space. For a simplicial complex, these are computed
+  /// using simplicial homology.
+  ///
+  /// The $k$-th homology group is defined as the quotient group $Z_k / B_k$, where:
+  /// - $C_k$ is the chain group of $k$-simplices.
+  /// - $\partial_k: C_k \to C_{k-1}$ is the $k$-th boundary operator.
+  /// - $Z_k = \text{ker}(\partial_k)$ is the group of $k$-cycles (chains with no boundary).
+  /// - $B_k = \text{im}(\partial_{k+1})$ is the group of $k$-boundaries (chains that are boundaries
+  ///   of $(k+1)$-chains).
+  ///
+  /// This function constructs the boundary matrices $\partial_k$ and $\partial_{k+1}$,
+  /// computes bases for their kernel and image respectively (which correspond to $Z_k$ and $B_k$),
+  /// and then finds a basis for the quotient space $Z_k / B_k$. The dimension of this quotient
+  /// space is the $k$-th Betti number, and its basis vectors are the generators of $H_k(X; F)$.
+  ///
+  /// # Arguments
+  ///
+  /// * `k`: The dimension $k$ for which to compute the homology group.
+  ///
+  /// # Type Parameters
+  ///
+  /// * `F`: The type of coefficients, which must be a [`Field`] and `Copy`. Working over a field
+  ///   ensures that $C_k$, $Z_k$, and $B_k$ are vector spaces, and matrix methods (like kernel and
+  ///   image computation) can be used effectively.
+  ///
+  /// # Returns
+  ///
+  /// A [`Homology<F>`] struct containing:
+  ///   - `dimension`: The input dimension $k$.
+  ///   - `betti_number`: The rank of $H_k(X; F)$, i.e., $\text{dim}(Z_k / B_k)$.
+  ///   - `homology_generators`: A `Vec<DynamicVector<F>>` where each vector is a generator for
+  ///     $H_k(X; F)$, expressed as a linear combination of $k$-simplices (in the basis used for
+  ///     constructing the boundary matrices).
+  ///
+  /// # Special Case: $k=0$
+  /// For $k=0$, $Z_0 = C_0$ (all 0-chains are cycles because $\partial_0: C_0 \to C_{-1}$ maps to
+  /// the zero group $C_{-1}$). The basis for $Z_0$ is thus the standard basis of $0$-simplices.
+  /// $B_0 = \text{im}(\partial_1)$. The 0-th Betti number $b_0$ counts the number of connected
+  /// components.
+  ///
+  /// # Panics
+  /// This function might panic if matrix operations (kernel, image, quotient basis computation)
+  /// encounter errors, though these are generally robust for well-formed inputs over fields.
   pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
     let k_simplices = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();

@@ -153,12 +153,12 @@ where
   ///   `self.restrictions`.
   pub fn restrict(
     &self,
-    parent_target_item: T::Item,
-    child_source_item: T::Item,
+    parent_target_item: &T::Item,
+    child_source_item: &T::Item,
     section_data_on_child: C,
   ) -> C {
     assert!(
-      self.space.leq(&parent_target_item, &child_source_item) == Some(true),
+      self.space.leq(parent_target_item, child_source_item) == Some(true),
       "Cannot restrict: parent_target_item is not less than or equal to child_source_item, or \
        items are incomparable."
     );
@@ -167,7 +167,7 @@ where
       .restrictions
       .get(&(parent_target_item.clone(), child_source_item.clone()))
       .unwrap_or_else(|| {
-        panic!("Restriction map not found for ({:?}, {:?})", parent_target_item, child_source_item)
+        panic!("Restriction map not found for ({parent_target_item:?}, {child_source_item:?})")
       });
 
     C::apply(restriction_map.clone(), section_data_on_child)
@@ -228,7 +228,6 @@ where
 mod tests {
   #![allow(clippy::type_complexity)]
   use harness_algebra::{
-    category::Category,
     modular, prime_field,
     tensors::dynamic::{
       matrix::{DynamicDenseMatrix, RowMajor},
