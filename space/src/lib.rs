@@ -21,6 +21,6 @@ pub mod prelude {
   //! having to specify the crate name each time.
   pub use crate::{
     definitions::{MetricSpace, NormedSpace, Topology},
-    set::Collection,
+    set::{Collection, Poset},
   };
 }

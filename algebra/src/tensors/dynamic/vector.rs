@@ -95,7 +95,7 @@ use super::*;
 /// ```
 #[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DynamicVector<F> {
-  components: Vec<F>,
+  pub components: Vec<F>,
 }
 
 impl<F> DynamicVector<F> {
@@ -165,6 +165,12 @@ impl<F> DynamicVector<F> {
   ///
   /// The last component of the vector wrapped in `Some`, or `None` if the vector is empty.
   pub fn pop(&mut self) -> Option<F> { self.components.pop() }
+
+  /// Returns a vector of zeros with the same dimension as the vector.
+  pub fn zeros(dimension: usize) -> Self
+  where F: Zero + Copy {
+    Self { components: vec![F::zero(); dimension] }
+  }
 }
 
 impl<F: Field> From<Vec<F>> for DynamicVector<F> {
@@ -488,5 +494,11 @@ mod tests {
     let mut vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
     let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1)]);
     vec1 -= vec2; // Should panic
+  }
+
+  #[test]
+  fn test_zeros() {
+    let zero_vec = DynamicVector::<Mod7>::zeros(3);
+    assert_eq!(zero_vec.components, vec![Mod7::from(0), Mod7::from(0), Mod7::from(0)]);
   }
 }

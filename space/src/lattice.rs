@@ -19,7 +19,7 @@
 //!
 //! ## Example Usage
 //! ```
-//! use harness_space::lattice::Lattice;
+//! use harness_space::{lattice::Lattice, prelude::*};
 //!
 //! // Create a new lattice for integers
 //! let mut lattice: Lattice<i32> = Lattice::new();
@@ -29,8 +29,8 @@
 //! lattice.add_relation(2, 3);
 //!
 //! // Check relations
-//! assert!(lattice.leq(&1, &3));
-//! assert!(!lattice.leq(&3, &1));
+//! assert!(lattice.leq(&1, &3).unwrap());
+//! assert!(!lattice.leq(&3, &1).unwrap());
 //!
 //! // Find minimal and maximal elements
 //! let minimal = lattice.minimal_elements();
@@ -53,8 +53,6 @@
 //! //     eprintln!("Failed to save: {}", e);
 //! // }
 //! ```
-
-// TODO (autoparallel): Implement Poset here?
 
 use std::{
   collections::{HashMap, HashSet},
@@ -104,7 +102,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let lattice: Lattice<i32> = Lattice::new();
   /// ```
   pub fn new() -> Self { Self { nodes: HashMap::new() } }
@@ -120,7 +118,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let mut lattice = Lattice::new();
   /// lattice.add_element(1);
   /// ```
@@ -151,7 +149,7 @@ impl<T: Hash + Eq + Clone> Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let mut lattice = Lattice::new();
   /// lattice.add_relation(1, 2); // 1 ≤ 2
   /// ```
@@ -234,12 +232,12 @@ impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let mut lattice = Lattice::new();
   /// lattice.add_relation(1, 2);
   /// lattice.add_relation(2, 3);
-  /// assert!(lattice.leq(&1, &3)); // Transitive: 1 ≤ 2 and 2 ≤ 3 => 1 ≤ 3
-  /// assert!(!lattice.leq(&3, &1));
+  /// assert!(lattice.leq(&1, &3).unwrap()); // Transitive: 1 ≤ 2 and 2 ≤ 3 => 1 ≤ 3
+  /// assert!(!lattice.leq(&3, &1).unwrap());
   /// ```
   fn leq(&self, a: &T, b: &T) -> Option<bool> {
     if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
@@ -264,7 +262,7 @@ impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let mut lattice = Lattice::new();
   /// lattice.add_relation(1, 2);
   /// lattice.add_relation(1, 3);
@@ -292,7 +290,7 @@ impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let mut lattice = Lattice::new();
   /// lattice.add_relation(1, 3);
   /// lattice.add_relation(2, 3);
@@ -329,7 +327,7 @@ impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let mut lattice = Lattice::new(); // Diamond lattice
   /// lattice.add_relation(4, 2);
   /// lattice.add_relation(4, 3);
@@ -394,7 +392,7 @@ impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
   /// # Examples
   ///
   /// ```
-  /// use harness_space::lattice::Lattice;
+  /// use harness_space::{lattice::Lattice, prelude::*};
   /// let mut lattice = Lattice::new(); // Diamond lattice
   /// lattice.add_relation(4, 2);
   /// lattice.add_relation(4, 3);

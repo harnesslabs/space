@@ -50,8 +50,8 @@ use crate::{definitions::Topology, set::Poset};
 // and the restrictions simultaneously
 pub struct Sheaf<T: Topology + Poset, C: Category>
 where T::Item: Hash + Eq {
-  space:        T,
-  restrictions: HashMap<(T::Item, T::Item), C::Morphism>,
+  pub space:        T,
+  pub restrictions: HashMap<(T::Item, T::Item), C::Morphism>,
 }
 
 impl<T, C> Sheaf<T, C>
@@ -61,9 +61,13 @@ where
   C: Category + Clone + Eq + Debug,
   C::Morphism: Clone + Debug,
 {
+  // TODO: Assert that there is a restriction for every "upset" of points
+  /// TODO: We should make a builder API of some kind that forces the restrictions to be defined for
+  /// all the successors at time of creation. In an ideal world, there would also be checking that
+  /// the dimensions of matrices (for example) work out.
   pub fn new(space: T, restrictions: HashMap<(T::Item, T::Item), C::Morphism>) -> Self {
     assert!(restrictions.iter().all(|(k, v)| space.leq(&k.0, &k.1).unwrap()));
-    // TODO: Assert that there is a restriction for every "upset" of points
+
     Self { space, restrictions }
   }
 
@@ -74,54 +78,22 @@ where
     C::apply(restriction.clone(), data)
   }
 
-  pub fn is_global_section(&self, section: HashMap<T::Item, C>) -> bool {
-    // A global section must be defined on all elements involved in restrictions
-    // and its values must be consistent with all restriction maps.
-
-    for ((parent_item, child_item), restriction_map) in self.restrictions.iter() {
-      // Ensure the section provides data for both parent and child items
-      let parent_data = match section.get(parent_item) {
-        Some(data) => data,
-        None => {
-          // Section data missing for the 'parent' of a restriction
-          // dbg!(format!("Global section check: Data missing for parent item {:?}", parent_item));
-          return false;
-        },
+  pub fn is_global_section(&self, section: &HashMap<T::Item, C>) -> bool {
+    for ((parent_item, child_item), restriction_map) in &self.restrictions {
+      let Some(parent_data) = section.get(parent_item) else {
+        return false;
       };
 
-      let child_data_from_section = match section.get(child_item) {
-        Some(data) => data,
-        None => {
-          // Section data missing for the 'child' of a restriction
-          // dbg!(format!("Global section check: Data missing for child item {:?}", child_item));
-          return false;
-        },
+      let Some(child_data_from_section) = section.get(child_item) else {
+        return false;
       };
 
-      // Apply the restriction map
-      // The .clone() calls are necessary because C and C::Morphism might not be Copy,
-      // and we're borrowing from `section` and `self.restrictions`.
       let restricted_parent_data = C::apply(restriction_map.clone(), parent_data.clone());
 
-      // Check for consistency
       if restricted_parent_data != *child_data_from_section {
-        // Data in section is not consistent with the restriction map
-        // dbg!(format!("Global section check: Restriction inconsistent for ({:?}, {:?})",
-        // parent_item, child_item)); dbg!(format!("Expected (from restriction): {:?}, Got
-        // (from section): {:?}", restricted_parent_data, child_data_from_section));
         return false;
       }
     }
-
-    // If all defined restrictions are satisfied by the section data,
-    // and the section provides data for all items involved in these restrictions,
-    // then it's a global section with respect to these defined restrictions.
-    // Note: This does not check if the section covers *all* elements of the space T,
-    // only those involved in the `self.restrictions` map. For a section to be "globally defined
-    // on T", one might add further checks, e.g., ensuring `section.keys()` covers all
-    // elements of `self.space.all_elements()` if such a method were available and required.
-    // However, the core of "being a section" is consistency with restriction maps.
-
     true
   }
 }
@@ -137,9 +109,17 @@ pub trait Category: Sized {
 impl<F: Field + Copy> Category for DynamicVector<F> {
   type Morphism = DynamicDenseMatrix<F, RowMajor>;
 
-  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism { todo!() }
+  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism { f * g }
 
-  fn identity(a: Self) -> Self::Morphism { todo!() }
+  fn identity(a: Self) -> Self::Morphism {
+    let mut mat = DynamicDenseMatrix::<F, RowMajor>::new();
+    for i in 0..a.dimension() {
+      let mut col = Self::from(vec![F::zero(); a.dimension()]);
+      col.components[i] = F::one();
+      mat.append_column(&col);
+    }
+    mat
+  }
 
   fn apply(f: Self::Morphism, x: Self) -> Self { f * x }
 }
@@ -188,28 +168,28 @@ mod tests {
       (v2.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
       (e1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
     ]);
-    assert!(sheaf.is_global_section(section));
+    assert!(sheaf.is_global_section(&section));
 
     let section = HashMap::from([
       (v1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1)])), // R^1
       (v2.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
       (e1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
     ]);
-    assert!(!sheaf.is_global_section(section));
+    assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
       (v1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
       (v2.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
       (e1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
     ]);
-    assert!(!sheaf.is_global_section(section));
+    assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
       (v1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
       (v2.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(3), Mod7::from(3)])), // R^2
       (e1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
     ]);
-    assert!(!sheaf.is_global_section(section));
+    assert!(!sheaf.is_global_section(&section));
   }
 
   fn cell_complex_2d() -> (
@@ -335,6 +315,6 @@ mod tests {
       (e12, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
       (f012, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0), Mod7::from(0)])), // R^3
     ]);
-    assert!(sheaf.is_global_section(section));
+    assert!(sheaf.is_global_section(&section));
   }
 }

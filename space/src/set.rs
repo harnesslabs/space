@@ -1,35 +1,4 @@
-//! A module providing a generic trait for set operations.
-//!
-//! This module defines the `Set` trait which abstracts over different set implementations
-//! (like `HashSet` and `BTreeSet`) and provides a common interface for basic set operations:
-//! - Containment testing
-//! - Set difference
-//! - Intersection
-//! - Union
-//! - Emptyness testing
-//!
-//! # Implementations
-//!
-//! The trait is implemented for:
-//! - `HashSet<T, S>` where `T: Hash + Eq + Clone` and `S: BuildHasher + Default`
-//! - `BTreeSet<T>` where `T: Ord + Clone`
-//!
-//! # Example
-//! ```rust
-//! use std::collections::HashSet;
-//!
-//! use harness_space::set::Set;
-//!
-//! let a: HashSet<_> = [1, 2, 3].into_iter().collect();
-//! let b: HashSet<_> = [2, 3, 4].into_iter().collect();
-//!
-//! let intersection = a.meet(&b);
-//! assert!(intersection.contains(&2));
-//! assert!(intersection.contains(&3));
-//! ```
-
 use std::{
-  cmp::PartialOrd,
   collections::{BTreeSet, HashSet},
   hash::{BuildHasher, Hash},
 };
@@ -63,33 +32,6 @@ pub trait Collection {
   /// * `false` otherwise
   fn is_empty(&self) -> bool;
 }
-
-// /// A trait for sets that support basic set operations.
-// ///
-// /// This trait defines the fundamental operations that can be performed on sets:
-// /// containment testing, set difference, intersection, and union.
-// ///
-// /// # Type Parameters
-// /// * `Point` - The type of elements contained in the set
-// pub trait Set: Collection {
-//   /// Computes the set difference (self - other).
-//   ///
-//   /// # Arguments
-//   /// * `other` - The set to subtract from this set
-//   fn minus(&self, other: &Self) -> Self;
-
-//   /// Computes the intersection (meet) of two sets.
-//   ///
-//   /// # Arguments
-//   /// * `other` - The set to intersect with this set
-//   fn meet(&self, other: &Self) -> Self;
-
-//   /// Computes the union (join) of two sets.
-//   ///
-//   /// # Arguments
-//   /// * `other` - The set to union with this set
-//   fn join(&self, other: &Self) -> Self;
-// }
 
 /// A trait for sets that support partial order relations.
 ///
@@ -136,14 +78,6 @@ impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Collection for HashSet<T, S
   fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
 
-// impl<T: Hash + Eq + Clone, S: BuildHasher + Default> Set for HashSet<T, S> {
-//   fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
-
-//   fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
-
-//   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
-// }
-
 impl<T: Ord + Clone> Collection for BTreeSet<T> {
   type Item = T;
 
@@ -151,14 +85,6 @@ impl<T: Ord + Clone> Collection for BTreeSet<T> {
 
   fn is_empty(&self) -> bool { Self::is_empty(self) }
 }
-
-// impl<T: Ord + Clone> Set for BTreeSet<T> {
-//   fn minus(&self, other: &Self) -> Self { Self::difference(self, other).cloned().collect() }
-
-//   fn meet(&self, other: &Self) -> Self { Self::intersection(self, other).cloned().collect() }
-
-//   fn join(&self, other: &Self) -> Self { Self::union(self, other).cloned().collect() }
-// }
 
 impl<T: PartialEq> Collection for Vec<T> {
   type Item = T;

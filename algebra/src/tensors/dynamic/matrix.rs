@@ -177,6 +177,25 @@ impl<F, O: MatrixOrientation> DynamicDenseMatrix<F, O> {
 }
 
 impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
+  /// Creates a new all zeros `DynamicDenseMatrix` with the specified number of rows and columns.
+  ///
+  /// # Arguments
+  ///
+  /// * `rows` - The number of rows in the matrix
+  /// * `cols` - The number of columns in the matrix
+  ///
+  /// # Returns
+  ///
+  /// A new `DynamicDenseMatrix` with the specified number of rows and columns, all initialized to
+  /// zero.
+  pub fn zeros(rows: usize, cols: usize) -> Self {
+    let mut mat = Self::new();
+    for _ in 0..rows {
+      mat.append_row(DynamicVector::zeros(cols));
+    }
+    mat
+  }
+
   /// Returns the number of rows in the matrix.
   ///
   /// For a row-major matrix, this is the number of row vectors stored.
@@ -604,11 +623,11 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
     }
 
     let mut free_col_indices: Vec<usize> = Vec::new();
-    for j in 0..num_cols {
+    (0..num_cols).for_each(|j| {
       if !is_pivot_col[j] {
         free_col_indices.push(j);
       }
-    }
+    });
 
     let mut kernel_basis: Vec<DynamicVector<F>> = Vec::new();
 
@@ -634,6 +653,25 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
 }
 
 impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
+  /// Creates a new all zeros `DynamicDenseMatrix` with the specified number of rows and columns.
+  ///
+  /// # Arguments
+  ///
+  /// * `rows` - The number of rows in the matrix
+  /// * `cols` - The number of columns in the matrix
+  ///
+  /// # Returns
+  ///
+  /// A new `DynamicDenseMatrix` with the specified number of rows and columns, all initialized to
+  /// zero.
+  pub fn zeros(rows: usize, cols: usize) -> Self {
+    let mut mat = Self::new();
+    for _ in 0..cols {
+      mat.append_column(DynamicVector::zeros(rows));
+    }
+    mat
+  }
+
   /// Returns the number of rows in the matrix.
   ///
   /// For a column-major matrix, this is the dimension of the first column vector (if any).
@@ -1095,6 +1133,100 @@ impl<T: Field + Copy> Mul<DynamicVector<T>> for DynamicDenseMatrix<T, ColumnMajo
     });
 
     DynamicVector::new(result)
+  }
+}
+
+impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatrix<T, RowMajor> {
+  type Output = DynamicDenseMatrix<T, RowMajor>;
+
+  fn mul(self, rhs: DynamicDenseMatrix<T, RowMajor>) -> Self::Output {
+    let mut result = DynamicDenseMatrix::<T, RowMajor>::new();
+    for i in 0..self.num_rows() {
+      let row = self.get_row(i);
+      let mut new_row = DynamicVector::<T>::zeros(rhs.num_cols());
+      for j in 0..rhs.num_cols() {
+        let col = rhs.get_column(j);
+        let mut sum = T::zero();
+        for k in 0..self.num_cols() {
+          sum += *self.get_component(i, k) * *col.get_component(k);
+        }
+        new_row.set_component(j, sum);
+      }
+      result.append_row(new_row);
+    }
+    result
+  }
+}
+
+impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, ColumnMajor>>
+  for DynamicDenseMatrix<T, ColumnMajor>
+{
+  type Output = DynamicDenseMatrix<T, ColumnMajor>;
+
+  fn mul(self, rhs: DynamicDenseMatrix<T, ColumnMajor>) -> Self::Output {
+    assert_eq!(
+      self.num_cols(),
+      rhs.num_rows(),
+      "Matrix dimensions incompatible for multiplication"
+    );
+    let m = self.num_rows();
+    let n = self.num_cols(); // common dimension, also rhs.num_rows()
+    let p = rhs.num_cols();
+
+    let mut result_matrix = DynamicDenseMatrix::<T, ColumnMajor>::new();
+
+    for j_res in 0..p {
+      // For each column j_res of the result matrix C
+      let mut new_col_components = Vec::with_capacity(m);
+      for i_res in 0..m {
+        // For each row i_res in that result column
+        let mut sum = T::zero();
+        for k in 0..n {
+          // Summation index
+          // C(i_res, j_res) = sum_k A(i_res, k) * B(k, j_res)
+          // self is A (ColumnMajor), rhs is B (ColumnMajor)
+          sum += *self.get_component(i_res, k) * *rhs.get_component(k, j_res);
+        }
+        new_col_components.push(sum);
+      }
+      result_matrix.append_column(DynamicVector::new(new_col_components));
+    }
+    result_matrix
+  }
+}
+
+impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatrix<T, ColumnMajor> {
+  type Output = DynamicDenseMatrix<T, ColumnMajor>;
+
+  fn mul(self, rhs: DynamicDenseMatrix<T, RowMajor>) -> Self::Output {
+    assert_eq!(
+      self.num_cols(),
+      rhs.num_rows(),
+      "Matrix dimensions incompatible for multiplication"
+    );
+    let m = self.num_rows();
+    let n = self.num_cols(); // common dimension, also rhs.num_rows()
+    let p = rhs.num_cols();
+
+    let mut result_matrix = DynamicDenseMatrix::<T, ColumnMajor>::new();
+
+    for j_res in 0..p {
+      // For each column j_res of the result matrix C
+      let mut new_col_components = Vec::with_capacity(m);
+      for i_res in 0..m {
+        // For each row i_res in that result column
+        let mut sum = T::zero();
+        for k in 0..n {
+          // Summation index
+          // C(i_res, j_res) = sum_k A(i_res, k) * B(k, j_res)
+          // self is A (RowMajor), rhs is B (ColumnMajor)
+          sum += *self.get_component(i_res, k) * *rhs.get_component(k, j_res);
+        }
+        new_col_components.push(sum);
+      }
+      result_matrix.append_column(DynamicVector::new(new_col_components));
+    }
+    result_matrix
   }
 }
 
@@ -1650,5 +1782,124 @@ mod tests {
     let v = DynamicVector::from(vec![1.0, 2.0, 3.0]);
     let result = m * v;
     assert_eq!(result, DynamicVector::from(vec![14.0, 32.0, 50.0]));
+  }
+
+  #[test]
+  fn test_matrix_zeros() {
+    let m = DynamicDenseMatrix::<f64, RowMajor>::zeros(2, 3);
+    assert_eq!(m.num_rows(), 2);
+    assert_eq!(m.num_cols(), 3);
+    assert_eq!(m.image().len(), 0);
+    assert_eq!(m.kernel().len(), 3);
+
+    let m = DynamicDenseMatrix::<f64, ColumnMajor>::zeros(2, 3);
+    assert_eq!(m.num_rows(), 2);
+    assert_eq!(m.num_cols(), 3);
+    assert_eq!(m.image().len(), 0);
+    assert_eq!(m.kernel().len(), 3);
+  }
+
+  #[test]
+  fn test_matrix_matmul() {
+    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    // m (CM, 2x3)
+    // 1  2  3
+    // 4  5  6
+    m.append_column(DynamicVector::from(vec![1.0, 4.0]));
+    m.append_column(DynamicVector::from(vec![2.0, 5.0]));
+    m.append_column(DynamicVector::from(vec![3.0, 6.0]));
+
+    let mut n: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    // n (RM, 3x2)
+    // 9  10
+    // 11 12
+    // 13 14
+    n.append_row(DynamicVector::from(vec![9.0, 10.0]));
+    n.append_row(DynamicVector::from(vec![11.0, 12.0]));
+    n.append_row(DynamicVector::from(vec![13.0, 14.0]));
+
+    // m (CM 2x3) * n (RM 3x2) = result (RM 2x2)
+    let result = m * n;
+    assert_eq!(result.num_rows(), 2);
+    assert_eq!(result.num_cols(), 2);
+    // Expected:
+    // (1*9 + 2*11 + 3*13) (1*10 + 2*12 + 3*14) = (9+22+39) (10+24+42) = (70) (76)
+    // (4*9 + 5*11 + 6*13) (4*10 + 5*12 + 6*14) = (36+55+78) (40+60+84) = (169) (184)
+    assert_eq!(*result.get_component(0, 0), 1.0 * 9.0 + 2.0 * 11.0 + 3.0 * 13.0);
+    assert_eq!(*result.get_component(0, 1), 1.0 * 10.0 + 2.0 * 12.0 + 3.0 * 14.0);
+    assert_eq!(*result.get_component(1, 0), 4.0 * 9.0 + 5.0 * 11.0 + 6.0 * 13.0);
+    assert_eq!(*result.get_component(1, 1), 4.0 * 10.0 + 5.0 * 12.0 + 6.0 * 14.0);
+  }
+
+  #[test]
+  fn test_matrix_matmul_rm_rm() {
+    // A (RM 2x2)
+    // 1 2
+    // 3 4
+    let mut a_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    a_rm.append_row(DynamicVector::from(vec![1.0, 2.0]));
+    a_rm.append_row(DynamicVector::from(vec![3.0, 4.0]));
+
+    // B (RM 2x2)
+    // 5 6
+    // 7 8
+    let mut b_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    b_rm.append_row(DynamicVector::from(vec![5.0, 6.0]));
+    b_rm.append_row(DynamicVector::from(vec![7.0, 8.0]));
+
+    // Expected A * B (RM 2x2)
+    // 19 22
+    // 43 50
+    let result = a_rm * b_rm;
+    assert_eq!(result.num_rows(), 2);
+    assert_eq!(result.num_cols(), 2);
+    assert_eq!(*result.get_component(0, 0), 1.0 * 5.0 + 2.0 * 7.0);
+    assert_eq!(*result.get_component(0, 1), 1.0 * 6.0 + 2.0 * 8.0);
+    assert_eq!(*result.get_component(1, 0), 3.0 * 5.0 + 4.0 * 7.0);
+    assert_eq!(*result.get_component(1, 1), 3.0 * 6.0 + 4.0 * 8.0);
+  }
+
+  #[test]
+  fn test_matrix_matmul_cm_cm() {
+    // A (CM 2x2)
+    // 1 2
+    // 3 4
+    let mut a_cm: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    a_cm.append_column(DynamicVector::from(vec![1.0, 3.0]));
+    a_cm.append_column(DynamicVector::from(vec![2.0, 4.0]));
+
+    // B (CM 2x2)
+    // 5 6
+    // 7 8
+    let mut b_cm: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    b_cm.append_column(DynamicVector::from(vec![5.0, 7.0]));
+    b_cm.append_column(DynamicVector::from(vec![6.0, 8.0]));
+
+    // A (CM 2x2) * B (CM 2x2) = result (CM 2x2)
+    // If CM*CM impl is A*B:
+    // Expected A * B (CM 2x2)
+    // 19 22
+    // 43 50
+    // If CM*CM impl is B*A^T (as suspected from code reading):
+    // B (CM 2x2) * A^T (RM 2x2)
+    // A^T (RM):
+    // 1 3
+    // 2 4
+    // B * A^T (CM * RM -> RM result, but CM*CM -> CM result. The code seems to produce (B*A^T)
+    // stored as CM) (5*1 + 6*2) (5*3 + 6*4) = (5+12) (15+24) = 17 39
+    // (7*1 + 8*2) (7*3 + 8*4) = (7+16) (21+32) = 23 53
+    // Expected if B*A^T, stored as CM:
+    // 17 23
+    // 39 53
+
+    let result = a_cm * b_cm; // Output is ColumnMajor
+    assert_eq!(result.num_rows(), 2);
+    assert_eq!(result.num_cols(), 2);
+
+    // Assuming standard A*B for now. If this fails, the impl is non-standard.
+    assert_eq!(*result.get_component(0, 0), 1.0 * 5.0 + 2.0 * 7.0); // row 0, col 0
+    assert_eq!(*result.get_component(0, 1), 1.0 * 6.0 + 2.0 * 8.0); // row 0, col 1
+    assert_eq!(*result.get_component(1, 0), 3.0 * 5.0 + 4.0 * 7.0); // row 1, col 0
+    assert_eq!(*result.get_component(1, 1), 3.0 * 6.0 + 4.0 * 8.0); // row 1, col 1
   }
 }
