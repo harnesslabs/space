@@ -1,4 +1,3 @@
-// space/src/filtration/vietoris_rips.rs
 //! # Vietoris-Rips Complex Construction
 //!
 //! This module implements the construction of Vietoris-Rips complexes, a fundamental tool
@@ -12,9 +11,10 @@
 //! A $k$-simplex $[x_{i_0}, x_{i_1}, \dots, x_{i_k}]$ is included in $VR_\\epsilon(X)$ if and only
 //! if the distance between any pair of its vertices is less than or equal to $\\epsilon$. That is:
 //!
-//! \\[
+//! $$
 //! [x_{i_0}, x_{i_1}, \dots, x_{i_k}] \\in VR_\\epsilon(X) \\iff d(x_{i_j}, x_{i_l}) \\le \\epsilon
-//! \\quad \\forall j, l \\in \\{0, 1, \dots, k\\} \\]
+//! \\quad \\forall j, l \\in \\{0, 1, \dots, k\\}
+//! $$
 //!
 //! In simpler terms, a set of points forms a simplex if all points in that set are pairwise
 //! within distance $\\epsilon$ of each other.
@@ -24,9 +24,10 @@
 //! The Vietoris-Rips complex naturally forms a filtration. As $\\epsilon$ increases, more simplices
 //! are added to the complex, and no simplices are ever removed:
 //!
-//! \\[
+//! $$
 //! VR_{\\epsilon_1}(X) \\subseteq VR_{\\epsilon_2}(X) \\quad \\text{if} \\quad \\epsilon_1 \\le
-//! \\epsilon_2 \\]
+//! \\epsilon_2
+//! $$
 //!
 //! This property is crucial for persistent homology, which studies how the homology groups
 //! of the complex change as $\\epsilon$ varies.
@@ -35,14 +36,14 @@
 //!
 //! This module provides the [`VietorisRips`] struct, which implements the
 //! [`Filtration`] trait. It takes a [`Cloud`] of points and an `epsilon` value to produce a
-//! [`SimplicialComplex`] or, optionally, [`HomologyGroup`]s for specified dimensions.
+//! [`SimplicialComplex`] or, optionally, [`Homology`]s for specified dimensions.
 //!
 //! ```rust
 //! use harness_algebra::tensors::fixed::FixedVector;
 //! use harness_space::{
 //!   cloud::Cloud,
+//!   complexes::simplicial::SimplicialComplex,
 //!   filtration::{vietoris_rips::VietorisRips, Filtration},
-//!   simplicial::SimplicialComplex,
 //! };
 //!
 //! // Example: Create a cloud of 3 points forming a triangle
@@ -79,15 +80,16 @@ use itertools::Itertools;
 use crate::filtration::ParallelFiltration;
 use crate::{
   cloud::Cloud,
+  complexes::simplicial::{Simplex, SimplicialComplex},
   filtration::Filtration,
+  homology::Homology,
   prelude::MetricSpace,
-  simplicial::{HomologyGroup, Simplex, SimplicialComplex},
 };
 
 /// A struct that allows construction of Vietoris-Rips complexes.
 ///
 /// It implements the [`Filtration`] trait, taking a [`Cloud`] of points and a distance
-/// threshold `epsilon` to produce a [`SimplicialComplex`] or [`HomologyGroup`]s.
+/// threshold `epsilon` to produce a [`SimplicialComplex`] or [`Homology`]s.
 ///
 /// A $k$-simplex `[v0, v1, ..., vk]` is included in the Vietoris-Rips complex if
 /// the distance between any pair of its vertices `(vi, vj)` is less than or equal
@@ -98,7 +100,7 @@ use crate::{
 /// * `N`: The dimension of the Euclidean space where the points reside.
 /// * `F`: The numeric type for coordinates and distances (must be a [`Field`]).
 /// * `O`: The output type of the filtration. This is typically [`SimplicialComplex`] or
-///   [`HashMap<usize, HomologyGroup<R>>`](HashMap) if computing homology directly.
+///   [`HashMap<usize, Homology<R>>`](HashMap) if computing homology directly.
 pub struct VietorisRips<const N: usize, F, O> {
   _phantom:      PhantomData<[F; N]>, // To use N and F generics
   _output_space: PhantomData<O>,      // To specialize filtration output
@@ -109,7 +111,7 @@ impl<const N: usize, F, O> VietorisRips<N, F, O> {
   ///
   /// The specific behavior of the builder (e.g., what it produces) is determined
   /// by the trait implementations for `Filtration` based on the type parameter `O`.
-  pub fn new() -> Self { Self { _phantom: PhantomData, _output_space: PhantomData } }
+  pub const fn new() -> Self { Self { _phantom: PhantomData, _output_space: PhantomData } }
 }
 
 impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, SimplicialComplex> {
@@ -243,7 +245,7 @@ where
   // build_parallel and build_serial will be available from the ParallelFiltration trait.
 }
 
-/// Implements the [`Filtration`] trait for `VietorisRips` to generate [`HomologyGroup`]s
+/// Implements the [`Filtration`] trait for `VietorisRips` to generate [`Homology`]s
 /// for specified dimensions.
 ///
 /// This allows the `VietorisRips` struct to be used to directly compute homology
@@ -251,10 +253,10 @@ where
 ///
 /// # Type Parameters
 /// * `R`: The coefficient [`Field`] for homology computations.
-impl<const N: usize, F, R> Filtration for VietorisRips<N, F, HomologyGroup<R>>
+impl<const N: usize, F, R> Filtration for VietorisRips<N, F, Homology<R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync, // Send + Sync for potential parallelism
-  R: Field + Copy + Send + Sync,                       // Send + Sync for homology result
+  R: Field + Copy + Send + Sync + std::fmt::Debug,     // Send + Sync for homology result
   Cloud<N, F>: Sync,
   SimplicialComplex: Send, // SimplicialComplex is built as an intermediate step
 {
@@ -263,7 +265,7 @@ where
   type InputSpace = Cloud<N, F>;
   type OutputParameter = HashSet<usize>;
   // Set of dimensions for which to compute homology
-  type OutputSpace = HashMap<usize, HomologyGroup<R>>;
+  type OutputSpace = HashMap<usize, Homology<R>>;
 
   // Map from dimension to HomologyGroup
 
@@ -274,35 +276,33 @@ where
   ///
   /// * `input`: The point [`Cloud<N, F>`].
   /// * `param`: The distance threshold `epsilon` of type `F`.
-  /// * `output_param`: A `HashSet<usize>` specifying the dimensions for which homology groups
+  /// * `output_param`: A [`HashSet<usize>`] specifying the dimensions for which homology groups
   ///   should be computed.
   ///
   /// # Returns
   ///
-  /// A `HashMap<usize, HomologyGroup<R>>` where keys are dimensions and values are the
-  /// computed [`HomologyGroup`]s with coefficients in `R`.
+  /// A [`HashMap<usize, Homology<R>>`] where keys are dimensions and values are the
+  /// computed [`Homology`]s with coefficients in `R`.
   fn build(
     &self,
     input: &Self::InputSpace,
     param: Self::InputParameter,          // epsilon
     output_param: &Self::OutputParameter, // dimensions for homology
   ) -> Self::OutputSpace {
-    // First, build the Vietoris-Rips complex at the given epsilon.
-    // This reuses the existing VietorisRips builder logic for SimplicialComplex.
     let complex_builder = VietorisRips::<N, F, SimplicialComplex>::new();
     let complex = complex_builder.build_complex(input, param);
 
     let mut homology_groups = HashMap::new();
     // For each dimension requested in output_param, compute homology.
     for dim in output_param {
-      let homology_group = complex.compute_homology(*dim); // Pass R by type inference
+      let homology_group = complex.homology(*dim); // Pass R by type inference
       homology_groups.insert(*dim, homology_group);
     }
     homology_groups
   }
 }
 
-/// Implements [`ParallelFiltration`] for `VietorisRips` targeting [`HomologyGroup`] output.
+/// Implements [`ParallelFiltration`] for `VietorisRips` targeting [`Homology`] output.
 ///
 /// This implementation is active when the `"parallel"` feature is enabled.
 /// It signifies that the filtration construction and subsequent homology computations
@@ -311,18 +311,13 @@ where
 /// and then computing homology; these steps themselves might also have parallel potential
 /// depending on their implementations.
 #[cfg(feature = "parallel")]
-impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, HomologyGroup<R>>
+impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, Homology<R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
-  R: Field + Copy + Send + Sync,
+  R: Field + Copy + Send + Sync + std::fmt::Debug,
   Cloud<N, F>: Sync,
-  HomologyGroup<R>: Send, /* Ensure the output homology groups can be sent across threads
-                           * SimplicialComplex::Send is implicitly required by the Filtration
-                           * impl above */
+  Homology<R>: Send,
 {
-  // No additional methods are required by ParallelFiltration if the base Filtration methods
-  // are sufficient and types are Send + Sync.
-  // build_parallel and build_serial will be available from the ParallelFiltration trait.
 }
 
 #[cfg(test)]
@@ -408,7 +403,7 @@ mod tests {
     let p0 = FixedVector([0.0, 0.0]);
     let p1 = FixedVector([1.0, 0.0]);
     let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1]);
-    let vr_builder = VietorisRips::<2, f64, HomologyGroup<Mod7>>::new();
+    let vr_builder = VietorisRips::<2, f64, Homology<Mod7>>::new();
 
     let epsilons = vec![0.5, 1.5]; // Epsilon_0: 2 components, Epsilon_1: 1 component
     let dims = HashSet::from([0, 1]);
@@ -464,7 +459,7 @@ mod tests {
     let p2 = FixedVector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
-    let vr_builder = VietorisRips::<2, f64, HomologyGroup<Boolean>>::new();
+    let vr_builder = VietorisRips::<2, f64, Homology<Boolean>>::new();
     // Distances: d(p0,p1)=1, d(p0,p2)=1, d(p1,p2)=1
     let epsilons = vec![0.5, 1.1];
     // eps=0.5: 3 points (3 components in H0)

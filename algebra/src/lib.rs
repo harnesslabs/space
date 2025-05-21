@@ -44,6 +44,7 @@
 
 pub mod algebras;
 pub mod arithmetic;
+pub mod category;
 pub mod groups;
 pub mod modules;
 pub mod rings;
@@ -88,6 +89,7 @@ pub mod prelude {
   pub use crate::{
     algebras::Algebra,
     arithmetic::{Additive, Multiplicative},
+    category::Category,
     groups::{AbelianGroup, Group, NonAbelianGroup},
     modules::{
       LeftModule, LeftSemimodule, RightModule, RightSemimodule, TwoSidedModule, TwoSidedSemimodule,

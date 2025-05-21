@@ -27,22 +27,36 @@ pub trait Field: Ring + Div + DivAssign {
   fn multiplicative_inverse(&self) -> Self;
 }
 
-macro_rules! impl_field {
+macro_rules! impl_ring {
   ($inner:ty) => {
     impl $crate::groups::Group for $inner {
-      fn identity() -> Self { 0.0 }
+      fn identity() -> Self { Self::zero() }
 
       fn inverse(&self) -> Self { -self }
     }
 
     impl $crate::groups::AbelianGroup for $inner {}
     impl $crate::rings::Ring for $inner {}
+  };
+}
+
+macro_rules! impl_field {
+  ($inner:ty) => {
     impl $crate::rings::Field for $inner {
       fn multiplicative_inverse(&self) -> Self { self.recip() }
     }
   };
 }
 
+impl_ring!(i8);
+impl_ring!(i16);
+impl_ring!(i32);
+impl_ring!(i64);
+impl_ring!(i128);
+impl_ring!(isize);
+
+impl_ring!(f32);
+impl_ring!(f64);
 impl_field!(f32);
 impl_field!(f64);
 

@@ -53,6 +53,7 @@
 // `smallvec` and `tinyvec` if need be.
 
 use super::*;
+use crate::category::Category;
 
 /// # Dynamic Vector
 ///
@@ -95,7 +96,8 @@ use super::*;
 /// ```
 #[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
 pub struct DynamicVector<F> {
-  components: Vec<F>,
+  /// The components of the vector.
+  pub components: Vec<F>,
 }
 
 impl<F> DynamicVector<F> {
@@ -165,6 +167,12 @@ impl<F> DynamicVector<F> {
   ///
   /// The last component of the vector wrapped in `Some`, or `None` if the vector is empty.
   pub fn pop(&mut self) -> Option<F> { self.components.pop() }
+
+  /// Returns a vector of zeros with the same dimension as the vector.
+  pub fn zeros(dimension: usize) -> Self
+  where F: Zero + Copy {
+    Self { components: vec![F::zero(); dimension] }
+  }
 }
 
 impl<F: Field> From<Vec<F>> for DynamicVector<F> {
@@ -192,6 +200,24 @@ impl<F: Field + Clone> From<&[F]> for DynamicVector<F> {
   ///
   /// * `components` - A slice of components
   fn from(components: &[F]) -> Self { Self { components: components.to_vec() } }
+}
+
+impl<F: Field + Copy> Category for DynamicVector<F> {
+  type Morphism = DynamicDenseMatrix<F, RowMajor>;
+
+  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism { f * g }
+
+  fn identity(a: Self) -> Self::Morphism {
+    let mut mat = DynamicDenseMatrix::<F, RowMajor>::new();
+    for i in 0..a.dimension() {
+      let mut col = Self::from(vec![F::zero(); a.dimension()]);
+      col.components[i] = F::one();
+      mat.append_column(&col);
+    }
+    mat
+  }
+
+  fn apply(f: Self::Morphism, x: Self) -> Self { f * x }
 }
 
 // TODO (autoparallel): This does handle the zero case but this is clunky as fuck and I hate it.
@@ -344,6 +370,12 @@ impl<F: Field + Copy + Mul<Self>> TwoSidedModule for DynamicVector<F> {
 
 impl<F: Field + Copy + Mul<Self>> VectorSpace for DynamicVector<F> {}
 
+impl<F> Iterator for DynamicVector<F> {
+  type Item = F;
+
+  fn next(&mut self) -> Option<Self::Item> { self.components.pop() }
+}
+
 #[cfg(test)]
 mod tests {
   use fixtures::Mod7;
@@ -482,5 +514,11 @@ mod tests {
     let mut vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
     let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1)]);
     vec1 -= vec2; // Should panic
+  }
+
+  #[test]
+  fn test_zeros() {
+    let zero_vec = DynamicVector::<Mod7>::zeros(3);
+    assert_eq!(zero_vec.components, vec![Mod7::from(0), Mod7::from(0), Mod7::from(0)]);
   }
 }

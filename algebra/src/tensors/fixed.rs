@@ -59,7 +59,7 @@ use super::*;
 /// let sum = v + w;
 /// ```
 #[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct FixedVector<const M: usize, F: Field>(pub [F; M]);
+pub struct FixedVector<const M: usize, F>(pub [F; M]);
 
 impl<const M: usize, F: Field + Copy> Default for FixedVector<M, F> {
   fn default() -> Self { Self([F::zero(); M]) }

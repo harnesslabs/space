@@ -1,4 +1,3 @@
-// space/src/filtrations.rs
 //! Defines traits for building filtered topological spaces.
 
 pub mod vietoris_rips;

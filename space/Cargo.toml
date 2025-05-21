@@ -8,16 +8,17 @@ keywords    = ["mathematics", "topology"]
 license     = "MIT"
 readme      = "README.md"
 repository  = "https://github.com/harness-labs/space"
-version     = "0.5.0"
+version     = "0.6.0"
 
 [dependencies]
 harness-algebra = { workspace = true }
 itertools       = { workspace = true, features = ["use_std"] }
 num-traits      = { workspace = true }
 rayon           = { workspace = true, optional = true }
+
 [dev-dependencies]
 tempfile = { workspace = true }
 
 
 [features]
-parallel = ["rayon"]
+parallel = ["dep:rayon"]

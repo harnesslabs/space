@@ -48,7 +48,7 @@ use crate::{
   set::Collection,
 };
 
-/// Defines the `Cloud` struct, representing a collection of points (vectors)
+/// Defines the [`Cloud`] struct, representing a collection of points (vectors)
 /// in an N-dimensional space.
 ///
 /// This module provides the `Cloud` type, which can be used to store and
@@ -69,35 +69,16 @@ impl<F: Field, const N: usize> Cloud<N, F> {
   /// # Arguments
   ///
   /// * `points`: A `HashSet` of `Vector<N, F>` representing the points in the cloud.
-  pub fn new(points: Vec<FixedVector<N, F>>) -> Self { Self { points } }
+  pub const fn new(points: Vec<FixedVector<N, F>>) -> Self { Self { points } }
 
   /// Returns a reference to the points in the cloud.
-  pub fn points_ref(&self) -> &Vec<FixedVector<N, F>> { &self.points }
+  pub const fn points_ref(&self) -> &Vec<FixedVector<N, F>> { &self.points }
 }
 
-// impl<F: Field + Copy, const N: usize> Set for Cloud<N, F> {
-//   type Point = Vector<N, F>;
-
-//   /// Checks if the cloud contains a given point.
-//   fn contains(&self, point: &Self::Point) -> bool { self.points.contains(point) }
-
-//   /// Returns a new cloud containing points that are in `self` but not in `other`.
-//   fn minus(&self, other: &Self) -> Self { Self { points: self.points.minus(&other.points) } }
-
-//   /// Returns a new cloud containing points that are common to both `self` and `other`.
-//   fn meet(&self, other: &Self) -> Self { Self { points: self.points.meet(&other.points) } }
-
-//   /// Returns a new cloud containing all points from `self` and `other`.
-//   fn join(&self, other: &Self) -> Self { Self { points: self.points.join(&other.points) } }
-
-//   /// Checks if the cloud is empty.
-//   fn is_empty(&self) -> bool { self.points.is_empty() }
-// }
-
 impl<const N: usize, F: Field + Copy + Sum<F>> Collection for Cloud<N, F> {
-  type Point = FixedVector<N, F>;
+  type Item = FixedVector<N, F>;
 
-  fn contains(&self, point: &Self::Point) -> bool { self.points.contains(point) }
+  fn contains(&self, point: &Self::Item) -> bool { self.points.contains(point) }
 
   fn is_empty(&self) -> bool { self.points.is_empty() }
 }
@@ -108,7 +89,7 @@ impl<const N: usize, F: Field + Copy + Sum<F>> MetricSpace for Cloud<N, F> {
   /// Calculates the distance between two points in the cloud.
   ///
   /// The distance is defined as the norm of the difference between the two points.
-  fn distance(point_a: Self::Point, point_b: Self::Point) -> Self::Distance {
+  fn distance(point_a: Self::Item, point_b: Self::Item) -> Self::Distance {
     <Self as NormedSpace>::norm(point_a - point_b)
   }
 }
@@ -119,7 +100,7 @@ impl<const N: usize, F: Field + Copy + Sum<F>> NormedSpace for Cloud<N, F> {
   /// Calculates the norm of a point.
   ///
   /// The norm is defined as the sum of the squares of its components (Euclidean norm).
-  fn norm(point: Self::Point) -> Self::Norm { point.0.iter().map(|p| *p * *p).sum() }
+  fn norm(point: Self::Item) -> Self::Norm { point.0.iter().map(|p| *p * *p).sum() }
 }
 
 #[cfg(test)]
