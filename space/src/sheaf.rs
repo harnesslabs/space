@@ -276,28 +276,28 @@ mod tests {
       ((e01.clone(), f012.clone()), {
         let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
         mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(1),
           Mod7::from(2),
+          Mod7::from(0),
           Mod7::from(0),
         ]));
         mat.append_column(&DynamicVector::<Mod7>::new(vec![
           Mod7::from(0),
           Mod7::from(0),
-          Mod7::from(1),
+          Mod7::from(0),
         ]));
         mat
       }),
       ((e02.clone(), f012.clone()), {
         let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
         mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(1),
           Mod7::from(2),
+          Mod7::from(0),
           Mod7::from(0),
         ]));
         mat.append_column(&DynamicVector::<Mod7>::new(vec![
           Mod7::from(0),
-          Mod7::from(0),
           Mod7::from(1),
+          Mod7::from(0),
         ]));
         mat
       }),
@@ -305,13 +305,13 @@ mod tests {
         let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
         mat.append_column(&DynamicVector::<Mod7>::new(vec![
           Mod7::from(1),
-          Mod7::from(2),
+          Mod7::from(0),
           Mod7::from(0),
         ]));
         mat.append_column(&DynamicVector::<Mod7>::new(vec![
           Mod7::from(0),
           Mod7::from(0),
-          Mod7::from(1),
+          Mod7::from(0),
         ]));
         mat
       }),
@@ -330,10 +330,10 @@ mod tests {
       (v0, DynamicVector::<Mod7>::new(vec![Mod7::from(1)])), // R^1
       (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
       (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2), Mod7::from(3)])), // R^3
-      (e01, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
-      (e02, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (e01, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
+      (e02, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)])), // R^2
       (e12, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
-      (f012, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4), Mod7::from(6)])), // R^3
+      (f012, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0), Mod7::from(0)])), // R^3
     ]);
     assert!(sheaf.is_global_section(section));
   }
