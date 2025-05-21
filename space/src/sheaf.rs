@@ -29,7 +29,7 @@ where
   /// all the successors at time of creation. In an ideal world, there would also be checking that
   /// the dimensions of matrices (for example) work out.
   pub fn new(space: T, restrictions: HashMap<(T::Item, T::Item), C::Morphism>) -> Self {
-    assert!(restrictions.iter().all(|(k, v)| space.leq(&k.0, &k.1).unwrap()));
+    assert!(restrictions.iter().all(|(k, _v)| space.leq(&k.0, &k.1).unwrap()));
 
     Self { space, restrictions }
   }
