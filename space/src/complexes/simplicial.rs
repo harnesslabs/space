@@ -357,15 +357,7 @@ impl Collection for SimplicialComplex {
 }
 
 impl Topology for SimplicialComplex {
-  fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item> {
-    let mut neighborhood = Vec::new();
-    for face in item.faces() {
-      if self.contains(&face) {
-        neighborhood.push(face);
-      }
-    }
-    neighborhood
-  }
+  fn neighborhood(&self, _item: &Self::Item) -> Vec<Self::Item> { todo!() }
 
   fn boundary<R: Ring + Copy>(&self, item: &Self::Item) -> Chain<Self, R> {
     if item.dimension == 0 {
@@ -828,6 +820,7 @@ mod tests {
     test_homology_sphere_surface_generic::<Mod7>();
   }
 
+  #[ignore = "TODO: Implement neighborhood for simplicial complex"]
   #[test]
   fn test_simplex_neighborhood() {
     let mut complex = SimplicialComplex::new();

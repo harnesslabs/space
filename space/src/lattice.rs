@@ -240,14 +240,14 @@ impl<T: Hash + Eq + Clone> Poset for Lattice<T> {
   /// assert!(!lattice.leq(&3, &1).unwrap());
   /// ```
   fn leq(&self, a: &T, b: &T) -> Option<bool> {
-    if !self.nodes.contains_key(&a) || !self.nodes.contains_key(&b) {
+    if !self.nodes.contains_key(a) || !self.nodes.contains_key(b) {
       return None;
     }
     if a == b {
       return Some(true);
     }
-    let node_a = self.nodes.get(&a).unwrap();
-    Some(node_a.successors.contains(&b))
+    let node_a = self.nodes.get(a).unwrap();
+    Some(node_a.successors.contains(b))
   }
 
   /// Returns all minimal elements in the lattice.

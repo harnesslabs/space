@@ -1,4 +1,3 @@
-// space/src/filtration/vietoris_rips.rs
 //! # Vietoris-Rips Complex Construction
 //!
 //! This module implements the construction of Vietoris-Rips complexes, a fundamental tool
@@ -12,9 +11,10 @@
 //! A $k$-simplex $[x_{i_0}, x_{i_1}, \dots, x_{i_k}]$ is included in $VR_\\epsilon(X)$ if and only
 //! if the distance between any pair of its vertices is less than or equal to $\\epsilon$. That is:
 //!
-//! \\[
+//! $$
 //! [x_{i_0}, x_{i_1}, \dots, x_{i_k}] \\in VR_\\epsilon(X) \\iff d(x_{i_j}, x_{i_l}) \\le \\epsilon
-//! \\quad \\forall j, l \\in \\{0, 1, \dots, k\\} \\]
+//! \\quad \\forall j, l \\in \\{0, 1, \dots, k\\}
+//! $$
 //!
 //! In simpler terms, a set of points forms a simplex if all points in that set are pairwise
 //! within distance $\\epsilon$ of each other.
@@ -24,9 +24,10 @@
 //! The Vietoris-Rips complex naturally forms a filtration. As $\\epsilon$ increases, more simplices
 //! are added to the complex, and no simplices are ever removed:
 //!
-//! \\[
+//! $$
 //! VR_{\\epsilon_1}(X) \\subseteq VR_{\\epsilon_2}(X) \\quad \\text{if} \\quad \\epsilon_1 \\le
-//! \\epsilon_2 \\]
+//! \\epsilon_2
+//! $$
 //!
 //! This property is crucial for persistent homology, which studies how the homology groups
 //! of the complex change as $\\epsilon$ varies.
