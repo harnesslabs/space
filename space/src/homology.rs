@@ -1,9 +1,4 @@
-use std::{
-  collections::{HashMap, HashSet},
-  hash::Hash,
-  mem,
-  ops::Add,
-};
+use std::{collections::HashMap, hash::Hash, mem, ops::Add};
 
 use harness_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
 
@@ -21,9 +16,7 @@ pub struct Chain<'a, T: Topology, R> {
   pub coefficients: Vec<R>,
 }
 
-impl<'a, T: Topology, R: Ring + Copy> Chain<'a, T, R>
-where T::Item: PartialEq
-{
+impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
   pub const fn new(space: &'a T) -> Self { Self { space, items: vec![], coefficients: vec![] } }
 
   pub fn from_item_and_coeff(space: &'a T, item: T::Item, coeff: R) -> Self {
@@ -37,7 +30,8 @@ where T::Item: PartialEq
   // TODO: Get rid of this method and implement the algebraic operations on chains instead.
   /// Scales the chain by a scalar coefficient.
   /// If the scalar is zero, an empty chain is returned.
-  pub fn scaled(self, scalar: R) -> Self {
+  pub fn scaled(self, scalar: R) -> Self
+  where R: Copy {
     if scalar.is_zero() {
       return Chain::new(self.space);
     }
@@ -45,7 +39,10 @@ where T::Item: PartialEq
     Chain::from_items_and_coeffs(self.space, self.items, new_coefficients)
   }
 
-  pub fn boundary(&self) -> Self {
+  pub fn boundary(&self) -> Self
+  where
+    R: Copy,
+    T::Item: PartialEq, {
     let mut total_boundary = Chain::new(self.space);
     for (item, coeff) in self.items.iter().zip(self.coefficients.iter()) {
       let simplex_boundary_chain = self.space.boundary(item);
@@ -77,7 +74,7 @@ where T::Item: PartialEq
   }
 }
 
-impl<'a, T: Topology, R: PartialEq> PartialEq for Chain<'a, T, R>
+impl<T: Topology, R: PartialEq> PartialEq for Chain<'_, T, R>
 where T::Item: PartialEq
 {
   /// Checks if two chains are equal.
@@ -103,7 +100,7 @@ where T::Item: PartialEq
   }
 }
 
-impl<'a, T: Topology, R: Ring> Add for Chain<'a, T, R>
+impl<T: Topology, R: Ring> Add for Chain<'_, T, R>
 where T::Item: PartialEq
 {
   type Output = Self;
@@ -210,7 +207,7 @@ where T::Item: PartialEq
   }
 }
 
-impl<'a, T: Topology, R: Ring + Copy> Neg for Chain<'a, T, R>
+impl<T: Topology, R: Ring + Copy> Neg for Chain<'_, T, R>
 where T::Item: PartialEq
 {
   type Output = Self;
@@ -224,7 +221,7 @@ where T::Item: PartialEq
   }
 }
 
-impl<'a, T: Topology, R: Ring + Copy> Sub for Chain<'a, T, R>
+impl<T: Topology, R: Ring + Copy> Sub for Chain<'_, T, R>
 where T::Item: PartialEq
 {
   type Output = Self;

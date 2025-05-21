@@ -7,16 +7,13 @@
 //! - Defines the [`Cell`] struct for individual cells (with dimension and attachment information).
 //! - Defines the [`CellComplex`] struct for collections of cells and their attachment (face)
 //!   relations.
-//! - Provides efficient APIs for querying boundaries, stars, and k-skeleta of cell complexes.
-//! - (TODO) Implements the [`Set`] and [`TopologicalSpace`] traits for cell complexes.
-//! - (TODO) Defines the [`CellularSheaf`] struct for associating stalks and restriction maps to
-//!   cells, supporting computations in cellular sheaf theory.
 //!
 //! This module is suitable for applications in topological data analysis, sheaf theory, and related
 //! areas.
 
 use std::collections::HashMap;
 
+use super::*;
 use crate::{
   definitions::Topology,
   lattice::Lattice,
@@ -24,11 +21,14 @@ use crate::{
 };
 
 // TODO: This has not been optimized at all, and for certain operations this may be an inefficient
-// data structure, but it works for now.
+// data structure, but it works for now. We can likely store multiple maps to reference cells more
+// quickly.
+// TODO: It's worth noting that by in large this is just a lattice with some extra data and
+// requirements.
 
 /// A cell in a cell complex, representing a k-dimensional cell with its attachments
 /// to (k-1)-dimensional cells.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cell {
   /// The dimension of this cell
   pub dimension: usize,
@@ -79,9 +79,9 @@ impl CellComplex {
   /// # Panics
   /// * If any of the attachment IDs don't exist in the complex
   /// * If any of the attachments are not of dimension (k-1)
-  pub fn add_cell_by_id(&mut self, dimension: usize, attachments: Vec<usize>) -> Cell {
+  pub fn add_cell_by_id(&mut self, dimension: usize, attachments: &[usize]) -> Cell {
     // Validate attachments exist and have correct dimension
-    for &att_id in &attachments {
+    for &att_id in attachments {
       let att_cell = self.cells.get(&att_id).expect("Attachment cell does not exist");
       assert_eq!(att_cell.dimension(), dimension - 1, "Attachment cell has wrong dimension");
     }
@@ -94,15 +94,15 @@ impl CellComplex {
 
     // Add to lattice
     self.attachment_lattice.add_element(id);
-    for &att_id in &attachments {
+    for &att_id in attachments {
       self.attachment_lattice.add_relation(att_id, id);
     }
     cell
   }
 
-  pub fn add_cell(&mut self, dimension: usize, attachments: Vec<&Cell>) -> Cell {
-    let ids = attachments.into_iter().map(Cell::id).collect();
-    self.add_cell_by_id(dimension, ids)
+  pub fn add_cell(&mut self, dimension: usize, attachments: &[&Cell]) -> Cell {
+    let ids = attachments.iter().map(|cell| cell.id()).collect::<Vec<_>>();
+    self.add_cell_by_id(dimension, &ids)
   }
 
   pub fn get_cell(&self, id: usize) -> Option<Cell> { self.cells.get(&id).cloned() }
@@ -123,6 +123,15 @@ impl CellComplex {
       .map(|id| self.get_cell(id).unwrap())
       .collect()
   }
+
+  pub fn faces(&self, cell: &Cell) -> Vec<Cell> {
+    self
+      .attachment_lattice
+      .predecessors(cell.id())
+      .into_iter()
+      .map(|id| self.get_cell(id).unwrap())
+      .collect()
+  }
 }
 
 impl Collection for CellComplex {
@@ -132,14 +141,6 @@ impl Collection for CellComplex {
 
   fn is_empty(&self) -> bool { self.cells.is_empty() }
 }
-
-// impl Set for CellComplex {
-//   fn minus(&self, other: &Self) -> Self { todo!() }
-
-//   fn meet(&self, other: &Self) -> Self { todo!() }
-
-//   fn join(&self, other: &Self) -> Self { todo!() }
-// }
 
 impl Poset for CellComplex {
   fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool> {
@@ -214,11 +215,17 @@ impl Topology for CellComplex {
       .collect()
   }
 
-  fn boundary<R: harness_algebra::prelude::Ring + Copy>(
-    &self,
-    item: &Self::Item,
-  ) -> crate::homology::Chain<Self, R> {
-    todo!()
+  fn boundary<R: Ring>(&self, item: &Self::Item) -> crate::homology::Chain<Self, R> {
+    let mut boundary_chain_items = Vec::with_capacity(item.dimension() + 1);
+    let mut boundary_chain_coeffs = Vec::with_capacity(item.dimension() + 1);
+    let cell = self.get_cell(item.id()).unwrap();
+    let faces = self.faces(&cell);
+    for face in faces {
+      let coeff = if face.dimension() == item.dimension() - 1 { R::one() } else { -R::one() };
+      boundary_chain_items.push(face);
+      boundary_chain_coeffs.push(coeff);
+    }
+    crate::homology::Chain::from_items_and_coeffs(self, boundary_chain_items, boundary_chain_coeffs)
   }
 }
 
@@ -231,13 +238,13 @@ mod tests {
     let mut complex = CellComplex::new();
 
     // Add a 0-cell (vertex)
-    let v1 = complex.add_cell(0, vec![]);
+    let v1 = complex.add_cell(0, &[]);
 
     // Add a 1-cell (edge) attached to the vertex
-    let e1 = complex.add_cell(1, vec![&v1]);
+    let e1 = complex.add_cell(1, &[&v1]);
 
     // Add a 2-cell (triangle) attached to the edge
-    let t1 = complex.add_cell(2, vec![&e1]);
+    let t1 = complex.add_cell(2, &[&e1]);
 
     // Check dimensions5
     assert_eq!(v1.dimension(), 0);
@@ -261,13 +268,31 @@ mod tests {
   #[should_panic(expected = "Attachment cell has wrong dimension")]
   fn test_invalid_attachment_dimension() {
     let mut complex = CellComplex::new();
-    let v1 = complex.add_cell(0, vec![]);
-    let v2 = complex.add_cell(0, vec![]);
+    let v1 = complex.add_cell(0, &[]);
+    let v2 = complex.add_cell(0, &[]);
 
     // Try to attach a 1-cell to two 0-cells (should be valid)
-    let _e1 = complex.add_cell(1, vec![&v1, &v2]);
+    let _e1 = complex.add_cell(1, &[&v1, &v2]);
 
     // Try to attach a 2-cell to a 0-cell (should panic)
-    complex.add_cell(2, vec![&v1]);
+    complex.add_cell(2, &[&v1]);
+  }
+
+  #[test]
+  fn test_cell_complex_faces() {
+    let mut complex = CellComplex::new();
+
+    // Add a 0-cell (vertex)
+    let v1 = complex.add_cell(0, &[]);
+    let v2 = complex.add_cell(0, &[]);
+
+    // Add a 1-cell (edge) attached to the vertices
+    let e1 = complex.add_cell(1, &[&v1, &v2]);
+
+    // Check faces of the edge
+    let faces = complex.faces(&e1);
+    assert_eq!(faces.len(), 2);
+    assert!(faces.contains(&v1));
+    assert!(faces.contains(&v2));
   }
 }

@@ -175,6 +175,9 @@ impl Simplex {
   /// A [`Vec<Simplex>`] containing all $(k-1)$-dimensional faces. If the simplex is 0-dimensional,
   /// an empty vector is returned as it has no $( -1)$-dimensional faces in the typical sense.
   pub fn faces(&self) -> Vec<Self> {
+    if self.dimension == 0 {
+      return Vec::new();
+    }
     self
       .vertices
       .clone()
@@ -244,7 +247,7 @@ impl SimplicialComplex {
     self.simplices.get(&dimension).map(Vec::as_slice)
   }
 
-  pub fn homology<F: Field + Copy + std::fmt::Debug>(&self, k: usize) -> Homology<F> {
+  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
     let k_simplices = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
       let mut sorted = s.to_vec();
       sorted.sort_unstable();
@@ -305,10 +308,7 @@ impl SimplicialComplex {
   /// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have
   /// `ordered_km1_simplices.len()` rows and `ordered_k_simplices.len()` columns.
   /// Returns an empty or specially-dimensioned matrix if either basis is empty.
-  pub fn get_boundary_matrix<F: Field + Copy + std::fmt::Debug>(
-    &self,
-    k: usize,
-  ) -> DynamicDenseMatrix<F, RowMajor> {
+  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor> {
     let codomain_basis = if k == 0 {
       Vec::new()
     } else {
@@ -356,17 +356,16 @@ impl Collection for SimplicialComplex {
   fn is_empty(&self) -> bool { todo!() }
 }
 
-// impl Set for SimplicialComplex {
-//   fn minus(&self, other: &Self) -> Self { todo!() }
-
-//   fn meet(&self, other: &Self) -> Self { todo!() }
-
-//   fn join(&self, other: &Self) -> Self { todo!() }
-// }
-
 impl Topology for SimplicialComplex {
-  // TODO (autoparallel): Implement this. It  is the "star" of the simplex.
-  fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item> { todo!() }
+  fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item> {
+    let mut neighborhood = Vec::new();
+    for face in item.faces() {
+      if self.contains(&face) {
+        neighborhood.push(face);
+      }
+    }
+    neighborhood
+  }
 
   fn boundary<R: Ring + Copy>(&self, item: &Self::Item) -> Chain<Self, R> {
     if item.dimension == 0 {
@@ -379,7 +378,6 @@ impl Topology for SimplicialComplex {
     // self.vertices are sorted: v_0, v_1, ..., v_k
     // Boundary is sum_{i=0 to k} (-1)^i * [v_0, ..., ^v_i, ..., v_k]
     for i in 0..=item.dimension {
-      // i from 0 to k (k = self.dimension)
       let mut face_vertices = item.vertices.clone();
       face_vertices.remove(i); // Removes element at original index i (v_i)
 
@@ -828,5 +826,29 @@ mod tests {
   fn test_homology_sphere_surface_all_fields() {
     test_homology_sphere_surface_generic::<Boolean>();
     test_homology_sphere_surface_generic::<Mod7>();
+  }
+
+  #[test]
+  fn test_simplex_neighborhood() {
+    let mut complex = SimplicialComplex::new();
+    let s0 = Simplex::new(0, vec![0]);
+    let s1 = Simplex::new(0, vec![1]);
+    let s01 = Simplex::new(1, vec![0, 1]);
+    complex.join_simplex(s0.clone());
+    complex.join_simplex(s1.clone());
+    complex.join_simplex(s01.clone());
+
+    let neighborhood = complex.neighborhood(&s0);
+
+    dbg!(&neighborhood);
+    assert!(neighborhood.contains(&s01));
+    assert!(neighborhood.len() == 1);
+
+    let neighborhood = complex.neighborhood(&s1);
+    assert!(neighborhood.contains(&s01));
+    assert!(neighborhood.len() == 1);
+
+    let neighborhood = complex.neighborhood(&s01);
+    assert!(neighborhood.is_empty());
   }
 }

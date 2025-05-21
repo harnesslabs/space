@@ -1,39 +1,3 @@
-//! # Sheaves on Graphs
-//!
-//! This module provides an implementation of cellular sheaves over topological spaces,
-//! with a specific focus on undirected graphs.
-//!
-//! ## Concepts
-//!
-//! A sheaf is a mathematical structure that assigns data (vector spaces in this case) to
-//! points in a topological space, along with rules for how this data restricts between
-//! related points. Key components include:
-//!
-//! - **Stalks**: Vector spaces assigned to each point (vertices and edges in a graph)
-//! - **Restriction Maps**: Linear transformations between stalks of related points
-//! - **Sections**: Assignments of stalk elements to points that respect restriction maps
-//!
-//! ## Core Traits
-//!
-//! - `Presheaf`: Defines the basic structure of assigning data to points with restriction maps
-//! - `Sheaf`: Extends `Presheaf` with the ability to glue compatible local sections into global
-//!   ones
-//! - `Section`: Represents an assignment of data over an open set that can be evaluated at points
-//!
-//! ## Implementation
-//!
-//! `GraphSheaf` implements cellular sheaves over undirected graphs where:
-//!
-//! - Vertices and edges have stalks of possibly different dimensions
-//! - Restriction maps are specified as matrices
-//! - Sections are stored as hashmaps from graph points to vector values
-//!
-//! The implementation supports:
-//! - Restricting sections from larger to smaller domains
-//! - Gluing compatible sections (ones that agree on overlaps) into a single global section
-//!
-//! This structure is fundamental in applications like distributed consensus, signal processing
-//! on graphs, and modeling systems where local data must satisfy global constraints.
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
 use harness_algebra::{
@@ -61,7 +25,6 @@ where
   C: Category + Clone + Eq + Debug,
   C::Morphism: Clone + Debug,
 {
-  // TODO: Assert that there is a restriction for every "upset" of points
   /// TODO: We should make a builder API of some kind that forces the restrictions to be defined for
   /// all the successors at time of creation. In an ideal world, there would also be checking that
   /// the dimensions of matrices (for example) work out.
@@ -126,6 +89,7 @@ impl<F: Field + Copy> Category for DynamicVector<F> {
 
 #[cfg(test)]
 mod tests {
+  #![allow(clippy::type_complexity)]
   use harness_algebra::{modular, prime_field};
 
   use super::*;
@@ -138,9 +102,9 @@ mod tests {
   ) -> (CellComplex, HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>, Cell, Cell, Cell)
   {
     let mut cc = CellComplex::new();
-    let v1 = cc.add_cell(0, vec![]);
-    let v2 = cc.add_cell(0, vec![]);
-    let e1 = cc.add_cell(1, vec![&v1, &v2]);
+    let v1 = cc.add_cell(0, &[]);
+    let v2 = cc.add_cell(0, &[]);
+    let e1 = cc.add_cell(1, &[&v1, &v2]);
     let restrictions = HashMap::from([
       ((v1.clone(), e1.clone()), {
         let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
@@ -185,9 +149,9 @@ mod tests {
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(3), Mod7::from(3)])), // R^2
-      (e1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
+      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(3), Mod7::from(3)])), // R^2
+      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
   }
@@ -205,16 +169,16 @@ mod tests {
   ) {
     let mut cc = CellComplex::new();
     // Vertices
-    let v0 = cc.add_cell(0, vec![]); // R^1
-    let v1 = cc.add_cell(0, vec![]); // R^2
-    let v2 = cc.add_cell(0, vec![]); // R^3
-                                     // Edges
-    let e01 = cc.add_cell(1, vec![&v0, &v1]); // R^2
-    let e02 = cc.add_cell(1, vec![&v0, &v2]); // R^2
-    let e12 = cc.add_cell(1, vec![&v1, &v2]); // R^2
+    let v0 = cc.add_cell(0, &[]); // R^1
+    let v1 = cc.add_cell(0, &[]); // R^2
+    let v2 = cc.add_cell(0, &[]); // R^3
+                                  // Edges
+    let e01 = cc.add_cell(1, &[&v0, &v1]); // R^2
+    let e02 = cc.add_cell(1, &[&v0, &v2]); // R^2
+    let e12 = cc.add_cell(1, &[&v1, &v2]); // R^2
 
     // Faces
-    let f012 = cc.add_cell(2, vec![&e01, &e02, &e12]); // R^3
+    let f012 = cc.add_cell(2, &[&e01, &e02, &e12]); // R^3
 
     let restrictions = HashMap::from([
       ((v0.clone(), e01.clone()), {
