@@ -1,31 +1,142 @@
+//! ## Homology Module
+//!
+//! This module provides structures and implementations for computing and representing
+//! homology groups of topological spaces. Homology is a fundamental concept in
+//! algebraic topology, assigning a sequence of algebraic objects (typically abelian
+//! groups or modules) to a topological space. These objects, known as homology
+//! groups, capture information about the "holes" of different dimensions in the space.
+//!
+//! ### Key Concepts:
+//!
+//! - **Chains**: A $k$-chain is a formal sum of $k$-items in a topological space $X$, with
+//!   coefficients in a ring $R$. It is an element of the chain group $C_k(X; R)$. Represented by
+//!   the [`Chain`] struct.
+//!
+//! - **Boundary Operator**: The boundary operator $\partial_k: C_k(X; R) \to C_{k-1}(X; R)$ maps a
+//!   $k$-chain to a $(k-1)$-chain representing its boundary. A key property is that $\partial_{k-1}
+//!   \circ \partial_k = 0$.
+//!
+//! - **Cycles**: A $k$-cycle is a $k$-chain whose boundary is zero. The set of $k$-cycles forms a
+//!   subgroup $Z_k(X; R) = \text{ker}(\partial_k)$ of $C_k(X; R)$.
+//!
+//! - **Boundaries**: A $k$-boundary is a $k$-chain that is the boundary of some $(k+1)$-chain. The
+//!   set of $k$-boundaries forms a subgroup $B_k(X; R) = \text{im}(\partial_{k+1})$ of $C_k(X; R)$.
+//!   Since $\partial \circ \partial = 0$, every boundary is a cycle, so $B_k(X; R) \subseteq Z_k(X;
+//!   R)$.
+//!
+//! - **Homology Groups**: The $k$-th homology group $H_k(X; R)$ is defined as the quotient group:
+//!   $$ H_k(X; R) = Z_k(X; R) / B_k(X; R) $$ Its elements are equivalence classes of $k$-cycles,
+//!   where two cycles are equivalent if their difference is a $k$-boundary.
+//!
+//! - **Betti Numbers**: When $R$ is a field, $H_k(X; R)$ is a vector space over $R$. Its dimension,
+//!   $\beta_k = \text{dim}(H_k(X; R))$, is called the $k$-th Betti number. It counts the number of
+//!   $k$-dimensional holes in $X$.
+//!
+//! This module provides the [`Chain`] struct to represent chains and implements
+//! operations like addition, negation, and multiplication by a scalar (coefficient).
+//! The [`Homology`] struct is used to store the results of a homology computation,
+//! including Betti numbers and generators for the homology groups.
+//!
+//! The actual computation of homology groups (i.e., finding $Z_k$ and $B_k$ and
+//! then the quotient) typically involves constructing chain complexes and computing
+//! their homology, often using techniques like Smith Normal Form for integer
+//! coefficients or Gaussian elimination for field coefficients. This module focuses on
+//! the representation of chains and the final homology results.
+
 use std::{collections::HashMap, hash::Hash, mem, ops::Add};
 
 use harness_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
 
 use crate::definitions::Topology;
 
+/// Represents a $k$-chain in a topological space.
+///
+/// A $k$-chain is a formal sum of $k$-items (often simplices) in a topological space $X$,
+/// with coefficients in a ring $R$. It is an element of the chain group $C_k(X; R)$.
+///
+/// # Type Parameters
+///
+/// * `'a`: Lifetime parameter for the reference to the topological space.
+/// * `T`: The type of the topological space, implementing the [`Topology`] trait.
+/// * `R`: The type of the coefficients, typically a [`Ring`].
 #[derive(Clone, Debug)]
 pub struct Chain<'a, T: Topology, R> {
   /// The topological space this chain is part of.
-  space:            &'a T,
-  /// A vector of objects that are part of this chain.
+  pub space:        &'a T,
+  /// A vector of topological items (e.g., simplices) that constitute this chain.
+  /// Each item corresponds to a term in the formal sum.
   pub items:        Vec<T::Item>,
-  /// A vector of coefficients of type `R`, corresponding one-to-one with the `simplices`.
-  /// `coefficients[i]` is the coefficient for `simplices[i]`.
+  /// A vector of coefficients of type `R`, corresponding one-to-one with the `items`.
+  /// `coefficients[i]` is the coefficient for `items[i]`.
   pub coefficients: Vec<R>,
 }
 
 impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
+  /// Creates a new, empty chain associated with the given topological space.
+  ///
+  /// The resulting chain has no items and no coefficients.
+  ///
+  /// # Arguments
+  ///
+  /// * `space`: A reference to the topological space this chain belongs to.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Chain`] instance with empty `items` and `coefficients` vectors.
   pub const fn new(space: &'a T) -> Self { Self { space, items: vec![], coefficients: vec![] } }
 
+  /// Creates a new chain from a single item and its coefficient.
+  ///
+  /// # Arguments
+  ///
+  /// * `space`: A reference to the topological space.
+  /// * `item`: The topological item (e.g., a simplex).
+  /// * `coeff`: The coefficient for the item.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Chain`] instance representing `coeff * item`.
   pub fn from_item_and_coeff(space: &'a T, item: T::Item, coeff: R) -> Self {
     Self { space, items: vec![item], coefficients: vec![coeff] }
   }
 
-  pub fn from_items_and_coeffs(space: &'a T, items: Vec<T::Item>, coeffs: Vec<R>) -> Self {
+  /// Creates a new chain from a vector of items and a corresponding vector of coefficients.
+  ///
+  /// The `items` and `coeffs` vectors must have the same length.
+  ///
+  /// # Arguments
+  ///
+  /// * `space`: A reference to the topological space.
+  /// * `items`: A vector of topological items.
+  /// * `coeffs`: A vector of coefficients, where `coeffs[i]` corresponds to `items[i]`.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Chain`] instance.
+  ///
+  /// # Panics
+  ///
+  /// This function does not explicitly panic if lengths differ, but behavior is undefined
+  /// if `items` and `coeffs` have different lengths when used in subsequent operations.
+  /// Consider adding a panic or returning a `Result` in a future revision if this is a concern.
+  pub const fn from_items_and_coeffs(space: &'a T, items: Vec<T::Item>, coeffs: Vec<R>) -> Self {
     Self { space, items, coefficients: coeffs }
   }
 
+  /// Computes the boundary of this chain.
+  ///
+  /// The boundary of a chain $\sum_i c_i \sigma_i$ is defined as $\sum_i c_i \partial(\sigma_i)$,
+  /// where $\partial(\sigma_i)$ is the boundary of the item $\sigma_i$ as defined by the
+  /// [`Topology::boundary()`] method.
+  ///
+  /// # Type Constraints
+  ///
+  /// * `R`: Must be `Copy` to allow coefficients to be scaled.
+  /// * `T::Item`: Must be `PartialEq` for combining terms in the resulting boundary chain.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Chain`] representing the boundary of `self`.
   pub fn boundary(&self) -> Self
   where
     R: Copy,
@@ -39,9 +150,29 @@ impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
     total_boundary
   }
 
-  /// Converts this chain to a coefficient vector in the basis given by the mapping.
-  /// The mapping should be from basis elements to their indices in the basis.
-  /// The resulting vector will have length equal to the basis size.
+  /// Converts this chain to a coefficient vector in a given basis.
+  ///
+  /// The basis is implicitly defined by `basis_map`, which maps items (basis elements)
+  /// to their corresponding indices in the coefficient vector. The `basis_size` determines
+  /// the length of the output vector.
+  ///
+  /// Items in the chain that are not found in `basis_map` are ignored.
+  ///
+  /// # Arguments
+  ///
+  /// * `basis_map`: A hash map from references to items (`&T::Item`) to their `usize` indices in
+  ///   the basis representation.
+  /// * `basis_size`: The total number of elements in the basis, defining the length of the
+  ///   resulting vector.
+  ///
+  /// # Type Constraints
+  ///
+  /// * `T::Item`: Must be `Hash + Eq` to be used as keys in `basis_map`.
+  /// * `R`: Must be `Ring + Copy` for coefficient operations and initialization of the vector.
+  ///
+  /// # Returns
+  ///
+  /// A [`DynamicVector<R>`] representing the coefficients of this chain in the specified basis.
   pub fn to_coeff_vector(
     &self,
     basis_map: &HashMap<&T::Item, usize>,
@@ -66,17 +197,18 @@ where T::Item: PartialEq
 {
   /// Checks if two chains are equal.
   ///
-  /// Two chains are considered equal if they represent the same formal sum of simplices.
-  /// This means they must have the same set of simplices, each with the same corresponding
-  /// coefficient. This implementation also considers the orientation of simplices (via
-  /// `permutation_sign`) and the equality of their vertex lists, which might be overly strict or
-  /// not standard depending on the context (usually, chains are simplified so simplices are
-  /// unique and then coefficients are compared).
+  /// Two chains are considered equal if they represent the same formal sum of items.
+  /// This means they must have the same set of items, each with the same corresponding
+  /// coefficient. The order of items matters in this comparison.
   ///
-  /// **Note:** The current equality check based on `permutation_sign` and exact order in zipped
-  /// iterators might be problematic if chains are not in a canonical form (e.g., sorted
-  /// simplices, combined like terms). A more robust equality would typically involve converting
-  /// both chains to a canonical representation first.
+  /// # Note
+  ///
+  /// This implementation performs a strict, element-wise comparison of items and
+  /// coefficients based on their current order in the respective vectors. For a more
+  /// robust equality check that is invariant to the order of terms or handles
+  /// chains not in a canonical form (e.g., with zero coefficients or uncombined like
+  /// terms), the chains should first be normalized (e.g., sort items, combine
+  /// like terms, remove zero-coefficient terms).
   fn eq(&self, other: &Self) -> bool {
     let self_chain = self.coefficients.iter().zip(self.items.iter());
     let other_chain = other.coefficients.iter().zip(other.items.iter());
@@ -94,18 +226,28 @@ where T::Item: PartialEq
 
   /// Adds two chains together, combining like terms by adding their coefficients.
   ///
-  /// The resulting chain will only contain simplices with non-zero coefficients.
-  /// Simplices are compared for equality to identify like terms.
+  /// The resulting chain will only contain items with non-zero coefficients.
+  /// Items are compared for equality to identify like terms.
   ///
-  /// # Type Constraints
-  /// * `R` must implement `Add<Output = R>`, `Neg<Output = R>`, `Zero`. (Note: The original doc
-  ///   mentioned Clone for R, this version avoids it).
+  /// # Example
+  ///
+  /// ```
+  /// // Assuming appropriate types and `new_chain` helper for brevity
+  /// // let chain1 = new_chain(space, vec![item_a, item_b], vec![coeff1, coeff2]);
+  /// // let chain2 = new_chain(space, vec![item_b, item_c], vec![coeff3, coeff4]);
+  /// // let sum_chain = chain1 + chain2;
+  /// // sum_chain might be, for example:
+  /// // items: [item_a, item_b, item_c]
+  /// // coeffs: [coeff1, coeff2 + coeff3, coeff4]
+  /// // (Assuming item_a, item_b, item_c are distinct and all resulting coeffs are non-zero)
+  /// ```
   ///
   /// # Note
-  /// This implementation assumes that the input chains might contain simplices of mixed dimensions
-  /// or unsorted simplices. It iterates through both chains and combines terms. A more efficient
-  /// approach for chains known to be of the same dimension and built from a sorted basis would
-  /// use a different strategy.
+  ///
+  /// This implementation iterates through both chains and combines terms. It aims to be
+  /// correct for chains that might not be in a canonical form (e.g., unsorted items,
+  /// duplicate items before addition). After addition, terms with zero coefficients
+  /// are removed.
   fn add(self, other: Self) -> Self::Output {
     let mut result_items = Vec::new();
     let mut result_coefficients: Vec<R> = Vec::new();
@@ -199,6 +341,15 @@ where T::Item: PartialEq
 {
   type Output = Self;
 
+  /// Negates a chain by negating all its coefficients.
+  ///
+  /// If the chain is $C = \sum_i c_i \sigma_i$, its negation is $-C = \sum_i (-c_i) \sigma_i$.
+  /// The items in the chain remain the same.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Chain`] where each coefficient is the negation of the corresponding
+  /// coefficient in the original chain.
   fn neg(self) -> Self::Output {
     Self {
       space:        self.space,
@@ -213,6 +364,15 @@ where T::Item: PartialEq
 {
   type Output = Self;
 
+  /// Subtracts one chain from another.
+  ///
+  /// This is equivalent to adding the first chain to the negation of the second chain
+  /// ($A - B = A + (-B)$).
+  /// Like terms are combined, and terms with zero coefficients are removed from the result.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Chain`] representing the difference `self - other`.
   fn sub(self, other: Self) -> Self::Output { self + (-other) }
 }
 
@@ -224,6 +384,24 @@ where
 {
   type Output = Self;
 
+  /// Multiplies a chain by a scalar (coefficient) from the right.
+  ///
+  /// Each coefficient in the chain is multiplied by the scalar.
+  /// If the chain is $C = \sum_i c_i \sigma_i$, and $s$ is a scalar, then $C \cdot s = \sum_i (c_i
+  /// \cdot s) \sigma_i$. The items in the chain remain the same.
+  ///
+  /// If the scalar `other` is zero, the resulting chain will have all zero coefficients.
+  /// Note: The current implementation does not automatically remove zero-coefficient terms
+  /// that result from this multiplication, unlike `add` or `boundary`. This could be a
+  /// point of refinement if a canonical form (no zero terms) is always desired.
+  ///
+  /// # Arguments
+  ///
+  /// * `other`: The scalar of type `R` to multiply the chain's coefficients by.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Chain`] where each original coefficient has been multiplied by `other`.
   fn mul(self, other: R) -> Self::Output {
     Chain::from_items_and_coeffs(
       self.space,
@@ -233,22 +411,50 @@ where
   }
 }
 
+/// Represents the $k$-th homology group $H_k(X; R)$ of a topological space $X$
+/// with coefficients in a ring $R$.
+///
+/// It stores the Betti number (rank of the homology group) and a set of generators
+/// for the homology group.
+///
+/// # Type Parameters
+///
+/// * `R`: The type of the coefficients, which must implement [`Ring`] and `Copy`.
 #[derive(Debug, Clone)]
 pub struct Homology<R>
 where R: Ring + Copy {
+  // Note: While struct definition has `Ring + Copy`, individual fields might not always need
+  // `Copy` if data is owned.
   /// The dimension $k$ for which this homology group $H_k$ is computed.
   pub dimension:           usize,
-  /// The Betti number $b_k = \text{rank}(H_k(X; R))$. For field coefficients,
-  /// this is the dimension of $H_k$ as a vector space over $R$.
+  /// The Betti number $\beta_k = \text{rank}(H_k(X; R))$.
+  ///
+  /// For field coefficients, this is the dimension of $H_k(X; R)$ as a vector space over $R$.
+  /// It represents the number of $k$-dimensional "holes" in the space.
   pub betti_number:        usize,
   /// A basis for the homology group $H_k = Z_k / B_k$.
-  /// Each element is a [`Chain<R>`] representing a homology class generator.
+  ///
+  /// Each element is a [`DynamicVector<R>`] representing a homology class generator.
+  /// These vectors are typically coefficient vectors in some chosen basis for the $k$-cycles.
   pub homology_generators: Vec<DynamicVector<R>>,
 }
 
 impl<R> Homology<R>
 where R: Ring + Copy
 {
+  /// Creates a trivial homology group for a given dimension.
+  ///
+  /// A trivial homology group has a Betti number of 0 and no generators.
+  /// This is often used as a placeholder or for dimensions where homology is known to be zero.
+  ///
+  /// # Arguments
+  ///
+  /// * `dimension`: The dimension $k$ for this trivial homology group $H_k$.
+  ///
+  /// # Returns
+  ///
+  /// A new [`Homology`] instance with `betti_number` set to 0 and an empty
+  /// `homology_generators` vector.
   pub const fn trivial(dimension: usize) -> Self {
     Self { dimension, betti_number: 0, homology_generators: Vec::new() }
   }
