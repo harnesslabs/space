@@ -80,6 +80,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "harness"
+version = "0.1.0"
+dependencies = [
+ "harness-algebra",
+ "harness-space",
+]
+
+[[package]]
 name = "harness-algebra"
 version = "0.5.0"
 dependencies = [

@@ -1,0 +1,15 @@
+[package]
+name = "harness"
+
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+keywords.workspace = true
+license.workspace = true
+readme.workspace = true
+repository.workspace = true
+version.workspace = true
+
+[dependencies]
+harness-algebra = { workspace = true }
+harness-space = { workspace = true }
