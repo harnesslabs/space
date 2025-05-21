@@ -75,28 +75,53 @@ where
   }
 
   pub fn is_global_section(&self, section: HashMap<T::Item, C>) -> bool {
-    // TODO: Go through the poset and check if the section is compatible with the restrictions
-    let space = &self.space;
-    for element in self.space.minimal_elements() {
-      dbg!(&element);
-      let upset = space.upset(element.clone());
-      for other in upset {
-        dbg!(&other);
-        let restriction = self.restrictions.get(&(element.clone(), other.clone())).unwrap();
-        dbg!(&restriction);
-        let data = section.get(&element).unwrap().clone();
-        dbg!(&data);
-        let restricted = C::apply(restriction.clone(), data);
-        dbg!(&restricted);
-        if !section.contains_key(&element) {
+    // A global section must be defined on all elements involved in restrictions
+    // and its values must be consistent with all restriction maps.
+
+    for ((parent_item, child_item), restriction_map) in self.restrictions.iter() {
+      // Ensure the section provides data for both parent and child items
+      let parent_data = match section.get(parent_item) {
+        Some(data) => data,
+        None => {
+          // Section data missing for the 'parent' of a restriction
+          // dbg!(format!("Global section check: Data missing for parent item {:?}", parent_item));
           return false;
-        }
-        let data = section.get(&other).unwrap().clone();
-        if !(data == restricted) {
+        },
+      };
+
+      let child_data_from_section = match section.get(child_item) {
+        Some(data) => data,
+        None => {
+          // Section data missing for the 'child' of a restriction
+          // dbg!(format!("Global section check: Data missing for child item {:?}", child_item));
           return false;
-        }
+        },
+      };
+
+      // Apply the restriction map
+      // The .clone() calls are necessary because C and C::Morphism might not be Copy,
+      // and we're borrowing from `section` and `self.restrictions`.
+      let restricted_parent_data = C::apply(restriction_map.clone(), parent_data.clone());
+
+      // Check for consistency
+      if restricted_parent_data != *child_data_from_section {
+        // Data in section is not consistent with the restriction map
+        // dbg!(format!("Global section check: Restriction inconsistent for ({:?}, {:?})",
+        // parent_item, child_item)); dbg!(format!("Expected (from restriction): {:?}, Got
+        // (from section): {:?}", restricted_parent_data, child_data_from_section));
+        return false;
       }
     }
+
+    // If all defined restrictions are satisfied by the section data,
+    // and the section provides data for all items involved in these restrictions,
+    // then it's a global section with respect to these defined restrictions.
+    // Note: This does not check if the section covers *all* elements of the space T,
+    // only those involved in the `self.restrictions` map. For a section to be "globally defined
+    // on T", one might add further checks, e.g., ensuring `section.keys()` covers all
+    // elements of `self.space.all_elements()` if such a method were available and required.
+    // However, the core of "being a section" is consistency with restriction maps.
+
     true
   }
 }
@@ -152,103 +177,6 @@ mod tests {
     (cc, restrictions, v1, v2, e1)
   }
 
-  fn cell_complex_2d() -> (
-    CellComplex,
-    HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-  ) {
-    let mut cc = CellComplex::new();
-    // Vertices
-    let v0 = cc.add_cell(0, vec![]); // R^1
-    let v1 = cc.add_cell(0, vec![]); // R^2
-    let v2 = cc.add_cell(0, vec![]); // R^3
-                                     // Edges
-    let e01 = cc.add_cell(1, vec![&v0, &v1]); // R^2
-    let e02 = cc.add_cell(1, vec![&v0, &v2]); // R^2
-    let e12 = cc.add_cell(1, vec![&v1, &v2]); // R^2
-
-    // Faces
-    let f012 = cc.add_cell(2, vec![&e01, &e02, &e12]); // R^3
-
-    let restrictions = HashMap::from([
-      ((v0.clone(), e01.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
-        mat
-      }),
-      ((v1.clone(), e01.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
-        mat
-      }),
-      ((v0.clone(), e02.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(1),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(1),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(0),
-          Mod7::from(1),
-        ]));
-        mat
-      }),
-      ((v2.clone(), e02.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
-        mat
-      }),
-      ((v1.clone(), e12.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
-        mat
-      }),
-      ((v2.clone(), e12.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
-        mat
-      }),
-      ((e01.clone(), f012.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
-        mat
-      }),
-      ((e02.clone(), f012.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
-        mat
-      }),
-      ((e12.clone(), f012.clone()), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
-        mat
-      }),
-    ]);
-
-    let filename = "test_cell_complex_2d.dot";
-    println!("--- Cell Complex Example - Saving to {filename} ---");
-    cc.attachment_lattice.save_to_dot_file(filename).expect("Failed to save Cell Complex");
-
-    (cc, restrictions, v0, v1, v2, e01, e02, e12, f012)
-  }
-
   #[test]
   fn test_sheaf_global_section_1d() {
     let (cc, restrictions, v1, v2, e1) = cell_complex_1d();
@@ -284,20 +212,128 @@ mod tests {
     assert!(!sheaf.is_global_section(section));
   }
 
+  fn cell_complex_2d() -> (
+    CellComplex,
+    HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>,
+    Cell,
+    Cell,
+    Cell,
+    Cell,
+    Cell,
+    Cell,
+    Cell,
+  ) {
+    let mut cc = CellComplex::new();
+    // Vertices
+    let v0 = cc.add_cell(0, vec![]); // R^1
+    let v1 = cc.add_cell(0, vec![]); // R^2
+    let v2 = cc.add_cell(0, vec![]); // R^3
+                                     // Edges
+    let e01 = cc.add_cell(1, vec![&v0, &v1]); // R^2
+    let e02 = cc.add_cell(1, vec![&v0, &v2]); // R^2
+    let e12 = cc.add_cell(1, vec![&v1, &v2]); // R^2
+
+    // Faces
+    let f012 = cc.add_cell(2, vec![&e01, &e02, &e12]); // R^3
+
+    let restrictions = HashMap::from([
+      ((v0.clone(), e01.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
+        mat
+      }),
+      ((v1.clone(), e01.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(1)]));
+        mat
+      }),
+      ((v0.clone(), e02.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
+        mat
+      }),
+      ((v2.clone(), e02.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
+        mat
+      }),
+      ((v1.clone(), e12.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
+        mat
+      }),
+      ((v2.clone(), e12.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
+        mat
+      }),
+      ((e01.clone(), f012.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![
+          Mod7::from(1),
+          Mod7::from(2),
+          Mod7::from(0),
+        ]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![
+          Mod7::from(0),
+          Mod7::from(0),
+          Mod7::from(1),
+        ]));
+        mat
+      }),
+      ((e02.clone(), f012.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![
+          Mod7::from(1),
+          Mod7::from(2),
+          Mod7::from(0),
+        ]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![
+          Mod7::from(0),
+          Mod7::from(0),
+          Mod7::from(1),
+        ]));
+        mat
+      }),
+      ((e12.clone(), f012.clone()), {
+        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![
+          Mod7::from(1),
+          Mod7::from(2),
+          Mod7::from(0),
+        ]));
+        mat.append_column(&DynamicVector::<Mod7>::new(vec![
+          Mod7::from(0),
+          Mod7::from(0),
+          Mod7::from(1),
+        ]));
+        mat
+      }),
+    ]);
+
+    (cc, restrictions, v0, v1, v2, e01, e02, e12, f012)
+  }
+
   #[test]
   fn test_sheaf_global_section_2d() {
-    let (cc, restrictions, v1, v2, v3, e12, e13, e23, f123) = cell_complex_2d();
+    let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = cell_complex_2d();
 
     let sheaf = Sheaf::<CellComplex, DynamicVector<Mod7>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v1.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (v3.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2), Mod7::from(3)])), /* R^3 */
-      (e12.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
-      (e13.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
-      (e23.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
-      (f123.clone(), DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4), Mod7::from(6)])), /* R^3 */
+      (v0, DynamicVector::<Mod7>::new(vec![Mod7::from(1)])), // R^1
+      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
+      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2), Mod7::from(3)])), // R^3
+      (e01, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (e02, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (e12, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (f012, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4), Mod7::from(6)])), // R^3
     ]);
     assert!(sheaf.is_global_section(section));
   }

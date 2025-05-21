@@ -15,11 +15,7 @@
 //! This module is suitable for applications in topological data analysis, sheaf theory, and related
 //! areas.
 
-use std::{
-  cell::RefCell,
-  collections::HashMap,
-  rc::{Rc, Weak},
-};
+use std::collections::HashMap;
 
 use crate::{
   definitions::Topology,
@@ -42,10 +38,10 @@ pub struct Cell {
 
 impl Cell {
   /// Returns the dimension of this cell
-  pub fn dimension(&self) -> usize { self.dimension }
+  pub const fn dimension(&self) -> usize { self.dimension }
 
   /// Returns the unique identifier of this cell
-  pub fn id(&self) -> usize { self.id }
+  pub const fn id(&self) -> usize { self.id }
 }
 
 /// A cell complex representing a collection of cells with their attachment relationships.
