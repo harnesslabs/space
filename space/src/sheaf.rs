@@ -82,7 +82,7 @@ impl<T, C> Sheaf<T, C>
 where
   T: Topology + Poset,
   T::Item: Hash + Eq + Clone + Debug,
-  C: Category + Clone + Eq + Debug,
+  C: Category + Clone + PartialEq + Debug,
   C::Morphism: Clone + Debug,
 {
   /// Creates a new sheaf from a given topological space and a set of restriction maps.
@@ -211,42 +211,37 @@ where
     }
     true
   }
+
+  pub fn coboundary(&self, dimension: usize) -> C::Morphism { todo!() }
 }
 
 #[cfg(test)]
 mod tests {
   #![allow(clippy::type_complexity)]
-  use harness_algebra::{
-    modular, prime_field,
-    tensors::dynamic::{
-      matrix::{DynamicDenseMatrix, RowMajor},
-      vector::DynamicVector,
-    },
+  use harness_algebra::tensors::dynamic::{
+    matrix::{DynamicDenseMatrix, RowMajor},
+    vector::DynamicVector,
   };
 
   use super::*;
   use crate::complexes::cell::{Cell, CellComplex};
 
-  modular!(Mod7, u32, 7);
-  prime_field!(Mod7);
-
   fn cell_complex_1d(
-  ) -> (CellComplex, HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>, Cell, Cell, Cell)
-  {
+  ) -> (CellComplex, HashMap<(Cell, Cell), DynamicDenseMatrix<f64, RowMajor>>, Cell, Cell, Cell) {
     let mut cc = CellComplex::new();
     let v1 = cc.add_cell(0, &[]);
     let v2 = cc.add_cell(0, &[]);
     let e1 = cc.add_cell(1, &[&v1, &v2]);
     let restrictions = HashMap::from([
       ((v1, e1), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 2.0]));
         mat
       }),
       ((v2, e1), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
         mat
       }),
     ]);
@@ -257,40 +252,40 @@ mod tests {
   fn test_sheaf_global_section_1d() {
     let (cc, restrictions, v1, v2, e1) = cell_complex_1d();
 
-    let sheaf = Sheaf::<CellComplex, DynamicVector<Mod7>>::new(cc, restrictions);
+    let sheaf = Sheaf::<CellComplex, DynamicVector<f64>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (v1, DynamicVector::<f64>::new(vec![2.0])),      // R^1
+      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(1)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (v1, DynamicVector::<f64>::new(vec![1.0])),      // R^1
+      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
+      (v1, DynamicVector::<f64>::new(vec![2.0])),      // R^1
+      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(3), Mod7::from(3)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (v1, DynamicVector::<f64>::new(vec![2.0])),      // R^1
+      (v2, DynamicVector::<f64>::new(vec![3.0, 3.0])), // R^2
+      (e1, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
   }
 
   fn cell_complex_2d() -> (
     CellComplex,
-    HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>,
+    HashMap<(Cell, Cell), DynamicDenseMatrix<f64, RowMajor>>,
     Cell,
     Cell,
     Cell,
@@ -314,81 +309,57 @@ mod tests {
 
     let restrictions = HashMap::from([
       ((v0, e01), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 2.0]));
         mat
       }),
       ((v1, e01), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(1)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0]));
         mat
       }),
       ((v0, e02), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
         mat
       }),
       ((v2, e02), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
       ((v1, e12), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
         mat
       }),
       ((v2, e12), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
       ((e01, f012), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(2),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
       ((e02, f012), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(2),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(1),
-          Mod7::from(0),
-        ]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0]));
         mat
       }),
       ((e12, f012), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(1),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
     ]);
@@ -400,16 +371,16 @@ mod tests {
   fn test_sheaf_global_section_2d() {
     let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = cell_complex_2d();
 
-    let sheaf = Sheaf::<CellComplex, DynamicVector<Mod7>>::new(cc, restrictions);
+    let sheaf = Sheaf::<CellComplex, DynamicVector<f64>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v0, DynamicVector::<Mod7>::new(vec![Mod7::from(1)])), // R^1
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2), Mod7::from(3)])), // R^3
-      (e01, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e02, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)])), // R^2
-      (e12, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
-      (f012, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0), Mod7::from(0)])), // R^3
+      (v0, DynamicVector::<f64>::new(vec![1.0])),      // R^1
+      (v1, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0, 3.0])), // R^3
+      (e01, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e02, DynamicVector::<f64>::new(vec![1.0, 0.0])), // R^2
+      (e12, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
+      (f012, DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0])), // R^3
     ]);
     assert!(sheaf.is_global_section(&section));
   }
