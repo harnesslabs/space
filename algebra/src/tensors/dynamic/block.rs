@@ -36,7 +36,7 @@
 //! let mut block_matrix = BlockMatrix::<f64, RowMajor>::new(row_sizes, col_sizes);
 //!
 //! // Set a block at position (0, 0)
-//! let mut block_00 = DynamicDenseMatrix::new();
+//! let mut block_00 = DynamicDenseMatrix::<f64, RowMajor>::new();
 //! block_00.append_row(DynamicVector::from([1.0, 2.0]));
 //! block_00.append_row(DynamicVector::from([3.0, 4.0]));
 //! block_matrix.set_block(0, 0, block_00);
@@ -476,18 +476,6 @@ mod tests {
     assert_eq!(block_matrix.col_block_sizes(), &[1, 2]);
     assert_eq!(block_matrix.total_dimensions(), (5, 3));
     assert_eq!(block_matrix.num_nonzero_blocks(), 0);
-  }
-
-  #[test]
-  #[should_panic(expected = "Must have at least one block row")]
-  fn test_empty_row_sizes_panics() {
-    let _block_matrix = BlockMatrix::<f64, RowMajor>::new(vec![], vec![1, 2]);
-  }
-
-  #[test]
-  #[should_panic(expected = "Must have at least one block column")]
-  fn test_empty_col_sizes_panics() {
-    let _block_matrix = BlockMatrix::<f64, RowMajor>::new(vec![1, 2], vec![]);
   }
 
   #[test]

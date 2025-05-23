@@ -42,7 +42,7 @@
 //! use harness_algebra::tensors::fixed::FixedVector;
 //! use harness_space::{
 //!   cloud::Cloud,
-//!   complexes::simplicial::SimplicialComplex,
+//!   complexes::SimplicialComplex,
 //!   filtration::{vietoris_rips::VietorisRips, Filtration},
 //! };
 //!
@@ -58,9 +58,9 @@
 //! // Build the complex with epsilon = 1.1 (all points are within this distance)
 //! let complex = vr_builder.build(&cloud, 1.1, &());
 //!
-//! assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3); // 3 vertices
-//! assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3); // 3 edges
-//! assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1); // 1 triangle (2-simplex)
+//! assert_eq!(complex.elements_of_dimension(0).len(), 3); // 3 vertices
+//! assert_eq!(complex.elements_of_dimension(1).len(), 3); // 3 edges
+//! assert_eq!(complex.elements_of_dimension(2).len(), 1); // 1 triangle (2-simplex)
 //! ```
 //!
 //! When the `"parallel"` feature is enabled, this module also provides implementations for
