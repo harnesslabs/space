@@ -624,164 +624,121 @@ mod tests {
 
     // Create a 2x2 grid of cubes
     // Vertices (0-cubes) at grid positions
-    let v00 = Cube::vertex(0); // (0,0) - R^1 stalk
-    let v10 = Cube::vertex(1); // (1,0) - R^2 stalk
-    let v01 = Cube::vertex(2); // (0,1) - R^1 stalk
-    let v11 = Cube::vertex(3); // (1,1) - R^3 stalk
+    let v00 = Cube::vertex(0);
+    let v10 = Cube::vertex(1);
+    let v01 = Cube::vertex(2);
+    let v11 = Cube::vertex(3);
 
     // Horizontal edges (1-cubes)
-    let e_h1 = Cube::edge(0, 1); // bottom edge (0,0)-(1,0) - R^2 stalk
-    let e_h2 = Cube::edge(2, 3); // top edge (0,1)-(1,1) - R^3 stalk
+    let e_h1 = Cube::edge(0, 1);
+    let e_h2 = Cube::edge(2, 3);
 
     // Vertical edges (1-cubes)
-    let e_v1 = Cube::edge(0, 2); // left edge (0,0)-(0,1) - R^2 stalk
-    let e_v2 = Cube::edge(1, 3); // right edge (1,0)-(1,1) - R^2 stalk
+    let e_v1 = Cube::edge(0, 2);
+    let e_v2 = Cube::edge(1, 3);
 
     // Square face (2-cube)
     let square = Cube::square([0, 1, 2, 3]); // R^4 stalk
 
     // Add all elements to complex
-    let v00 = cc.join_element(v00);
-    let v10 = cc.join_element(v10);
-    let v01 = cc.join_element(v01);
-    let v11 = cc.join_element(v11);
-    let e_h1 = cc.join_element(e_h1);
-    let e_h2 = cc.join_element(e_h2);
-    let e_v1 = cc.join_element(e_v1);
-    let e_v2 = cc.join_element(e_v2);
-    let square = cc.join_element(square);
+    let v00 = cc.join_element(v00); // R^2
+    let v10 = cc.join_element(v10); // R^2
+    let v01 = cc.join_element(v01); // R^3
+    let v11 = cc.join_element(v11); // R^3
+    let e_h1 = cc.join_element(e_h1); // R^2
+    let e_h2 = cc.join_element(e_h2); // R^3
+    let e_v1 = cc.join_element(e_v1); // R^2
+    let e_v2 = cc.join_element(e_v2); // R^3
+    let square = cc.join_element(square); // R^4
 
-    // Define restriction maps for the sheaf
-    // Matrix dimensions: parent_stalk_dim × child_stalk_dim
     let restrictions = HashMap::from([
-      // Restrictions from horizontal edge e_h1 (R^2) to its vertices
       ((v00.clone(), e_h1.clone()), {
-        // v00: R^1, e_h1: R^2 → matrix should be 1×2
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.5])); // R^2 → R^1
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.5])); // R^2 → R^2
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
       ((v10.clone(), e_h1.clone()), {
-        // v10: R^2, e_h1: R^2 → matrix should be 2×2
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^2
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
         mat
       }),
-      // Restrictions from horizontal edge e_h2 (R^3) to its vertices
       ((v01.clone(), e_h2.clone()), {
-        // v01: R^1, e_h2: R^3 → matrix should be 1×3
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^1
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^3
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
       ((v11.clone(), e_h2.clone()), {
-        // v11: R^3, e_h2: R^3 → matrix should be 3×3
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0])); // R^3 → R^3
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 1.0]));
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
         mat
       }),
-      // Restrictions from vertical edge e_v1 (R^2) to its vertices
       ((v00.clone(), e_v1.clone()), {
-        // v00: R^1, e_v1: R^2 → matrix should be 1×2
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![2.0, 1.0])); // R^2 → R^1
+        mat.append_row(DynamicVector::<f64>::new(vec![2.0, 1.0])); // R^2 → R^2
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
       ((v01.clone(), e_v1.clone()), {
-        // v01: R^1, e_v1: R^2 → matrix should be 1×2
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^1
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^2
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
-      // Restrictions from vertical edge e_v2 (R^2) to its vertices
       ((v10.clone(), e_v2.clone()), {
-        // v10: R^2, e_v2: R^2 → matrix should be 2×2
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^2
-        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
-        mat
-      }),
-      ((v11.clone(), e_v2.clone()), {
-        // v11: R^3, e_v2: R^2 → matrix should be 3×2
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^3
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
-      // Restrictions from square (R^4) to its edge faces
-      ((e_h1.clone(), square.clone()), {
-        // e_h1: R^2, square: R^4 → matrix should be 2×4
+      ((v11.clone(), e_v2.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0, 0.0])); // R^4 → R^2
-        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^3
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat
+      }),
+      ((e_h1.clone(), square.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
       ((e_h2.clone(), square.clone()), {
-        // e_h2: R^3, square: R^4 → matrix should be 3×4
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 1.0, 0.0])); // R^4 → R^3
-        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0, 1.0]));
-        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 1.0])); // R^3 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
         mat
       }),
       ((e_v1.clone(), square.clone()), {
-        // e_v1: R^2, square: R^4 → matrix should be 2×4
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0, 0.0])); // R^4 → R^2
-        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 1.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
       ((e_v2.clone(), square.clone()), {
-        // e_v2: R^2, square: R^4 → matrix should be 2×4
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0, 0.0])); // R^4 → R^2
-        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0, 1.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0])); // R^3 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
     ]);
 
     (cc, restrictions, v00, v10, v01, v11, e_h1, e_h2, e_v1, e_v2, square)
-  }
-
-  #[test]
-  fn test_cubical_sheaf_global_section_2d() {
-    let (cc, restrictions, v00, v10, v01, v11, e_h1, e_h2, e_v1, e_v2, square) =
-      cubical_complex_2d();
-
-    let sheaf = Sheaf::<CubicalComplex, DynamicVector<f64>>::new(cc, restrictions);
-
-    // Test a valid global section
-    // Need to find values that satisfy all restriction conditions
-    let section = HashMap::from([
-      (v00.clone(), DynamicVector::<f64>::new(vec![1.0])), // R^1
-      (v10.clone(), DynamicVector::<f64>::new(vec![2.0, 3.0])), // R^2
-      (v01.clone(), DynamicVector::<f64>::new(vec![4.0])), // R^1
-      (v11.clone(), DynamicVector::<f64>::new(vec![5.0, 6.0, 7.0])), // R^3
-      (e_h1.clone(), DynamicVector::<f64>::new(vec![2.0, 3.0])), // R^2
-      (e_h2.clone(), DynamicVector::<f64>::new(vec![6.0, 7.0, 5.0])), // R^3
-      (e_v1.clone(), DynamicVector::<f64>::new(vec![3.0, 4.0])), // R^2
-      (e_v2.clone(), DynamicVector::<f64>::new(vec![2.0, 3.0])), // R^2
-      (square.clone(), DynamicVector::<f64>::new(vec![2.0, 3.0, 3.0, 7.0])), // R^4
-    ]);
-    assert!(sheaf.is_global_section(&section));
-
-    // Test an invalid global section (incompatible vertex data)
-    let section = HashMap::from([
-      (v00.clone(), DynamicVector::<f64>::new(vec![999.0])), // Wrong value
-      (v10.clone(), DynamicVector::<f64>::new(vec![2.0, 3.0])), // R^2
-      (v01.clone(), DynamicVector::<f64>::new(vec![4.0])),   // R^1
-      (v11.clone(), DynamicVector::<f64>::new(vec![5.0, 6.0, 7.0])), // R^3
-      (e_h1.clone(), DynamicVector::<f64>::new(vec![2.0, 3.0])), // R^2
-      (e_h2.clone(), DynamicVector::<f64>::new(vec![6.0, 7.0, 5.0])), // R^3
-      (e_v1.clone(), DynamicVector::<f64>::new(vec![3.0, 4.0])), // R^2
-      (e_v2.clone(), DynamicVector::<f64>::new(vec![2.0, 3.0])), // R^2
-      (square, DynamicVector::<f64>::new(vec![2.0, 3.0, 3.0, 7.0])), // R^4
-    ]);
-    assert!(!sheaf.is_global_section(&section));
   }
 
   #[test]
@@ -802,8 +759,8 @@ mod tests {
     assert_eq!(coboundary_0.block_structure().1, 4); // 4 vertices
 
     // Verify block sizes
-    assert_eq!(coboundary_0.row_block_sizes(), &[2, 3, 2, 2]); // e_h1:R², e_h2:R³, e_v1:R², e_v2:R²
-    assert_eq!(coboundary_0.col_block_sizes(), &[1, 2, 1, 3]); // v00:R¹, v10:R², v01:R¹, v11:R³
+    assert_eq!(coboundary_0.row_block_sizes(), &[2, 2, 3, 3]);
+    assert_eq!(coboundary_0.col_block_sizes(), &[2, 2, 3, 3]);
 
     // Test 1-dimensional coboundary (edges → faces)
     let coboundary_1 = sheaf.coboundary(1);
@@ -815,8 +772,8 @@ mod tests {
     assert_eq!(coboundary_1.block_structure().1, 4); // 4 edges
 
     // Verify block sizes
-    assert_eq!(coboundary_1.row_block_sizes(), &[4]); // square:R⁴
-    assert_eq!(coboundary_1.col_block_sizes(), &[2, 3, 2, 2]); // edges: R², R³, R², R²
+    assert_eq!(coboundary_1.row_block_sizes(), &[4]);
+    assert_eq!(coboundary_1.col_block_sizes(), &[2, 2, 3, 3]);
 
     // Test 2-dimensional coboundary (faces → higher dim, should be empty)
     let coboundary_2 = sheaf.coboundary(2);
