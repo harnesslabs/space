@@ -155,35 +155,31 @@ impl<T: ComplexElement> Complex<T> {
 
   /// Returns the maximum dimension of any element in the complex.
   pub fn max_dimension(&self) -> usize {
-    self.elements.values().map(|element| element.dimension()).max().unwrap_or(0)
+    self.elements.values().map(ComplexElement::dimension).max().unwrap_or(0)
   }
 
   /// Returns all direct faces of the given element.
   pub fn faces(&self, element: &T) -> Vec<T> {
-    if let Some(id) = element.id() {
+    element.id().map_or_else(Vec::new, |id| {
       self
         .attachment_lattice
         .predecessors(id)
         .into_iter()
         .filter_map(|face_id| self.get_element(face_id).cloned())
         .collect()
-    } else {
-      Vec::new()
-    }
+    })
   }
 
   /// Returns all direct cofaces (attachments) of the given element.
   pub fn cofaces(&self, element: &T) -> Vec<T> {
-    if let Some(id) = element.id() {
+    element.id().map_or_else(Vec::new, |id| {
       self
         .attachment_lattice
         .successors(id)
         .into_iter()
         .filter_map(|coface_id| self.get_element(coface_id).cloned())
         .collect()
-    } else {
-      Vec::new()
-    }
+    })
   }
 
   /// Computes the $k$-th homology group $H_k(X; F)$ of the complex $X$
@@ -201,8 +197,7 @@ impl<T: ComplexElement> Complex<T> {
   ///
   /// # Returns
   /// A `Homology<F>` struct containing the dimension, Betti number, and generators.
-  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F>
-  where T: ComplexElement {
+  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
     let k_elements = {
       let mut elements = self.elements_of_dimension(k);
       elements.sort_unstable();
@@ -442,7 +437,6 @@ impl<T: ComplexElement> Topology for Complex<T> {
         boundary_chain_coeffs.push(coeff);
       }
     }
-
     Chain::from_items_and_coeffs(self, boundary_chain_items, boundary_chain_coeffs)
   }
 }
