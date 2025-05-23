@@ -246,6 +246,10 @@ where T: Hash + Eq + Clone + Debug
   /// # Returns
   /// A block matrix representing δ^k: C^k → C^(k+1)
   pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> {
+    use std::collections::HashMap;
+
+    use harness_algebra::tensors::dynamic::{matrix::DynamicDenseMatrix, vector::DynamicVector};
+
     // Get sorted k-dimensional and (k+1)-dimensional elements
     let k_elements = {
       let mut elements = self.space.elements_of_dimension(dimension);
@@ -259,46 +263,97 @@ where T: Hash + Eq + Clone + Debug
       elements
     };
 
-    // Build the coboundary matrix
-    // Rows correspond to (k+1)-elements, columns to k-elements
-    let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
-
     if k_elements.is_empty() || k_plus_1_elements.is_empty() {
-      // Return empty block matrix with appropriate structure
-      let row_sizes =
-        if k_plus_1_elements.is_empty() { vec![1] } else { vec![k_plus_1_elements.len()] };
-      let col_sizes = if k_elements.is_empty() { vec![1] } else { vec![k_elements.len()] };
-      return BlockMatrix::new(row_sizes, col_sizes);
+      // Return empty block matrix with minimal structure
+      return BlockMatrix::new(vec![1], vec![1]);
     }
 
+    // Determine block sizes based on stalk dimensions
+    let mut col_block_sizes = Vec::new();
     for k_element in &k_elements {
-      let mut column = vec![F::zero(); k_plus_1_elements.len()];
+      // Find any restriction involving this k_element to determine its stalk dimension
+      let stalk_dim = self
+        .restrictions
+        .iter()
+        .find_map(|((from, to), matrix)| {
+          if from.same_content(k_element) {
+            Some(matrix.num_cols()) // When k_element is the source, its stalk dimension is num_cols
+          } else if to.same_content(k_element) {
+            Some(matrix.num_rows()) // When k_element is the target, its stalk dimension is num_rows
+          } else {
+            None
+          }
+        })
+        .unwrap_or(1); // Default to 1 if no restriction found
+      col_block_sizes.push(stalk_dim);
+    }
 
-      // For each (k+1)-element, check if k_element appears in its boundary
-      for (row_idx, k_plus_1_element) in k_plus_1_elements.iter().enumerate() {
+    let mut row_block_sizes = Vec::new();
+    for k_plus_1_element in &k_plus_1_elements {
+      // Find any restriction involving this (k+1)-element to determine its stalk dimension
+      let stalk_dim = self
+        .restrictions
+        .iter()
+        .find_map(|((from, to), matrix)| {
+          if from.same_content(k_plus_1_element) {
+            Some(matrix.num_cols()) // When k_plus_1_element is the source, its stalk dimension is
+                                    // num_cols
+          } else if to.same_content(k_plus_1_element) {
+            Some(matrix.num_rows()) // When k_plus_1_element is the target, its stalk dimension is
+                                    // num_rows
+          } else {
+            None
+          }
+        })
+        .unwrap_or(1); // Default to 1 if no restriction found
+      row_block_sizes.push(stalk_dim);
+    }
+
+    // Create the block matrix with proper structure
+    let mut block_matrix = BlockMatrix::new(row_block_sizes, col_block_sizes);
+
+    // Fill in the blocks
+    for (row_idx, k_plus_1_element) in k_plus_1_elements.iter().enumerate() {
+      for (col_idx, k_element) in k_elements.iter().enumerate() {
+        // Check if k_element appears in the boundary of k_plus_1_element
         let boundary_with_orientations = k_plus_1_element.boundary_with_orientations();
 
-        // Find the coefficient of k_element in the boundary of k_plus_1_element
         if let Some((_, orientation_coeff)) =
           boundary_with_orientations.iter().find(|(face, _)| face.same_content(k_element))
         {
-          column[row_idx] = if *orientation_coeff > 0 {
-            F::one()
-          } else if *orientation_coeff < 0 {
-            -F::one()
-          } else {
-            F::zero()
-          };
-        }
-        // If k_element is not in the boundary, coefficient remains zero
-      }
+          // k_element is in the boundary, so we need the restriction matrix
+          if let Some(restriction_matrix) =
+            self.restrictions.get(&(k_element.clone(), k_plus_1_element.clone()))
+          {
+            // Apply the orientation sign to the restriction matrix
+            let signed_matrix = if *orientation_coeff > 0 {
+              restriction_matrix.clone()
+            } else if *orientation_coeff < 0 {
+              // Multiply by -1
+              let mut negated = restriction_matrix.clone();
+              for i in 0..negated.num_rows() {
+                for j in 0..negated.num_cols() {
+                  let val = *negated.get_component(i, j);
+                  negated.set_component(i, j, -val);
+                }
+              }
+              negated
+            } else {
+              // Zero coefficient - create zero matrix
+              DynamicDenseMatrix::<F, RowMajor>::zeros(
+                block_matrix.row_block_sizes()[row_idx],
+                block_matrix.col_block_sizes()[col_idx],
+              )
+            };
 
-      matrix.append_column(&DynamicVector::new(column));
+            block_matrix.set_block(row_idx, col_idx, signed_matrix);
+          }
+          // If no restriction found, the block remains zero (not stored)
+        }
+        // If k_element is not in the boundary, the block remains zero (not stored)
+      }
     }
 
-    // Create a block matrix with a single block containing our dense matrix
-    let mut block_matrix = BlockMatrix::new(vec![k_plus_1_elements.len()], vec![k_elements.len()]);
-    block_matrix.set_block(0, 0, matrix);
     block_matrix
   }
 }
@@ -384,6 +439,48 @@ mod tests {
     let (cc, restrictions, v0, v1, e01) = simplicial_complex_1d();
     let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
     let coboundary = sheaf.coboundary(0);
+
+    // Expected structure: 1 block row × 2 block columns
+    // Block (0,0): 2×1 (from v0's R¹ stalk to e01's R² stalk)
+    // Block (0,1): 2×2 (from v1's R² stalk to e01's R² stalk)
+    assert_eq!(coboundary.block_structure(), (1, 2));
+    assert_eq!(coboundary.row_block_sizes(), &[2]); // e01 has R² stalk
+    assert_eq!(coboundary.col_block_sizes(), &[1, 2]); // v0 has R¹, v1 has R²
+
+    // Block (0,0): Should be -1 × [[1.0], [2.0]] = [[-1.0], [-2.0]]
+    // (since v0 has orientation coefficient -1 in ∂e01 = v1 - v0)
+    let block_00 = coboundary.get_block(0, 0).expect("Block (0,0) should exist");
+    assert_eq!(block_00.num_rows(), 2);
+    assert_eq!(block_00.num_cols(), 1);
+    assert_eq!(*block_00.get_component(0, 0), -1.0);
+    assert_eq!(*block_00.get_component(1, 0), -2.0);
+
+    // Block (0,1): Should be +1 × [[2.0, 0.0], [0.0, 2.0]] = [[2.0, 0.0], [0.0, 2.0]]
+    // (since v1 has orientation coefficient +1 in ∂e01 = v1 - v0)
+    let block_01 = coboundary.get_block(0, 1).expect("Block (0,1) should exist");
+    assert_eq!(block_01.num_rows(), 2);
+    assert_eq!(block_01.num_cols(), 2);
+    assert_eq!(*block_01.get_component(0, 0), 2.0);
+    assert_eq!(*block_01.get_component(0, 1), 0.0);
+    assert_eq!(*block_01.get_component(1, 0), 0.0);
+    assert_eq!(*block_01.get_component(1, 1), 2.0);
+
+    // Verify the flattened matrix is correct
+    let flattened = coboundary.flatten();
+    assert_eq!(flattened.num_rows(), 2);
+    assert_eq!(flattened.num_cols(), 3);
+
+    // Row 0: [-1, 2, 0]
+    assert_eq!(*flattened.get_component(0, 0), -1.0);
+    assert_eq!(*flattened.get_component(0, 1), 2.0);
+    assert_eq!(*flattened.get_component(0, 2), 0.0);
+
+    // Row 1: [-2, 0, 2]
+    assert_eq!(*flattened.get_component(1, 0), -2.0);
+    assert_eq!(*flattened.get_component(1, 1), 0.0);
+    assert_eq!(*flattened.get_component(1, 2), 2.0);
+
+    println!("Coboundary matrix:");
     println!("{}", coboundary);
   }
 
@@ -494,5 +591,19 @@ mod tests {
       (f012, DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0])), // R^3
     ]);
     assert!(sheaf.is_global_section(&section));
+  }
+
+  #[test]
+  fn test_sheaf_coboundary_2d() {
+    let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = simplicial_complex_2d();
+    let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
+    let coboundary = sheaf.coboundary(0);
+    println!("{}", coboundary);
+
+    let coboundary = sheaf.coboundary(1);
+    println!("{}", coboundary);
+
+    let coboundary = sheaf.coboundary(2);
+    println!("{}", coboundary);
   }
 }
