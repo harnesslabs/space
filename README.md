@@ -1,16 +1,22 @@
-[![Crates.io - harness-space](https://img.shields.io/crates/v/harness-space?label=harness-space)](https://crates.io/crates/harness-space)
-[![docs.rs - harness-space](https://img.shields.io/docsrs/harness-space?label=docs.rs%20harness-space)](https://docs.rs/harness-space)
-[![Crates.io - harness-algebra](https://img.shields.io/crates/v/harness-algebra?label=harness-algebra)](https://crates.io/crates/harness-algebra)
-[![docs.rs - harness-algebra](https://img.shields.io/docsrs/harness-algebra?label=docs.rs%20harness-algebra)](https://docs.rs/harness-algebra)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+<p align="center">
+  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova.png" alt="Cova Logo" width="400">
+</p>
 
-# Harness
+[![Crates.io - cova](https://img.shields.io/crates/v/cova?label=cova)](https://crates.io/crates/cova)
+[![docs.rs - cova](https://img.shields.io/docsrs/cova?label=docs.rs%20cova)](https://docs.rs/cova)
+[![Crates.io - cova-space](https://img.shields.io/crates/v/cova-space?label=cova-space)](https://crates.io/crates/cova-space)
+[![docs.rs - cova-space](https://img.shields.io/docsrs/cova-space?label=docs.rs%20cova-space)](https://docs.rs/cova-space)
+[![Crates.io - cova-algebra](https://img.shields.io/crates/v/cova-algebra?label=cova-algebra)](https://crates.io/crates/cova-algebra)
+[![docs.rs - cova-algebra](https://img.shields.io/docsrs/cova-algebra?label=docs.rs%20cova-algebra)](https://docs.rs/cova-algebra)
+[![License: AGPLv3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-A Rust ecosystem for mathematical abstractions and computations, focusing on rigorous implementations of mathematical structures and algorithms.
+# Cova
+
+A Rust ecosystem for mathematical abstractions and computations, focusing on rigorous implementations of algebraic structures, topological spaces, and computational mathematics.
 
 ## Overview
 
-Harness provides a collection of crates that implement various mathematical structures and algorithms with a focus on type safety, correctness, and composability. The project aims to provide foundational mathematical tools that can be used in scientific computing, computer graphics, machine learning, and other domains requiring robust mathematical implementations.
+Cova provides a collection of crates that implement various mathematical structures and algorithms with a focus on type safety, correctness, and composability. The project aims to provide foundational mathematical tools that can be used in scientific computing, computational topology, abstract algebra, and other domains requiring robust mathematical implementations.
 
 ## Design Philosophy
 
@@ -21,19 +27,36 @@ Harness provides a collection of crates that implement various mathematical stru
 
 ## Crates
 
-### `space`
+### `cova`
 
-The `space` crate implements fundamental topological and geometric structures, providing a foundation for working with spaces and their properties in a type-safe manner.
+The `cova` crate is a meta crate that re-exports the `cova-space` and `cova-algebra` crates.
 
-### `algebra`
 
-The `algebra` crate will provide implementations of algebraic structures, enabling rigorous mathematical computations with proper type constraints.
+### `cova-space`
+
+The `cova-space` crate implements topological spaces, simplicial complexes, and graph structures, providing a foundation for computational topology and geometry. It includes:
+
+- **Topological Spaces**: Sets, metric spaces, normed spaces, and inner product spaces
+- **Simplicial Complexes**: Simplex representation, chain complexes, and homology computations
+- **Graph Theory**: Flexible directed and undirected graph data structures
+- **Sheaf Theory**: Advanced categorical constructions for topology
+- **Filtrations**: Tools for persistent homology and topological data analysis
+
+### `cova-algebra`
+
+The `cova-algebra` crate provides implementations of algebraic structures with proper type constraints and mathematical rigor. It includes:
+
+- **Modular Arithmetic**: Custom modular number types with the `modular!` macro
+- **Abstract Algebra**: Groups, rings, fields, modules, and vector spaces
+- **Category Theory**: Fundamental categorical constructions and morphisms
+- **Tensors**: Tensor algebra and operations
+- **Linear Algebra**: Vector spaces and linear transformations
 
 ## Getting Started
 
 ### Prerequisites
 
-Harness requires Rust 1.70 or later.
+Cova requires Rust 1.70 or later.
 
 ### Installation
 
@@ -41,16 +64,18 @@ Add the desired crates to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-harness-space = "*"
-harness-algebra = "*" 
+cova = "*"
+# or if you only need one of the crates
+cova-space = "*"
+cova-algebra = "*" 
 ```
 
 ### Development Setup
 
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/harness.git
-   cd harness
+   git clone https://github.com/harnesslabs/cova.git
+   cd cova
    ```
 
 2. Install `just` (if not already installed):
@@ -92,8 +117,10 @@ For more development commands, run `just --list`.
 
 ## Documentation
 
-- [API Documentation](https://docs.rs/harness-space)
-- [API Documentation](https://docs.rs/harness-algebra)
+- [API Documentation - cova](https://docs.rs/cova)
+- [API Documentation - cova-space](https://docs.rs/cova-space)
+- [API Documentation - cova-algebra](https://docs.rs/cova-algebra)
+- [Book](https://book.harnesslabs.xyz)
 
 ## Contributing
 
@@ -101,5 +128,5 @@ We welcome contributions! Please check our [CONTRIBUTING.md](CONTRIBUTING.md) fo
 
 ## License
 
-This project is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+This project is licensed under the [AGPLv3 License](LICENSE).
 
