@@ -49,7 +49,11 @@ use harness_algebra::tensors::dynamic::{
 };
 
 use super::*;
-use crate::{definitions::Topology, set::Poset};
+use crate::{
+  complexes::{Complex, ComplexElement},
+  definitions::Topology,
+  set::Poset,
+};
 
 // TODO: We should make this have a nice construction setup so you can build the underlying space
 // and the restrictions simultaneously
@@ -219,11 +223,7 @@ where
 
 // TODO: This is a temporary implementation for the coboundary map specifically for the vector
 // stalks.
-impl<T, F: Field + Copy> Sheaf<T, DynamicVector<F>>
-where
-  T: Topology + Poset,
-  T::Item: Hash + Eq + Clone + Debug,
-{
+impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, DynamicVector<F>> {
   pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> { todo!() }
 }
 
