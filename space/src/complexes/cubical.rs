@@ -366,33 +366,74 @@ mod tests {
   }
 
   #[test]
-  fn debug_cube_boundary_computation() {
+  fn test_cubical_incidence_poset_condition_1() {
+    // Condition 1: If [σ : τ] ≠ 0, then σ ⊲ τ and there are no cells between σ and τ
     let mut complex: Complex<Cube> = Complex::new();
 
+    // Add a square which will create all its faces
     let square = Cube::square([0, 1, 2, 3]);
-    println!("Square: {square:?}");
-    println!("Square faces: {:?}", square.faces());
-
     let added_square = complex.join_element(square);
-    println!("Complex elements after adding square:");
-    println!("  2D: {:?}", complex.elements_of_dimension(2));
-    println!("  1D: {:?}", complex.elements_of_dimension(1));
-    println!("  0D: {:?}", complex.elements_of_dimension(0));
 
-    let chain = Chain::from_item_and_coeff(&complex, added_square, 1);
-    let boundary = chain.boundary();
-    println!("Boundary of square: {} items", boundary.items.len());
-    for (i, (item, coeff)) in boundary.items.iter().zip(boundary.coefficients.iter()).enumerate() {
-      println!("  {i}. {item:?} with coeff {coeff}");
+    // Get all elements
+    let vertices = complex.elements_of_dimension(0);
+    let edges = complex.elements_of_dimension(1);
+    let squares = complex.elements_of_dimension(2);
+
+    // Test that square's boundary consists only of direct faces (edges)
+    let boundary_with_orientations = added_square.boundary_with_orientations();
+    for (face, _orientation) in boundary_with_orientations {
+      // Each face should be an edge (1-dimensional)
+      assert_eq!(face.dimension(), 1);
+      // Each face should be in the complex
+      assert!(edges.iter().any(|e| e.same_content(&face)));
+      // There should be no elements between the square and its faces
+      // (already guaranteed by construction since square is 2D and faces are 1D)
     }
 
-    let boundary_squared = boundary.boundary();
-    println!("Boundary of boundary: {} items", boundary_squared.items.len());
-    for (i, (item, coeff)) in
-      boundary_squared.items.iter().zip(boundary_squared.coefficients.iter()).enumerate()
-    {
-      println!("  {i}. {item:?} with coeff {coeff}");
+    // Test that edges' boundaries consist only of direct faces (vertices)
+    for edge in &edges {
+      let edge_boundary = edge.boundary_with_orientations();
+      for (vertex_face, _orientation) in edge_boundary {
+        // Each face should be a vertex (0-dimensional)
+        assert_eq!(vertex_face.dimension(), 0);
+        // Each face should be in the complex
+        assert!(vertices.iter().any(|v| v.same_content(&vertex_face)));
+      }
     }
+  }
+
+  #[test]
+  fn test_cubical_incidence_poset_condition_2() {
+    // Condition 2: For any σ ⊲ τ, Σ_γ∈P_X [σ : γ][γ : τ] = 0 (∂² = 0)
+    let mut complex: Complex<Cube> = Complex::new();
+
+    // Test with a square
+    let square = Cube::square([0, 1, 2, 3]);
+    let added_square = complex.join_element(square);
+
+    // Create a chain from the square
+    let square_chain = Chain::from_item_and_coeff(&complex, added_square, 1);
+
+    // Compute boundary of the square (should give edges)
+    let boundary_1 = square_chain.boundary();
+
+    // Compute boundary of the boundary (should be zero)
+    let boundary_2 = boundary_1.boundary();
+
+    // ∂² should be zero
+    assert_eq!(boundary_2.items.len(), 0, "∂² should be zero for cubical complex");
+    assert_eq!(boundary_2.coefficients.len(), 0, "∂² should have no coefficients");
+
+    // Also test with a more complex example - a cube
+    let cube = Cube::new(3, vec![0, 1, 2, 3, 4, 5, 6, 7]);
+    let mut cube_complex: Complex<Cube> = Complex::new();
+    let added_cube = cube_complex.join_element(cube);
+
+    let cube_chain = Chain::from_item_and_coeff(&cube_complex, added_cube, 1);
+    let cube_boundary_1 = cube_chain.boundary();
+    let cube_boundary_2 = cube_boundary_1.boundary();
+
+    assert_eq!(cube_boundary_2.items.len(), 0, "∂² should be zero for 3D cube");
   }
 
   #[test]

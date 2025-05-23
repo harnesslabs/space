@@ -442,4 +442,110 @@ mod tests {
     test_simplicial_homology_sphere_surface_generic::<Boolean>();
     test_simplicial_homology_sphere_surface_generic::<Mod7>();
   }
+
+  #[test]
+  fn test_simplicial_incidence_poset_condition_1() {
+    // Condition 1: If [σ : τ] ≠ 0, then σ ⊲ τ and there are no cells between σ and τ
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Create a triangle
+    let v0 = Simplex::new(0, vec![0]);
+    let v1 = Simplex::new(0, vec![1]);
+    let v2 = Simplex::new(0, vec![2]);
+    let e01 = Simplex::new(1, vec![0, 1]);
+    let e12 = Simplex::new(1, vec![1, 2]);
+    let e02 = Simplex::new(1, vec![0, 2]);
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
+
+    let added_triangle = complex.join_element(triangle);
+
+    // Get all elements
+    let vertices = complex.elements_of_dimension(0);
+    let edges = complex.elements_of_dimension(1);
+    let triangles = complex.elements_of_dimension(2);
+
+    // Test that triangle's boundary consists only of direct faces (edges)
+    let boundary_with_orientations = added_triangle.boundary_with_orientations();
+    for (face, _orientation) in boundary_with_orientations {
+      // Each face should be an edge (1-dimensional)
+      assert_eq!(face.dimension(), 1);
+      // Each face should be in the complex
+      assert!(edges.iter().any(|e| e.same_content(&face)));
+      // There should be no elements between the triangle and its faces
+      // (already guaranteed by construction since triangle is 2D and faces are 1D)
+    }
+
+    // Test that edges' boundaries consist only of direct faces (vertices)
+    for edge in &edges {
+      let edge_boundary = edge.boundary_with_orientations();
+      for (vertex_face, _orientation) in edge_boundary {
+        // Each face should be a vertex (0-dimensional)
+        assert_eq!(vertex_face.dimension(), 0);
+        // Each face should be in the complex
+        assert!(vertices.iter().any(|v| v.same_content(&vertex_face)));
+      }
+    }
+
+    println!("✓ Simplicial Incidence Condition 1: Non-zero incidence implies direct face relation");
+  }
+
+  #[test]
+  fn test_simplicial_incidence_poset_condition_2() {
+    // Condition 2: For any σ ⊲ τ, Σ_γ∈P_X [σ : γ][γ : τ] = 0 (∂² = 0)
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Test with a triangle
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
+    let added_triangle = complex.join_element(triangle);
+
+    // Create a chain from the triangle
+    let triangle_chain = Chain::from_item_and_coeff(&complex, added_triangle, 1);
+
+    // Compute boundary of the triangle (should give edges)
+    let boundary_1 = triangle_chain.boundary();
+
+    // Compute boundary of the boundary (should be zero)
+    let boundary_2 = boundary_1.boundary();
+
+    // ∂² should be zero
+    assert_eq!(boundary_2.items.len(), 0, "∂² should be zero for simplicial complex");
+    assert_eq!(boundary_2.coefficients.len(), 0, "∂² should have no coefficients");
+
+    // Also test with a tetrahedron
+    let tetrahedron = Simplex::new(3, vec![0, 1, 2, 3]);
+    let mut tet_complex: Complex<Simplex> = Complex::new();
+    let added_tet = tet_complex.join_element(tetrahedron);
+
+    let tet_chain = Chain::from_item_and_coeff(&tet_complex, added_tet, 1);
+    let tet_boundary_1 = tet_chain.boundary();
+    let tet_boundary_2 = tet_boundary_1.boundary();
+
+    assert_eq!(tet_boundary_2.items.len(), 0, "∂² should be zero for 3D tetrahedron");
+  }
+
+  #[test]
+  fn test_simplicial_chain_complex_property() {
+    // Additional comprehensive test for the chain complex property
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Create a more complex structure - multiple triangles sharing edges
+    let triangle1 = Simplex::new(2, vec![0, 1, 2]);
+    let triangle2 = Simplex::new(2, vec![1, 2, 3]);
+
+    let t1 = complex.join_element(triangle1);
+    let t2 = complex.join_element(triangle2);
+
+    // Test ∂² = 0 for individual triangles
+    let chain1 = Chain::from_item_and_coeff(&complex, t1, 1);
+    let chain2 = Chain::from_item_and_coeff(&complex, t2, 1);
+
+    assert_eq!(chain1.boundary().boundary().items.len(), 0);
+    assert_eq!(chain2.boundary().boundary().items.len(), 0);
+
+    // Test ∂² = 0 for linear combination
+    let combined_chain = chain1.add(chain2);
+    assert_eq!(combined_chain.boundary().boundary().items.len(), 0);
+
+    println!("✓ Simplicial chain complex property verified for complex structures");
+  }
 }
