@@ -1,108 +1,88 @@
-# Algebra Crate
+# Cova Algebra
 
-A Rust library providing algebraic structures and operations, with a focus on modular arithmetic and abstract algebra concepts.
+A comprehensive Rust library for abstract algebra, providing rigorous implementations of algebraic structures from basic arithmetic to advanced category theory and tensor calculus.
 
-[![Crates.io - harness-algebra](https://img.shields.io/crates/v/harness-algebra?label=harness-algebra)](https://crates.io/crates/harness-algebra)
-[![docs.rs - harness-algebra](https://img.shields.io/docsrs/harness-algebra?label=docs.rs%20harness-algebra)](https://docs.rs/harness-algebra)
-[![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Crates.io - cova-algebra](https://img.shields.io/crates/v/cova-algebra?label=cova-algebra)](https://crates.io/crates/cova-algebra)
+[![docs.rs - cova-algebra](https://img.shields.io/docsrs/cova-algebra?label=docs.rs%20cova-algebra)](https://docs.rs/cova-algebra)
+[![License: AGPLv3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
 
-## Features
+## Overview
 
-- **Modular Arithmetic**: Create custom modular number types with the `modular!` macro
-- **Abstract Algebra**: Implementations of fundamental algebraic structures:
-  - Groups (both Abelian and Non-Abelian)
-  - Rings
-  - Fields
-  - Modules
-  - Vector Spaces
+Cova Algebra implements the fundamental structures of abstract algebra with a focus on mathematical correctness, type safety, and composability. The crate provides a hierarchical organization of algebraic concepts, from basic arithmetic operations to advanced constructions in algebra and category theory.
+
+## Architecture
+
+The library is structured around core mathematical concepts, with each module building upon more fundamental structures:
+
+### Core Modules
+
+#### [`arithmetic`](src/arithmetic/)
+Foundation layer providing basic arithmetic operations and modular arithmetic. Includes the `modular!` macro for creating custom modular number types and fundamental arithmetic traits that serve as building blocks for higher-level structures.
+
+#### [`groups`](src/groups.rs)
+Group theory implementations covering both commutative (Abelian) and non-commutative groups. Provides the fundamental structure for understanding symmetry and transformation in algebra, with proper distinctions between additive and multiplicative group operations.
+
+#### [`rings`](src/rings.rs)
+Ring theory abstractions including rings, fields, and semirings. Establishes the algebraic foundation for structures that support both addition and multiplication, with fields providing division operations for advanced algebraic computations.
+
+#### [`modules`](src/modules/)
+Module theory over rings, including vector spaces, semimodules, and specialized constructions like tropical modules. Provides the framework for linear algebra and generalizes vector spaces to work over arbitrary rings.
+
+### Advanced Modules
+
+#### [`algebras`](src/algebras/)
+Higher-order algebraic structures that combine vector spaces with multiplication operations. Includes Boolean algebra for logical operations and Clifford algebras for geometric applications in physics and computer graphics.
+
+#### [`tensors`](src/tensors/)
+Multi-dimensional tensor implementations with both compile-time fixed dimensions and runtime dynamic sizing. Supports tensor operations fundamental to linear algebra, differential geometry, and machine learning applications.
+
+#### [`category`](src/category.rs)
+Category theory primitives providing abstract mathematical frameworks for composition and morphisms. Enables advanced mathematical constructions and provides a unifying language for describing mathematical structures and their relationships.
+
+## Design Principles
+
+- **Mathematical Rigor**: All implementations follow strict mathematical definitions and maintain algebraic properties
+- **Type Safety**: Leverages Rust's type system to encode mathematical constraints and prevent invalid operations
+- **Composability**: Structures are designed to work together seamlessly, allowing complex mathematical constructions
+- **Performance**: Balances mathematical correctness with computational efficiency through careful API design
 
 ## Usage
 
-Add this to your `Cargo.toml`:
+Add to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-harness-algebra = "*"
+cova-algebra = "*"
 ```
 
-### Modular Arithmetic
-
-Create a new modular number type using the `modular!` macro:
+The crate provides a comprehensive prelude for convenient importing:
 
 ```rust
-use cova_algebra::{group::Group, modular, ring::Ring};
-
-// Create a type for numbers modulo 7
-modular!(Mod7, u32, 7);
-
-let a = Mod7::new(3);
-let b = Mod7::new(5);
-
-// Addition: 3 + 5 = 8 ≡ 1 (mod 7)
-let sum = a + b;
-assert_eq!(sum.value(), 1);
-
-// Multiplication: 3 * 5 = 15 ≡ 1 (mod 7)
-let product = a * b;
-assert_eq!(product.value(), 1);
+use cova_algebra::prelude::*;
 ```
 
-### Vector Spaces
+## Module Hierarchy
 
-Create and manipulate vectors over any field, such as the finite field of integers modulo 7:
+The algebraic structures follow a natural mathematical hierarchy:
 
-```rust
-use cova_algebra::{vector::{Vector, VectorSpace}, ring::Field, modular};
-
-modular!(Mod7, u32, 7);
-prime_field!(Mod7);
-impl Field for Mod7 {
-    fn multiplicative_inverse(&self) -> Self {
-        todo!("Implement multiplicative inverse for Mod7")
-    }
-}
-
-let v1 = Vector::<3, Mod7>([Mod7::new(1), Mod7::new(2), Mod7::new(3)]);
-let v2 = Vector::<3, Mod7>([Mod7::new(4), Mod7::new(5), Mod7::new(6)]);
-let sum = v1 + v2;
+```
+Arithmetic Operations
+    ├── Groups (symmetry and transformation)
+    ├── Rings & Fields (number systems)
+    └── Modules & Vector Spaces (linear structures)
+        ├── Algebras (vector spaces with multiplication)
+        ├── Tensors (multi-dimensional arrays)
 ```
 
 ## Documentation
 
-The complete API documentation is available on [docs.rs](https://docs.rs/algebra).
-
-### Modules
-
-- [`arithmetic`](https://docs.rs/harness-algebra/latest/cova_algebra/arithmetic/index.html): Basic arithmetic traits and operations
-- [`group`](https://docs.rs/harness-algebra/latest/cova_algebra/group/index.html): Group theory abstractions and implementations
-- [`ring`](https://docs.rs/harness-algebra/latest/cova_algebra/ring/index.html): Ring theory abstractions and implementations
-- [`module`](https://docs.rs/harness-algebra/latest/cova_algebra/module/index.html): Module theory abstractions and implementations
-- [`vector`](https://docs.rs/harness-algebra/latest/cova_algebra/vector/index.html): Vector space abstractions and implementations
-- [`modular`](https://docs.rs/harness-algebra/latest/cova_algebra/modular/index.html): Modular arithmetic abstractions and implementations
+Complete API documentation is available on [docs.rs](https://docs.rs/cova-algebra).
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please ensure mathematical correctness and include appropriate documentation for any new algebraic structures.
 
 ## License
 
-This project is licensed under the AGPL-3.0 License - see the [LICENSE](../LICENSE) file for details.
-
-## Examples
-
-```rust
-use algebra::{Group, Ring};
-
-modular!(Mod7, u32, 7);
-
-// Group operations
-let a = Mod7::new(3);
-let inverse = a.inverse();  // 4 (mod 7)
-let identity = Mod7::identity();  // 0 (mod 7)
-
-// Ring operations
-let one = Mod7::one();  // 1 (mod 7)
-let zero = Mod7::zero();  // 0 (mod 7)
-```
-
+This project is licensed under the AGPLv3 License - see the [LICENSE](../LICENSE) file for details.
 
