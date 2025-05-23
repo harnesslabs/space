@@ -47,10 +47,7 @@
 
 use std::{collections::HashMap, fmt};
 
-use super::{
-  matrix::{DynamicDenseMatrix, MatrixOrientation, RowMajor},
-  vector::DynamicVector,
-};
+use super::matrix::{DynamicDenseMatrix, MatrixOrientation, RowMajor};
 use crate::prelude::*;
 
 /// A sparse block matrix that stores only non-zero blocks.
@@ -191,7 +188,7 @@ where F: Field + Copy
       expected_cols
     );
 
-    if self.is_effectively_zero(&block) {
+    if is_effectively_zero(&block) {
       self.blocks.remove(&(block_row, block_col));
     } else {
       self.blocks.insert((block_row, block_col), block);
@@ -222,16 +219,18 @@ where F: Field + Copy
     block_row: usize,
     block_col: usize,
   ) -> DynamicDenseMatrix<F, RowMajor> {
-    assert!(block_row < self.num_block_rows, "Block row index {} out of bounds", block_row);
-    assert!(block_col < self.num_block_cols, "Block column index {} out of bounds", block_col);
+    assert!(block_row < self.num_block_rows, "Block row index {block_row} out of bounds");
+    assert!(block_col < self.num_block_cols, "Block column index {block_col} out of bounds");
 
-    match self.get_block(block_row, block_col) {
-      Some(block) => block.clone(),
-      None => DynamicDenseMatrix::<F, RowMajor>::zeros(
-        self.row_block_sizes[block_row],
-        self.col_block_sizes[block_col],
-      ),
-    }
+    self.get_block(block_row, block_col).map_or_else(
+      || {
+        DynamicDenseMatrix::<F, RowMajor>::zeros(
+          self.row_block_sizes[block_row],
+          self.col_block_sizes[block_col],
+        )
+      },
+      std::clone::Clone::clone,
+    )
   }
 
   /// Checks if a block exists (is non-zero) at the specified position.
@@ -267,7 +266,9 @@ where F: Field + Copy
   }
 
   /// Returns the block structure dimensions as (num_block_rows, num_block_cols).
-  pub fn block_structure(&self) -> (usize, usize) { (self.num_block_rows, self.num_block_cols) }
+  pub const fn block_structure(&self) -> (usize, usize) {
+    (self.num_block_rows, self.num_block_cols)
+  }
 
   /// Returns a slice of the row block sizes.
   pub fn row_block_sizes(&self) -> &[usize] { &self.row_block_sizes }
@@ -309,18 +310,19 @@ where F: Field + Copy
     }
     offsets
   }
+}
 
-  /// Checks if a matrix is effectively zero (all elements are zero).
-  fn is_effectively_zero(&self, matrix: &DynamicDenseMatrix<F, RowMajor>) -> bool {
-    for i in 0..matrix.num_rows() {
-      for j in 0..matrix.num_cols() {
-        if !matrix.get_component(i, j).is_zero() {
-          return false;
-        }
+/// Checks if a matrix is effectively zero (all elements are zero).
+fn is_effectively_zero<F>(matrix: &DynamicDenseMatrix<F, RowMajor>) -> bool
+where F: Field + Copy {
+  for i in 0..matrix.num_rows() {
+    for j in 0..matrix.num_cols() {
+      if !matrix.get_component(i, j).is_zero() {
+        return false;
       }
     }
-    true
   }
+  true
 }
 
 impl<F: Field + Copy + fmt::Display> fmt::Display for BlockMatrix<F, RowMajor> {
@@ -336,10 +338,10 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for BlockMatrix<F, RowMajor> {
     // Calculate column widths for proper alignment
     let mut col_widths = vec![0; total_cols];
     for i in 0..total_rows {
-      for j in 0..total_cols {
+      (0..total_cols).for_each(|j| {
         let element_str = format!("{}", flattened.get_component(i, j));
         col_widths[j] = col_widths[j].max(element_str.len());
-      }
+      });
     }
 
     // Compute block boundary positions
@@ -356,7 +358,7 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for BlockMatrix<F, RowMajor> {
           write!(f, "  ⎜ ")?; // Mid-section of parenthesis
         }
 
-        self.print_horizontal_separator(f, &col_widths, &col_boundaries)?;
+        print_horizontal_separator(f, &col_widths, &col_boundaries)?;
 
         // Print right parenthesis part for separator row
         writeln!(f, " ⎟")?;
@@ -375,6 +377,7 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for BlockMatrix<F, RowMajor> {
       }
 
       // Print matrix elements with block separators
+      #[allow(clippy::needless_range_loop)]
       for j in 0..total_cols {
         if j > 0 {
           if col_boundaries.contains(&j) {
@@ -432,44 +435,46 @@ impl<F: Field + Copy + fmt::Display> BlockMatrix<F, RowMajor> {
     boundaries.pop();
     boundaries
   }
+}
 
-  /// Prints a horizontal separator line with proper alignment
-  fn print_horizontal_separator(
-    &self,
-    f: &mut fmt::Formatter<'_>,
-    col_widths: &[usize],
-    col_boundaries: &[usize],
-  ) -> fmt::Result {
-    let mut total_written = 0;
+/// Prints a horizontal separator line with proper alignment
+fn print_horizontal_separator(
+  f: &mut fmt::Formatter<'_>,
+  col_widths: &[usize],
+  col_boundaries: &[usize],
+) -> fmt::Result {
+  // TODO (autoparallel): This is surely a bug right? It gets used in the loop below.
+  #[allow(unused_variables)]
+  let mut total_written = 0;
 
-    for (j, &width) in col_widths.iter().enumerate() {
-      if j > 0 {
-        if col_boundaries.contains(&j) {
-          write!(f, "─┼─")?; // Unicode cross at block boundary
-          total_written += 3;
-        } else {
-          write!(f, "──")?; // Unicode horizontal line for regular spacing
-          total_written += 2;
-        }
+  for (j, &width) in col_widths.iter().enumerate() {
+    if j > 0 {
+      if col_boundaries.contains(&j) {
+        write!(f, "─┼─")?; // Unicode cross at block boundary
+        total_written += 3;
+      } else {
+        write!(f, "──")?; // Unicode horizontal line for regular spacing
+        total_written += 2;
       }
-      write!(f, "{}", "─".repeat(width))?; // Unicode horizontal line for column width
-      total_written += width;
     }
-
-    Ok(())
+    write!(f, "{}", "─".repeat(width))?; // Unicode horizontal line for column width
+    total_written += width;
   }
+
+  Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+  #![allow(clippy::float_cmp)]
   use super::*;
-  use crate::tensors::dynamic::matrix::RowMajor;
+  use crate::tensors::dynamic::{matrix::RowMajor, vector::DynamicVector};
 
   #[test]
   fn test_block_matrix_construction() {
     let row_sizes = vec![2, 3];
     let col_sizes = vec![1, 2];
-    let block_matrix = BlockMatrix::<f64, RowMajor>::new(row_sizes.clone(), col_sizes.clone());
+    let block_matrix = BlockMatrix::<f64, RowMajor>::new(row_sizes, col_sizes);
 
     assert_eq!(block_matrix.block_structure(), (2, 2));
     assert_eq!(block_matrix.row_block_sizes(), &[2, 3]);
@@ -663,7 +668,7 @@ mod tests {
     // Test empty block matrix (all zero blocks)
     let empty_block_matrix = BlockMatrix::<f64, RowMajor>::new(vec![2, 1], vec![1, 2]);
     println!("Empty block matrix (all zeros):");
-    println!("{}", empty_block_matrix);
+    println!("{empty_block_matrix}");
 
     // Test block matrix with some non-zero blocks
     let mut block_matrix = BlockMatrix::<f64, RowMajor>::new(vec![2, 2], vec![2, 1]);
@@ -681,7 +686,7 @@ mod tests {
     block_matrix.set_block(1, 1, block_11);
 
     println!("Block matrix with some non-zero blocks:");
-    println!("{}", block_matrix);
+    println!("{block_matrix}");
 
     // Test single block matrix
     let mut single_block = BlockMatrix::<f64, RowMajor>::new(vec![3], vec![2]);
@@ -692,6 +697,6 @@ mod tests {
     single_block.set_block(0, 0, block);
 
     println!("Single block matrix:");
-    println!("{}", single_block);
+    println!("{single_block}");
   }
 }

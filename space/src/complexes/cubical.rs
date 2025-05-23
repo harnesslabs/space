@@ -370,33 +370,22 @@ mod tests {
     // Condition 1: If [σ : τ] ≠ 0, then σ ⊲ τ and there are no cells between σ and τ
     let mut complex: Complex<Cube> = Complex::new();
 
-    // Add a square which will create all its faces
     let square = Cube::square([0, 1, 2, 3]);
     let added_square = complex.join_element(square);
 
-    // Get all elements
     let vertices = complex.elements_of_dimension(0);
     let edges = complex.elements_of_dimension(1);
-    let squares = complex.elements_of_dimension(2);
 
-    // Test that square's boundary consists only of direct faces (edges)
     let boundary_with_orientations = added_square.boundary_with_orientations();
     for (face, _orientation) in boundary_with_orientations {
-      // Each face should be an edge (1-dimensional)
       assert_eq!(face.dimension(), 1);
-      // Each face should be in the complex
       assert!(edges.iter().any(|e| e.same_content(&face)));
-      // There should be no elements between the square and its faces
-      // (already guaranteed by construction since square is 2D and faces are 1D)
     }
 
-    // Test that edges' boundaries consist only of direct faces (vertices)
     for edge in &edges {
       let edge_boundary = edge.boundary_with_orientations();
       for (vertex_face, _orientation) in edge_boundary {
-        // Each face should be a vertex (0-dimensional)
         assert_eq!(vertex_face.dimension(), 0);
-        // Each face should be in the complex
         assert!(vertices.iter().any(|v| v.same_content(&vertex_face)));
       }
     }

@@ -1237,6 +1237,7 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, RowM
     // First pass: calculate column widths for alignment
     let mut col_widths = vec![0; self.num_cols()];
     for i in 0..self.num_rows() {
+      #[allow(clippy::needless_range_loop)]
       for j in 0..self.num_cols() {
         let element_str = format!("{}", self.get_component(i, j));
         col_widths[j] = col_widths[j].max(element_str.len());
@@ -1257,6 +1258,7 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, RowM
       }
 
       // Print row elements
+      #[allow(clippy::needless_range_loop)]
       for j in 0..self.num_cols() {
         if j > 0 {
           write!(f, "  ")?; // Space between elements
@@ -1288,7 +1290,9 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, Colu
 
     // First pass: calculate column widths for alignment
     let mut col_widths = vec![0; self.num_cols()];
+    #[allow(clippy::needless_range_loop)]
     for i in 0..self.num_rows() {
+      #[allow(clippy::needless_range_loop)]
       for j in 0..self.num_cols() {
         let element_str = format!("{}", self.get_component(i, j));
         col_widths[j] = col_widths[j].max(element_str.len());
@@ -1309,6 +1313,7 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, Colu
       }
 
       // Print row elements
+      #[allow(clippy::needless_range_loop)]
       for j in 0..self.num_cols() {
         if j > 0 {
           write!(f, "  ")?; // Space between elements
@@ -2008,26 +2013,26 @@ mod tests {
   fn test_display_formatting() {
     // Test empty matrix
     let empty_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    println!("Empty RowMajor matrix: \n{}", empty_rm);
+    println!("Empty RowMajor matrix: \n{empty_rm}");
 
     // Test small row-major matrix
     let mut small_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
     small_rm.append_row(DynamicVector::from([1.0, 2.0]));
     small_rm.append_row(DynamicVector::from([3.0, 4.0]));
-    println!("Small RowMajor matrix: \n{}", small_rm);
+    println!("Small RowMajor matrix: \n{small_rm}");
 
     // Test larger row-major matrix with different sized numbers
     let mut large_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
     large_rm.append_row(DynamicVector::from([1.0, 123.456, -5.0]));
     large_rm.append_row(DynamicVector::from([42.0, 0.0, -999.123]));
     large_rm.append_row(DynamicVector::from([7.8, 100.0, 2.5]));
-    println!("Large RowMajor matrix: \n{}", large_rm);
+    println!("Large RowMajor matrix: \n{large_rm}");
 
     // Test column-major matrix
     let mut col_major: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
     col_major.append_column(DynamicVector::from([10.0, 20.0]));
     col_major.append_column(DynamicVector::from([30.0, 40.0]));
     col_major.append_column(DynamicVector::from([50.0, 60.0]));
-    println!("ColumnMajor matrix: \n{}", col_major);
+    println!("ColumnMajor matrix: \n{col_major}");
   }
 }

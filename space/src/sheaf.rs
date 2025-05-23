@@ -246,10 +246,6 @@ where T: Hash + Eq + Clone + Debug
   /// # Returns
   /// A block matrix representing δ^k: C^k → C^(k+1)
   pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> {
-    use std::collections::HashMap;
-
-    use harness_algebra::tensors::dynamic::{matrix::DynamicDenseMatrix, vector::DynamicVector};
-
     // Get sorted k-dimensional and (k+1)-dimensional elements
     let k_elements = {
       let mut elements = self.space.elements_of_dimension(dimension);
@@ -361,6 +357,8 @@ where T: Hash + Eq + Clone + Debug
 #[cfg(test)]
 mod tests {
   #![allow(clippy::type_complexity)]
+  #![allow(clippy::too_many_lines)]
+  #![allow(clippy::float_cmp)]
   use harness_algebra::tensors::dynamic::{
     matrix::{DynamicDenseMatrix, RowMajor},
     vector::DynamicVector,
@@ -436,7 +434,7 @@ mod tests {
 
   #[test]
   fn test_simplicial_sheaf_coboundary_1d() {
-    let (cc, restrictions, v0, v1, e01) = simplicial_complex_1d();
+    let (cc, restrictions, ..) = simplicial_complex_1d();
     let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
     let coboundary = sheaf.coboundary(0);
 
@@ -481,10 +479,10 @@ mod tests {
     assert_eq!(*flattened.get_component(1, 2), 2.0);
 
     println!("Coboundary matrix:");
-    println!("{}", coboundary);
+    println!("{coboundary}");
 
     let coboundary = sheaf.coboundary(1);
-    println!("{}", coboundary);
+    println!("{coboundary}");
     assert_eq!(coboundary.block_structure(), (0, 0));
   }
 
@@ -599,34 +597,23 @@ mod tests {
 
   #[test]
   fn test_simplicial_sheaf_coboundary_2d() {
-    let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = simplicial_complex_2d();
+    let (cc, restrictions, ..) = simplicial_complex_2d();
     let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
     let coboundary = sheaf.coboundary(0);
-    println!("{}", coboundary);
+    println!("{coboundary}");
     assert_eq!(coboundary.block_structure(), (3, 3));
 
     let coboundary = sheaf.coboundary(1);
-    println!("{}", coboundary);
+    println!("{coboundary}");
     assert_eq!(coboundary.block_structure(), (1, 3));
 
     let coboundary = sheaf.coboundary(2);
-    println!("{}", coboundary);
+    println!("{coboundary}");
     assert_eq!(coboundary.block_structure(), (0, 0));
   }
 
-  fn cubical_complex_2d() -> (
-    CubicalComplex,
-    HashMap<(Cube, Cube), DynamicDenseMatrix<f64, RowMajor>>,
-    Cube,
-    Cube,
-    Cube,
-    Cube,
-    Cube,
-    Cube,
-    Cube,
-    Cube,
-    Cube,
-  ) {
+  fn cubical_complex_2d(
+  ) -> (CubicalComplex, HashMap<(Cube, Cube), DynamicDenseMatrix<f64, RowMajor>>) {
     let mut cc = CubicalComplex::new();
 
     // Create a 2x2 grid of cubes
@@ -685,33 +672,33 @@ mod tests {
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
         mat
       }),
-      ((v00.clone(), e_v1.clone()), {
+      ((v00, e_v1.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![2.0, 1.0])); // R^2 → R^2
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
-      ((v01.clone(), e_v1.clone()), {
+      ((v01, e_v1.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^2
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
-      ((v10.clone(), e_v2.clone()), {
+      ((v10, e_v2.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^3
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
-      ((v11.clone(), e_v2.clone()), {
+      ((v11, e_v2.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^3
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0]));
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
-      ((e_h1.clone(), square.clone()), {
+      ((e_h1, square.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^4
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
@@ -719,7 +706,7 @@ mod tests {
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
-      ((e_h2.clone(), square.clone()), {
+      ((e_h2, square.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 1.0])); // R^3 → R^4
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
@@ -727,7 +714,7 @@ mod tests {
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
         mat
       }),
-      ((e_v1.clone(), square.clone()), {
+      ((e_v1, square.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^4
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
@@ -735,7 +722,7 @@ mod tests {
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
-      ((e_v2.clone(), square.clone()), {
+      ((e_v2, square), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0])); // R^3 → R^4
         mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
@@ -745,13 +732,12 @@ mod tests {
       }),
     ]);
 
-    (cc, restrictions, v00, v10, v01, v11, e_h1, e_h2, e_v1, e_v2, square)
+    (cc, restrictions)
   }
 
   #[test]
   fn test_cubical_sheaf_coboundary_2d() {
-    let (cc, restrictions, v00, v10, v01, v11, e_h1, e_h2, e_v1, e_v2, square) =
-      cubical_complex_2d();
+    let (cc, restrictions) = cubical_complex_2d();
     let sheaf = Sheaf::<CubicalComplex, DynamicVector<f64>>::new(cc, restrictions);
 
     println!("=== 2D Cubical Sheaf Analysis ===");
@@ -759,7 +745,7 @@ mod tests {
     // Test 0-dimensional coboundary (vertices → edges)
     let coboundary_0 = sheaf.coboundary(0);
     println!("\n0-dimensional coboundary (vertices → edges):");
-    println!("{}", coboundary_0);
+    println!("{coboundary_0}");
 
     // Expected: 4 block rows (edges) × 4 block columns (vertices)
     assert_eq!(coboundary_0.block_structure().0, 4); // 4 edges
@@ -772,7 +758,7 @@ mod tests {
     // Test 1-dimensional coboundary (edges → faces)
     let coboundary_1 = sheaf.coboundary(1);
     println!("\n1-dimensional coboundary (edges → faces):");
-    println!("{}", coboundary_1);
+    println!("{coboundary_1}");
 
     // Expected: 1 block row (square) × 4 block columns (edges)
     assert_eq!(coboundary_1.block_structure().0, 1); // 1 square
@@ -785,7 +771,7 @@ mod tests {
     // Test 2-dimensional coboundary (faces → higher dim, should be empty)
     let coboundary_2 = sheaf.coboundary(2);
     println!("\n2-dimensional coboundary (faces → 3-cubes, should be empty):");
-    println!("{}", coboundary_2);
+    println!("{coboundary_2}");
 
     // Should be empty since no 3-cubes
     assert_eq!(coboundary_2.block_structure(), (0, 0));

@@ -1,16 +1,134 @@
 //! # Complexes Module
 //!
-//! This module provides data structures and algorithms for working with
-//! various types of topological complexes, primarily focusing on cell complexes
-//! and simplicial complexes. These are fundamental tools in algebraic topology
-//! for representing and analyzing the structure of topological spaces.
+//! This module provides data structures and algorithms for working with various types of
+//! topological complexes, which are fundamental tools in algebraic topology for representing
+//! and analyzing the structure of topological spaces.
+//!
+//! ## Mathematical Background
+//!
+//! A **cell complex** (or CW complex) is a topological space constructed by gluing together
+//! cells of various dimensions. The key insight is that complex topological spaces can be
+//! built up systematically from simple pieces:
+//!
+//! - **0-cells**: Points (vertices)
+//! - **1-cells**: Edges connecting vertices
+//! - **2-cells**: Faces (triangles, squares) with edges as boundaries
+//! - **k-cells**: Higher-dimensional analogs
+//!
+//! This module focuses on two important special cases:
+//! - **Simplicial complexes**: Built from simplices (points, edges, triangles, tetrahedra, ...)
+//! - **Cubical complexes**: Built from cubes (points, edges, squares, cubes, ...)
+//!
+//! ## Core Abstractions
+//!
+//! ### Generic Complex Structure
+//!
+//! The [`Complex<T>`] type provides a generic container that can work with any element type
+//! implementing [`ComplexElement`]. This allows the same algorithms (homology computation,
+//! boundary operators, etc.) to work on both simplicial and cubical complexes.
+//!
+//! ### Face Relations and Closure Property
+//!
+//! All complexes satisfy the **closure property**: if a k-cell is in the complex, then all
+//! of its faces (boundary cells) must also be in the complex. This is automatically
+//! enforced when adding elements via [`Complex::join_element`].
+//!
+//! ### Orientation and Boundary Operators
+//!
+//! Each element type implements its own boundary operator via
+//! [`ComplexElement::boundary_with_orientations`], which returns faces with their correct
+//! orientation coefficients. This enables:
+//! - Computation of boundary matrices for homology
+//! - Chain complex structure (∂² = 0)
+//! - Proper handling of orientation in both simplicial and cubical settings
+//!
+//! ## Usage Patterns
+//!
+//! ### Basic Complex Construction
+//!
+//! ```rust
+//! use harness_space::complexes::{Complex, Simplex};
+//!
+//! let mut complex = Complex::new();
+//!
+//! // Add a triangle - automatically includes all faces
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//! let added_triangle = complex.join_element(triangle);
+//!
+//! // Complex now contains: 1 triangle, 3 edges, 3 vertices
+//! assert_eq!(complex.elements_of_dimension(2).len(), 1);
+//! assert_eq!(complex.elements_of_dimension(1).len(), 3);
+//! assert_eq!(complex.elements_of_dimension(0).len(), 3);
+//! ```
+//!
+//! ### Homology Computation
+//!
+//! ```rust
+//! use harness_algebra::algebras::boolean::Boolean;
+//!
+//! // Compute homology over Z/2Z
+//! let h0 = complex.homology::<Boolean>(0); // Connected components
+//! let h1 = complex.homology::<Boolean>(1); // 1D holes
+//!
+//! println!("β₀ = {}, β₁ = {}", h0.betti_number, h1.betti_number);
+//! ```
+//!
+//! ### Working with Different Element Types
+//!
+//! ```rust
+//! use harness_space::complexes::{Cube, CubicalComplex, SimplicialComplex};
+//!
+//! // Simplicial complex with triangles
+//! let mut simplicial = SimplicialComplex::new();
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//! simplicial.join_element(triangle);
+//!
+//! // Cubical complex with squares
+//! let mut cubical = CubicalComplex::new();
+//! let square = Cube::square([0, 1, 2, 3]);
+//! cubical.join_element(square);
+//!
+//! // Both support the same operations
+//! assert_eq!(simplicial.max_dimension(), 2);
+//! assert_eq!(cubical.max_dimension(), 2);
+//! ```
+//!
+//! ## Implementation Details
+//!
+//! ### Efficient Storage and Lookup
+//!
+//! - Elements are stored in a `HashMap<usize, T>` keyed by unique IDs
+//! - Face relationships are tracked in a `Lattice<usize>` using IDs for efficiency
+//! - Duplicate elements (same mathematical content) are automatically deduplicated
+//! - ID assignment is automatic but can be controlled when needed
+//!
+//! ### Poset Structure
+//!
+//! Complexes implement [`Poset`] where the partial order represents the face relation:
+//! `a ≤ b` means "a is a face of b". This enables:
+//! - Efficient computation of upsets/downsets (star/closure operations)
+//! - Join/meet operations for common faces/cofaces
+//! - Integration with other algebraic structures
+//!
+//! ### Topology Interface
+//!
+//! Complexes implement [`Topology`] providing:
+//! - Neighborhood operations (finding cofaces)
+//! - Boundary operators returning [`Chain`] objects
+//! - Integration with homology and sheaf computations
 //!
 //! ## Submodules
-//! - [`cell`]: Contains definitions for `Cell` and `CellComplex`, allowing for the construction and
-//!   manipulation of regular cell complexes.
-//! - [`simplicial`]: Contains definitions for `Simplex` and `SimplicialComplex`, providing tools
-//!   for working with simplicial topology, including homology computations.
-//! - [`cubical`]: Contains definitions for `Cube` and cubical complex operations.
+//!
+//! - [`simplicial`]: Definitions for [`Simplex`] and simplicial complex operations
+//! - [`cubical`]: Definitions for [`Cube`] and cubical complex operations
+//!
+//! ## Examples
+//!
+//! See the extensive test suite at the bottom of this module for examples of:
+//! - Constructing various complex types
+//! - Computing homology of standard spaces
+//! - Working with the poset and topology interfaces
+//! - Verifying fundamental properties like ∂² = 0
 
 use std::collections::HashMap;
 
@@ -37,61 +155,436 @@ pub mod simplicial;
 pub use cubical::Cube;
 pub use simplicial::Simplex;
 
+/// A type alias for a simplicial complex.
 pub type SimplicialComplex = Complex<Simplex>;
+
+/// A type alias for a cubical complex.
 pub type CubicalComplex = Complex<Cube>;
 
 /// Trait for elements that can be part of a topological complex.
 ///
-/// This trait captures the essential behavior needed for elements (simplices, cubes, etc.)
-/// to work with the generic `Complex<T>` structure. Elements must be able to:
-/// - Report their dimension
-/// - Compute their faces (boundary elements)
-/// - Check content equality for deduplication
-/// - Handle optional ID assignment when added to a complex
+/// This trait captures the essential behavior needed for elements (simplices, cubes, cells, etc.)
+/// to work with the generic [`Complex<T>`] structure. It abstracts over the common operations
+/// that any type of cell complex element must support.
+///
+/// # Mathematical Foundation
+///
+/// In algebraic topology, a complex is built from cells of various dimensions with specific
+/// face relations. This trait encapsulates the core properties that any cell type must have:
+///
+/// 1. **Dimension**: Each cell has an intrinsic dimension (0 for vertices, 1 for edges, etc.)
+/// 2. **Boundary Structure**: Each cell has well-defined boundary cells (faces)
+/// 3. **Orientation**: Boundary relationships include orientation information for chain complexes
+/// 4. **Identity**: Cells can be uniquely identified when added to complexes
+/// 5. **Content Equality**: Mathematical content can be compared regardless of ID assignment
+///
+/// # Design Philosophy
+///
+/// This trait is designed to be:
+/// - **Generic**: Works with simplices, cubes, and other cell types
+/// - **Efficient**: Supports ID-based operations for large complexes
+/// - **Mathematically Correct**: Preserves orientation and boundary relationships
+/// - **Flexible**: Allows different boundary operator conventions per element type
+///
+/// # Implementation Requirements
+///
+/// Types implementing this trait must:
+/// - Be cloneable, hashable, and orderable for use in collections
+/// - Compute their own faces and boundary operators correctly
+/// - Handle ID assignment and content comparison properly
+/// - Maintain mathematical consistency in their face relationships
+///
+/// # Examples
+///
+/// ```rust
+/// use harness_space::complexes::{ComplexElement, Simplex};
+///
+/// // Create a triangle (2-simplex)
+/// let triangle = Simplex::new(2, vec![0, 1, 2]);
+///
+/// // Basic properties
+/// assert_eq!(triangle.dimension(), 2);
+/// assert_eq!(triangle.id(), None); // No ID until added to complex
+///
+/// // Compute faces (should be 3 edges)
+/// let faces = triangle.faces();
+/// assert_eq!(faces.len(), 3);
+/// assert!(faces.iter().all(|face| face.dimension() == 1));
+///
+/// // Compute boundary with orientations
+/// let boundary = triangle.boundary_with_orientations();
+/// assert_eq!(boundary.len(), 3);
+/// // Each face has orientation ±1
+/// assert!(boundary.iter().all(|(_, orient)| orient.abs() == 1));
+/// ```
 pub trait ComplexElement: Clone + std::hash::Hash + Eq + PartialOrd + Ord {
-  /// Returns the dimension of this element.
+  /// Returns the intrinsic dimension of this element.
+  ///
+  /// The dimension determines the element's place in the chain complex:
+  /// - 0-dimensional: vertices/points
+  /// - 1-dimensional: edges/curves
+  /// - 2-dimensional: faces/surfaces
+  /// - k-dimensional: k-cells
+  ///
+  /// # Mathematical Note
+  ///
+  /// For a k-dimensional element, its faces are (k-1)-dimensional, and it can be
+  /// a face of (k+1)-dimensional elements. This creates the graded structure
+  /// essential for homological computations.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{ComplexElement, Simplex, Cube};
+  /// let vertex = Simplex::new(0, vec![42]);
+  /// assert_eq!(vertex.dimension(), 0);
+  ///
+  /// let edge = Cube::edge(0, 1);
+  /// assert_eq!(edge.dimension(), 1);
+  /// ```
   fn dimension(&self) -> usize;
 
   /// Returns all faces (boundary elements) of this element.
-  /// For a k-dimensional element, this returns all (k-1)-dimensional faces.
+  ///
+  /// For a k-dimensional element, this returns all (k-1)-dimensional faces that
+  /// form its boundary. This is the **combinatorial boundary** - it captures the
+  /// face structure without orientation information.
+  ///
+  /// # Mathematical Background
+  ///
+  /// In topology, the boundary ∂σ of a cell σ consists of all the cells in its
+  /// boundary. For example:
+  /// - Triangle faces: the three edges forming its boundary
+  /// - Tetrahedron faces: the four triangular faces
+  /// - Square faces: the four edges forming its boundary
+  ///
+  /// # Implementation Notes
+  ///
+  /// - Returned faces should have no ID assigned (will be assigned when added to complex)
+  /// - The order may matter for orientation in [`boundary_with_orientations`]
+  /// - All faces must have dimension = `self.dimension() - 1`
+  /// - 0-dimensional elements return empty vector (no (-1)-dimensional faces)
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{ComplexElement, Simplex};
+  /// // Triangle has 3 edge faces
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// let faces = triangle.faces();
+  /// assert_eq!(faces.len(), 3);
+  /// assert!(faces.iter().all(|f| f.dimension() == 1));
+  ///
+  /// // Vertex has no faces
+  /// let vertex = Simplex::new(0, vec![0]);
+  /// assert_eq!(vertex.faces().len(), 0);
+  /// ```
   fn faces(&self) -> Vec<Self>;
 
   /// Returns the faces with their correct orientation coefficients for boundary computation.
-  /// This allows each element type to implement its own boundary operator convention.
-  /// Returns a vector of (face, orientation_coefficient) pairs.
+  ///
+  /// This is the **geometric boundary operator** that includes orientation information
+  /// necessary for chain complex computations. Each face comes with an integer coefficient
+  /// (typically ±1) indicating its orientation in the boundary.
+  ///
+  /// # Mathematical Foundation
+  ///
+  /// In algebraic topology, the boundary operator ∂ₖ: Cₖ → Cₖ₋₁ is defined as:
+  ///
+  /// ```text
+  /// ∂ₖ(σ) = Σᵢ (-1)ⁱ τᵢ
+  /// ```
+  ///
+  /// where the τᵢ are the faces of σ with appropriate orientation signs. The key
+  /// property is that ∂² = 0 (boundary of boundary is zero), which requires
+  /// careful orientation handling.
+  ///
+  /// # Orientation Conventions
+  ///
+  /// Different element types may use different orientation conventions:
+  /// - **Simplicial**: Alternating signs based on vertex position
+  /// - **Cubical**: Signs based on coordinate directions
+  /// - **General CW**: Depends on attaching maps
+  ///
+  /// # Return Format
+  ///
+  /// Returns `Vec<(face, orientation)>` where:
+  /// - `face`: A (k-1)-dimensional face element (without ID)
+  /// - `orientation`: Integer coefficient (usually ±1, could be 0)
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{ComplexElement, Simplex};
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// let boundary = triangle.boundary_with_orientations();
+  ///
+  /// // Triangle boundary: [v₁,v₂] - [v₀,v₂] + [v₀,v₁]
+  /// assert_eq!(boundary.len(), 3);
+  /// assert_eq!(boundary[0].1, 1); // +[v₁,v₂]
+  /// assert_eq!(boundary[1].1, -1); // -[v₀,v₂]
+  /// assert_eq!(boundary[2].1, 1); // +[v₀,v₁]
+  /// ```
   fn boundary_with_orientations(&self) -> Vec<(Self, i32)>;
 
-  /// Returns the ID if this element has been assigned to a complex, None otherwise.
+  /// Returns the ID if this element has been assigned to a complex, `None` otherwise.
+  ///
+  /// IDs are automatically assigned when elements are added to a [`Complex`] via
+  /// [`Complex::join_element`]. They serve as unique identifiers for efficient
+  /// storage and lookup operations.
+  ///
+  /// # ID Assignment Lifecycle
+  ///
+  /// 1. **Created**: Element starts with `id() = None`
+  /// 2. **Added**: Complex assigns unique ID via [`with_id`]
+  /// 3. **Stored**: Element with ID is stored in complex's HashMap
+  /// 4. **Referenced**: ID used for lattice operations and lookups
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// let simplex = Simplex::new(1, vec![0, 1]);
+  /// assert_eq!(simplex.id(), None);
+  ///
+  /// let mut complex = Complex::new();
+  /// let added = complex.join_element(simplex);
+  /// assert!(added.id().is_some());
+  /// ```
   fn id(&self) -> Option<usize>;
 
   /// Checks if this element has the same mathematical content as another.
+  ///
+  /// This comparison ignores ID assignment and focuses purely on the mathematical
+  /// structure of the elements. It's used for deduplication when adding elements
+  /// to complexes.
+  ///
+  /// # Mathematical Equality
+  ///
+  /// Two elements are considered to have the same content if they represent
+  /// the same mathematical object, regardless of:
+  /// - ID assignment (internal bookkeeping)
+  /// - Order of discovery (when added to complex)
+  /// - Memory location or other implementation details
+  ///
+  /// # Usage in Complexes
+  ///
+  /// When [`Complex::join_element`] is called, it first checks if an element
+  /// with the same content already exists using this method. If found, it
+  /// returns the existing element rather than creating a duplicate.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{ComplexElement, Simplex};
+  /// let simplex1 = Simplex::new(1, vec![0, 1]);
+  /// let simplex2 = Simplex::new(1, vec![0, 1]);
+  /// let simplex3 = simplex1.clone().with_id(42);
+  ///
+  /// assert!(simplex1.same_content(&simplex2)); // Same mathematical content
+  /// assert!(simplex1.same_content(&simplex3)); // ID differences ignored
+  ///
+  /// let different = Simplex::new(1, vec![0, 2]);
+  /// assert!(!simplex1.same_content(&different)); // Different content
+  /// ```
   fn same_content(&self, other: &Self) -> bool;
 
   /// Creates a new element with the same content but a specific ID.
+  ///
+  /// This is used internally by [`Complex`] to assign IDs when adding elements.
+  /// The returned element should be identical in all mathematical properties
+  /// but have the specified ID assigned.
+  ///
+  /// # Implementation Requirements
+  ///
+  /// The returned element must satisfy:
+  /// - `result.same_content(self) == true`
+  /// - `result.id() == Some(new_id)`
+  /// - All other properties unchanged (dimension, faces, etc.)
+  ///
+  /// # Usage
+  ///
+  /// This method is primarily used internally by the complex management system.
+  /// Users typically don't need to call it directly.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{ComplexElement, Simplex};
+  /// let original = Simplex::new(1, vec![0, 1]);
+  /// assert_eq!(original.id(), None);
+  ///
+  /// let with_id = original.with_id(42);
+  /// assert_eq!(with_id.id(), Some(42));
+  /// assert!(original.same_content(&with_id));
+  /// assert_eq!(original.dimension(), with_id.dimension());
+  /// ```
   fn with_id(&self, new_id: usize) -> Self;
 }
 
-/// A generic topological complex that can work with any type implementing `ComplexElement`.
+/// A generic topological complex that can work with any type implementing [`ComplexElement`].
 ///
-/// This structure uses a lattice to track the face relationships between elements,
-/// using their assigned IDs for efficient lattice operations while storing the
-/// actual elements separately for easy access.
+/// This structure provides a unified framework for working with various types of cell complexes
+/// (simplicial, cubical, etc.) while maintaining the essential topological and algebraic
+/// properties needed for homological computations.
+///
+/// # Mathematical Foundation
+///
+/// A **cell complex** K is a topological space built by attaching cells of various dimensions
+/// according to specific rules:
+///
+/// 1. **Closure Property**: If σ ∈ K, then all faces of σ are also in K
+/// 2. **Face Relations**: Form a partial order where τ ≤ σ means "τ is a face of σ"
+/// 3. **Dimension Stratification**: K = K⁰ ∪ K¹ ∪ K² ∪ ... where Kⁱ contains all i-cells
+/// 4. **Chain Complex Structure**: Boundary operators ∂ᵢ: Cᵢ → Cᵢ₋₁ with ∂² = 0
+///
+/// # Implementation Architecture
+///
+/// This implementation uses a **dual-structure approach**:
+///
+/// ```text
+/// ┌─────────────────┐    ┌──────────────────┐
+/// │ attachment_     │    │ elements:        │
+/// │ lattice:        │◄──►│ HashMap<usize,T> │
+/// │ Lattice<usize>  │    │                  │  
+/// └─────────────────┘    └──────────────────┘
+///        ▲                        ▲
+///        │ IDs only               │ Full elements
+///        ▼                        ▼
+///   Fast operations           Rich operations
+/// ```
+///
+/// - **Elements HashMap**: Stores actual elements indexed by unique IDs
+/// - **Attachment Lattice**: Tracks face relationships using IDs for efficiency
+/// - **ID Management**: Automatic assignment with deduplication support
+///
+/// # Key Properties
+///
+/// ## Closure Property Enforcement
+///
+/// The [`join_element`] method ensures closure: adding any element automatically
+/// includes all its faces. This maintains the fundamental property that distinguishes
+/// complexes from arbitrary cell collections.
+///
+/// ## Efficient Face Queries
+///
+/// Face relationships are stored in a [`Lattice<usize>`] structure, enabling:
+/// - O(1) face/coface lookups after preprocessing
+/// - Efficient upset/downset computations
+/// - Support for meet/join operations on cells
+///
+/// ## Deduplication
+///
+/// Elements with identical mathematical content are automatically deduplicated
+/// using [`ComplexElement::same_content`], preventing redundant storage and
+/// maintaining well-defined structure.
+///
+/// # Usage Patterns
+///
+/// ## Basic Construction
+///
+/// ```rust
+/// use harness_space::complexes::{Complex, Simplex};
+///
+/// let mut complex = Complex::new();
+/// let triangle = Simplex::new(2, vec![0, 1, 2]);
+/// let added = complex.join_element(triangle);
+///
+/// // Automatically includes all faces: 1 triangle + 3 edges + 3 vertices
+/// assert_eq!(complex.elements_of_dimension(2).len(), 1);
+/// assert_eq!(complex.elements_of_dimension(1).len(), 3);
+/// assert_eq!(complex.elements_of_dimension(0).len(), 3);
+/// ```
+///
+/// ## Homology Computation
+///
+/// ```rust
+/// use harness_algebra::algebras::boolean::Boolean;
+///
+/// // Create a circle (1-dimensional hole)
+/// let edge1 = Simplex::new(1, vec![0, 1]);
+/// let edge2 = Simplex::new(1, vec![1, 2]);
+/// let edge3 = Simplex::new(1, vec![2, 0]);
+/// complex.join_element(edge1);
+/// complex.join_element(edge2);
+/// complex.join_element(edge3);
+///
+/// let h1 = complex.homology::<Boolean>(1);
+/// assert_eq!(h1.betti_number, 1); // One 1D hole
+/// ```
+///
+/// ## Working with Face Relations
+///
+/// ```rust
+/// // Query face relationships
+/// let faces = complex.faces(&added); // Direct faces only
+/// let cofaces = complex.cofaces(&added); // Direct cofaces only
+/// let downset = complex.downset(added); // All faces (transitive)
+/// ```
+///
+/// # Performance Characteristics
+///
+/// - **Element Access**: O(1) by ID, O(n) by content search
+/// - **Face Queries**: O(1) for direct faces, O(k) for k-dimensional queries
+/// - **Adding Elements**: O(f) where f is the number of faces to add
+/// - **Homology**: O(n³) where n is the number of elements in relevant dimensions
+///
+/// # Type Parameters
+///
+/// * `T`: The element type, must implement [`ComplexElement`]
+///
+/// # Examples
+///
+/// See the extensive test suite for examples including:
+/// - Construction of standard complexes (simplicial, cubical)
+/// - Homology computations for various topological spaces
+/// - Integration with poset and topology interfaces
 #[derive(Debug, Clone)]
 pub struct Complex<T: ComplexElement> {
   /// The attachment relationships between elements, represented as a lattice of element IDs.
-  /// If element `a` is a face of element `b`, then `attachment_lattice.leq(a.id(), b.id())` is
-  /// true.
+  ///
+  /// This lattice encodes the face relation: if element `a` is a face of element `b`,
+  /// then `attachment_lattice.leq(a.id(), b.id())` returns `Some(true)`.
+  ///
+  /// Using IDs rather than full elements provides:
+  /// - **Memory efficiency**: IDs are much smaller than full elements
+  /// - **Performance**: Integer comparisons are faster than element comparisons
+  /// - **Flexibility**: Lattice operations independent of element type
   pub attachment_lattice: Lattice<usize>,
 
   /// A map storing all elements in the complex, keyed by their assigned ID.
+  ///
+  /// This provides:
+  /// - **Fast lookup**: O(1) access to elements by ID
+  /// - **Rich operations**: Access to full element data and methods
+  /// - **Content queries**: Iteration over elements by dimension, type, etc.
   pub elements: HashMap<usize, T>,
 
   /// The counter for the next available unique element identifier.
+  ///
+  /// This ensures that:
+  /// - Each element gets a unique ID when added
+  /// - IDs are assigned sequentially for predictable behavior
+  /// - The complex can manage arbitrary numbers of elements
   pub next_id: usize,
 }
 
 impl<T: ComplexElement> Complex<T> {
   /// Creates a new, empty complex.
+  ///
+  /// The empty complex contains no elements and has trivial homology:
+  /// - H₀ = 0 (no connected components)
+  /// - Hₖ = 0 for all k > 0 (no higher-dimensional features)
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// use harness_space::complexes::{Complex, Simplex};
+  ///
+  /// let complex: Complex<Simplex> = Complex::new();
+  /// assert!(complex.is_empty());
+  /// assert_eq!(complex.max_dimension(), 0);
+  /// ```
   pub fn new() -> Self {
     Self {
       attachment_lattice: Lattice::new(),
@@ -102,11 +595,119 @@ impl<T: ComplexElement> Complex<T> {
 
   /// Adds an element to the complex along with all its faces.
   ///
-  /// This method ensures that the complex satisfies the closure property:
-  /// if an element is in the complex, all its faces are also in the complex.
+  /// This is the **fundamental operation** for building complexes. It ensures the closure
+  /// property by recursively adding all faces of the given element. If an element with
+  /// equivalent mathematical content already exists, returns the existing element without
+  /// modification.
   ///
-  /// If an element with equivalent mathematical content already exists, returns the existing
-  /// element. Otherwise, assigns a new ID and adds the element and all its faces to the complex.
+  /// # Mathematical Foundation
+  ///
+  /// In topology, a complex must satisfy the **closure property**:
+  ///
+  /// > If σ ∈ K, then ∂σ ⊆ K
+  ///
+  /// This method enforces this property by:
+  /// 1. Computing all faces of the input element via [`ComplexElement::faces`]
+  /// 2. Recursively adding each face (which adds their faces, etc.)
+  /// 3. Establishing face relationships in the attachment lattice
+  /// 4. Deduplicating based on mathematical content
+  ///
+  /// # Algorithm
+  ///
+  /// ```text
+  /// join_element(σ):
+  ///   1. Check if equivalent element already exists → return existing
+  ///   2. Assign ID to σ (reuse existing ID if valid, else assign next_id)
+  ///   3. For each face τ in faces(σ):
+  ///        added_τ ← join_element(τ)  // Recursive call
+  ///        Add relation: added_τ ≤ σ to lattice
+  ///   4. Store σ in elements map
+  ///   5. Return σ with assigned ID
+  /// ```
+  ///
+  /// # ID Assignment Strategy
+  ///
+  /// - **No ID**: Assigns `next_id` and increments counter
+  /// - **Has unused ID**: Preserves existing ID if not taken
+  /// - **Has conflicting ID**: Assigns new ID to avoid conflicts
+  ///
+  /// # Deduplication Logic
+  ///
+  /// Uses [`ComplexElement::same_content`] to check for existing equivalent elements.
+  /// This ensures that mathematically identical elements (regardless of ID) are not
+  /// duplicated in the complex.
+  ///
+  /// # Face Relationship Management
+  ///
+  /// Establishes `face_id ≤ element_id` relationships in the attachment lattice for
+  /// all direct faces. Transitive relationships are computed automatically by the
+  /// lattice structure.
+  ///
+  /// # Return Value
+  ///
+  /// Returns the element as it exists in the complex (with assigned ID). This may be:
+  /// - The input element with a newly assigned ID
+  /// - An existing equivalent element if content matches
+  ///
+  /// # Performance Notes
+  ///
+  /// - **Time**: O(f) where f is the total number of faces to add (including recursive)
+  /// - **Space**: O(n) additional storage where n is the number of new elements
+  /// - **Deduplication**: O(k) check where k is the number of existing elements
+  ///
+  /// # Examples
+  ///
+  /// ## Basic Usage
+  ///
+  /// ```rust
+  /// use harness_space::complexes::{Complex, Simplex};
+  ///
+  /// let mut complex = Complex::new();
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  ///
+  /// let added = complex.join_element(triangle);
+  /// assert!(added.id().is_some());
+  ///
+  /// // Complex now contains triangle + 3 edges + 3 vertices
+  /// assert_eq!(complex.elements_of_dimension(2).len(), 1);
+  /// assert_eq!(complex.elements_of_dimension(1).len(), 3);
+  /// assert_eq!(complex.elements_of_dimension(0).len(), 3);
+  /// ```
+  ///
+  /// ## Deduplication
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// let edge1 = Simplex::new(1, vec![0, 1]);
+  /// let edge2 = Simplex::new(1, vec![0, 1]); // Same content
+  ///
+  /// let added1 = complex.join_element(edge1);
+  /// let added2 = complex.join_element(edge2);
+  ///
+  /// // Returns same element (by ID)
+  /// assert_eq!(added1.id(), added2.id());
+  /// assert_eq!(complex.elements_of_dimension(1).len(), 1);
+  /// ```
+  ///
+  /// ## Building Complex Structures
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// let mut complex = Complex::new();
+  ///
+  /// // Add multiple triangles sharing edges
+  /// let triangle1 = Simplex::new(2, vec![0, 1, 2]);
+  /// let triangle2 = Simplex::new(2, vec![1, 2, 3]);
+  ///
+  /// complex.join_element(triangle1);
+  /// complex.join_element(triangle2);
+  ///
+  /// // Shared edge [1,2] is not duplicated
+  /// assert_eq!(complex.elements_of_dimension(2).len(), 2); // 2 triangles
+  /// assert_eq!(complex.elements_of_dimension(1).len(), 5); // 5 unique edges
+  /// assert_eq!(complex.elements_of_dimension(0).len(), 4); // 4 vertices
+  /// ```
   pub fn join_element(&mut self, element: T) -> T {
     // Check if we already have this element (by mathematical content)
     if let Some(existing) = self.find_equivalent_element(&element) {
@@ -145,20 +746,126 @@ impl<T: ComplexElement> Complex<T> {
     element_with_id
   }
 
+  /// Finds an element in the complex with equivalent mathematical content.
+  ///
+  /// This is used internally by [`join_element`] for deduplication. Returns the first
+  /// element found with matching content, or `None` if no match exists.
+  ///
+  /// # Performance
+  ///
+  /// This performs a linear search through all elements, so it's O(n) where n is the
+  /// total number of elements in the complex. For large complexes, this can be a
+  /// bottleneck in construction.
+  ///
+  /// # Future Optimizations
+  ///
+  /// Potential improvements could include:
+  /// - Content-based hashing for faster lookup
+  /// - Spatial indexing for geometric elements
+  /// - Dimension-stratified search to reduce search space
   fn find_equivalent_element(&self, element: &T) -> Option<T> {
     self.elements.values().find(|existing| element.same_content(existing)).cloned()
   }
 
+  /// Retrieves an element by its unique ID.
+  ///
+  /// Returns `None` if no element with the given ID exists in the complex.
+  /// This is the primary method for accessing elements when you have their ID.
+  ///
+  /// # Performance
+  ///
+  /// O(1) HashMap lookup.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// let simplex = Simplex::new(1, vec![0, 1]);
+  /// let added = complex.join_element(simplex);
+  /// let id = added.id().unwrap();
+  ///
+  /// let retrieved = complex.get_element(id).unwrap();
+  /// assert!(added.same_content(retrieved));
+  /// ```
   pub fn get_element(&self, id: usize) -> Option<&T> { self.elements.get(&id) }
 
+  /// Returns all elements of a specific dimension.
+  ///
+  /// This is useful for:
+  /// - Constructing basis sets for homology computations
+  /// - Analyzing the dimensional structure of the complex
+  /// - Iterating over elements by type (vertices, edges, faces, etc.)
+  ///
+  /// # Performance
+  ///
+  /// O(n) where n is the total number of elements, as it must check the dimension
+  /// of every element.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// # let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// # complex.join_element(triangle);
+  ///
+  /// let vertices = complex.elements_of_dimension(0); // All 0-cells
+  /// let edges = complex.elements_of_dimension(1); // All 1-cells
+  /// let faces = complex.elements_of_dimension(2); // All 2-cells
+  ///
+  /// assert_eq!(vertices.len(), 3);
+  /// assert_eq!(edges.len(), 3);
+  /// assert_eq!(faces.len(), 1);
+  /// ```
   pub fn elements_of_dimension(&self, dimension: usize) -> Vec<T> {
     self.elements.values().filter(|element| element.dimension() == dimension).cloned().collect()
   }
 
+  /// Returns the maximum dimension of any element in the complex.
+  ///
+  /// For an empty complex, returns 0. This is useful for determining the
+  /// "dimension" of the complex as a topological space.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// assert_eq!(complex.max_dimension(), 0); // Empty complex
+  ///
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// complex.join_element(triangle);
+  /// assert_eq!(complex.max_dimension(), 2); // 2D complex
+  /// ```
   pub fn max_dimension(&self) -> usize {
     self.elements.values().map(ComplexElement::dimension).max().unwrap_or(0)
   }
 
+  /// Returns the direct faces of an element within this complex.
+  ///
+  /// This differs from [`ComplexElement::faces`] in that it returns elements that
+  /// actually exist in the complex (with assigned IDs) rather than abstract face
+  /// descriptions.
+  ///
+  /// # Relationship to Lattice Operations
+  ///
+  /// This is equivalent to finding the immediate predecessors of the element in
+  /// the face lattice, but returns the full element objects rather than just IDs.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// let added_triangle = complex.join_element(triangle);
+  ///
+  /// let faces = complex.faces(&added_triangle);
+  /// assert_eq!(faces.len(), 3); // Three edges
+  /// assert!(faces.iter().all(|face| face.dimension() == 1));
+  /// assert!(faces.iter().all(|face| face.id().is_some()));
+  /// ```
   pub fn faces(&self, element: &T) -> Vec<T> {
     element.id().map_or_else(Vec::new, |id| {
       self
@@ -170,6 +877,25 @@ impl<T: ComplexElement> Complex<T> {
     })
   }
 
+  /// Returns the direct cofaces of an element within this complex.
+  ///
+  /// Cofaces are elements that have the given element as a face. This is the
+  /// "upward" direction in the face lattice.
+  ///
+  /// # Examples
+  ///
+  /// ```rust
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// # let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// # let added_triangle = complex.join_element(triangle);
+  /// # let edges = complex.elements_of_dimension(1);
+  /// # let edge = edges[0].clone();
+  ///
+  /// let cofaces = complex.cofaces(&edge);
+  /// assert_eq!(cofaces.len(), 1); // Edge is face of triangle
+  /// assert!(cofaces[0].same_content(&added_triangle));
+  /// ```
   pub fn cofaces(&self, element: &T) -> Vec<T> {
     element.id().map_or_else(Vec::new, |id| {
       self
@@ -181,6 +907,125 @@ impl<T: ComplexElement> Complex<T> {
     })
   }
 
+  /// Computes the k-dimensional homology of the complex over a field F.
+  ///
+  /// Homology measures the "holes" in a topological space at different dimensions:
+  /// - **H₀**: Connected components (0-dimensional holes)
+  /// - **H₁**: Loops/cycles (1-dimensional holes)
+  /// - **H₂**: Voids/cavities (2-dimensional holes)
+  /// - **Hₖ**: k-dimensional holes (higher-dimensional features)
+  ///
+  /// # Mathematical Foundation
+  ///
+  /// Homology is defined as the quotient of cycles by boundaries:
+  ///
+  /// ```text
+  /// Hₖ(K) = Zₖ(K) / Bₖ(K) = ker(∂ₖ) / im(∂ₖ₊₁)
+  /// ```
+  ///
+  /// Where:
+  /// - **Zₖ(K) = ker(∂ₖ)**: k-cycles (chains with no boundary)
+  /// - **Bₖ(K) = im(∂ₖ₊₁)**: k-boundaries (boundaries of (k+1)-chains)
+  /// - **∂ₖ**: Boundary operator from k-chains to (k-1)-chains
+  ///
+  /// The key insight is that "holes" are cycles that are not boundaries of higher-dimensional
+  /// chains.
+  ///
+  /// # Algorithm
+  ///
+  /// 1. **Compute Cycles**: Find kernel of boundary operator ∂ₖ: Cₖ → Cₖ₋₁
+  /// 2. **Compute Boundaries**: Find image of boundary operator ∂ₖ₊₁: Cₖ₊₁ → Cₖ
+  /// 3. **Quotient Space**: Compute basis for quotient space Zₖ/Bₖ
+  /// 4. **Return Homology**: Package result with Betti number and generators
+  ///
+  /// # Special Cases
+  ///
+  /// - **k = 0**: H₀ measures connected components. Z₀ = C₀ (all 0-chains are cycles)
+  /// - **Empty Complex**: All homology groups are trivial (Hₖ = 0)
+  /// - **No k-elements**: Returns trivial homology for that dimension
+  ///
+  /// # Field Dependency
+  ///
+  /// The choice of coefficient field F affects the result:
+  /// - **ℤ/2ℤ (Boolean)**: Ignores orientation, counts mod 2
+  /// - **ℚ (Rationals)**: Full torsion-free homology
+  /// - **ℤ/pℤ (Prime fields)**: Reveals p-torsion in homology
+  ///
+  /// # Performance
+  ///
+  /// - **Time**: O(n³) where n is the number of k-dimensional elements
+  /// - **Space**: O(n²) for storing boundary matrices
+  /// - **Bottleneck**: Matrix kernel and image computations
+  ///
+  /// # Return Value
+  ///
+  /// Returns a [`Homology`] object containing:
+  /// - `dimension`: The dimension k being computed
+  /// - `betti_number`: The rank of Hₖ (number of independent k-dimensional holes)
+  /// - `homology_generators`: Basis vectors representing the homology classes
+  ///
+  /// # Examples
+  ///
+  /// ## Circle (1-dimensional hole)
+  ///
+  /// ```rust
+  /// use harness_algebra::algebras::boolean::Boolean;
+  /// use harness_space::complexes::{Complex, Simplex};
+  ///
+  /// let mut complex = Complex::new();
+  ///
+  /// // Create a triangle boundary (3 edges forming a cycle)
+  /// let edge1 = Simplex::new(1, vec![0, 1]);
+  /// let edge2 = Simplex::new(1, vec![1, 2]);
+  /// let edge3 = Simplex::new(1, vec![2, 0]);
+  /// complex.join_element(edge1);
+  /// complex.join_element(edge2);
+  /// complex.join_element(edge3);
+  ///
+  /// let h0 = complex.homology::<Boolean>(0);
+  /// let h1 = complex.homology::<Boolean>(1);
+  ///
+  /// assert_eq!(h0.betti_number, 1); // One connected component
+  /// assert_eq!(h1.betti_number, 1); // One 1-dimensional hole
+  /// ```
+  ///
+  /// ## Filled Triangle (no holes)
+  ///
+  /// ```rust
+  /// # use harness_algebra::algebras::boolean::Boolean;
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  ///
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// complex.join_element(triangle);
+  ///
+  /// let h0 = complex.homology::<Boolean>(0);
+  /// let h1 = complex.homology::<Boolean>(1);
+  ///
+  /// assert_eq!(h0.betti_number, 1); // One connected component
+  /// assert_eq!(h1.betti_number, 0); // No 1D holes (filled)
+  /// ```
+  ///
+  /// ## Sphere Surface (2-dimensional hole)
+  ///
+  /// ```rust
+  /// # use harness_algebra::algebras::boolean::Boolean;
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  ///
+  /// // Tetrahedron boundary (4 triangular faces)
+  /// let face1 = Simplex::new(2, vec![0, 1, 2]);
+  /// let face2 = Simplex::new(2, vec![0, 1, 3]);
+  /// let face3 = Simplex::new(2, vec![0, 2, 3]);
+  /// let face4 = Simplex::new(2, vec![1, 2, 3]);
+  /// complex.join_element(face1);
+  /// complex.join_element(face2);
+  /// complex.join_element(face3);
+  /// complex.join_element(face4);
+  ///
+  /// let h2 = complex.homology::<Boolean>(2);
+  /// assert_eq!(h2.betti_number, 1); // One 2-dimensional hole (sphere interior)
+  /// ```
   pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
     let k_elements = {
       let mut elements = self.elements_of_dimension(k);
@@ -219,20 +1064,121 @@ impl<T: ComplexElement> Complex<T> {
     }
   }
 
-  /// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary operator.
+  /// Constructs the boundary matrix ∂ₖ: Cₖ → Cₖ₋₁ for the k-th boundary operator.
   ///
-  /// This generic implementation works with any `ComplexElement` type by using the
-  /// boundary computation from the `Topology` trait.
+  /// The boundary matrix is the matrix representation of the linear map that takes
+  /// k-dimensional chains to their (k-1)-dimensional boundaries. This is the
+  /// fundamental building block for homology computations.
   ///
-  /// # Arguments
-  /// * `k`: The dimension of elements in the domain of the boundary operator.
+  /// # Mathematical Definition
   ///
-  /// # Type Parameters
-  /// * `F`: The coefficient field.
+  /// For a k-dimensional element σ, its boundary ∂σ is a formal sum of (k-1)-dimensional
+  /// faces with appropriate orientation coefficients:
   ///
-  /// # Returns
-  /// A matrix where columns correspond to k-elements and rows to (k-1)-elements,
-  /// with entries representing boundary coefficients.
+  /// ```text
+  /// ∂ₖ(σ) = Σᵢ aᵢ τᵢ
+  /// ```
+  ///
+  /// where τᵢ are the faces of σ and aᵢ ∈ F are the orientation coefficients.
+  ///
+  /// # Matrix Structure
+  ///
+  /// The resulting matrix has:
+  /// - **Rows**: Indexed by (k-1)-dimensional elements (codomain basis)
+  /// - **Columns**: Indexed by k-dimensional elements (domain basis)
+  /// - **Entry (i,j)**: Coefficient of codomain element i in ∂(domain element j)
+  ///
+  /// # Element Ordering
+  ///
+  /// Both domain and codomain elements are sorted using their natural ordering
+  /// (from [`Ord`] implementation). This ensures:
+  /// - Deterministic matrix construction
+  /// - Consistent results across runs
+  /// - Predictable basis element correspondence
+  ///
+  /// # Boundary Operator Properties
+  ///
+  /// The matrix satisfies the fundamental property **∂² = 0**, meaning that
+  /// `boundary_matrix(k+1) * boundary_matrix(k) = 0`. This is essential for
+  /// the chain complex structure and homology computations.
+  ///
+  /// # Special Cases
+  ///
+  /// - **k = 0**: Returns empty matrix (0-dimensional elements have no boundary)
+  /// - **No k-elements**: Returns matrix with correct row count but no columns
+  /// - **No (k-1)-elements**: Returns matrix with correct column count but no rows
+  ///
+  /// # Implementation Details
+  ///
+  /// This method uses the [`ComplexElement::boundary_with_orientations`] method
+  /// to get the oriented boundary of each element, then constructs the matrix
+  /// by mapping faces to their positions in the codomain basis.
+  ///
+  /// # Performance
+  ///
+  /// - **Time**: O(nf) where n is the number of k-elements and f is the average number of faces
+  /// - **Space**: O(nm) where m is the number of (k-1)-elements
+  /// - **Optimized**: Only computes non-zero entries
+  ///
+  /// # Examples
+  ///
+  /// ## Triangle Boundary Matrix
+  ///
+  /// ```rust
+  /// use harness_algebra::algebras::boolean::Boolean;
+  /// use harness_space::complexes::{Complex, Simplex};
+  ///
+  /// let mut complex = Complex::new();
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// complex.join_element(triangle);
+  ///
+  /// // Get boundary matrix ∂₂: C₂ → C₁ (triangles → edges)
+  /// let boundary_2 = complex.get_boundary_matrix::<Boolean>(2);
+  ///
+  /// // Should be 3×1 matrix (3 edges, 1 triangle)
+  /// assert_eq!(boundary_2.num_rows(), 3); // 3 edges
+  /// assert_eq!(boundary_2.num_cols(), 1); // 1 triangle
+  /// ```
+  ///
+  /// ## Edge Boundary Matrix  
+  ///
+  /// ```rust
+  /// # use harness_algebra::algebras::boolean::Boolean;
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// let edge = Simplex::new(1, vec![0, 1]);
+  /// complex.join_element(edge);
+  ///
+  /// // Get boundary matrix ∂₁: C₁ → C₀ (edges → vertices)
+  /// let boundary_1 = complex.get_boundary_matrix::<Boolean>(1);
+  ///
+  /// // Should be 2×1 matrix (2 vertices, 1 edge)
+  /// assert_eq!(boundary_1.num_rows(), 2); // 2 vertices
+  /// assert_eq!(boundary_1.num_cols(), 1); // 1 edge
+  /// ```
+  ///
+  /// ## Verifying ∂² = 0
+  ///
+  /// ```rust
+  /// # use harness_algebra::algebras::boolean::Boolean;
+  /// # use harness_space::complexes::{Complex, Simplex};
+  /// # let mut complex = Complex::new();
+  /// # let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// # complex.join_element(triangle);
+  ///
+  /// let boundary_2 = complex.get_boundary_matrix::<Boolean>(2);
+  /// let boundary_1 = complex.get_boundary_matrix::<Boolean>(1);
+  ///
+  /// // Compose the boundary operators: ∂₁ ∘ ∂₂ should be zero
+  /// let composition = boundary_1.multiply(&boundary_2);
+  ///
+  /// // Result should be zero matrix
+  /// for i in 0..composition.num_rows() {
+  ///   for j in 0..composition.num_cols() {
+  ///     assert_eq!(*composition.get_component(i, j), Boolean::zero());
+  ///   }
+  /// }
+  /// ```
   pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor>
   where T: ComplexElement {
     let codomain_basis = if k == 0 {
@@ -282,6 +1228,28 @@ impl<T: ComplexElement> Default for Complex<T> {
   fn default() -> Self { Self::new() }
 }
 
+// =============================================================================
+// TRAIT IMPLEMENTATIONS
+// =============================================================================
+//
+// The following implementations make Complex<T> integrate seamlessly with the
+// broader algebraic and topological framework:
+//
+// - Collection: Basic containment and emptiness queries
+// - Poset: Face relation partial order operations (≤, upset, downset, etc.)
+// - Topology: Neighborhood and boundary operations for topological computations
+//
+// These implementations enable Complex<T> to work with:
+// - Generic algorithms that operate on posets or topological spaces
+// - Homology computations via the Topology trait boundary operator
+// - Sheaf computations that require poset structure
+// - General lattice-theoretic operations
+
+/// Implementation of [`Collection`] for complexes.
+///
+/// Provides basic set-theoretic operations for checking element membership
+/// and complex emptiness. Note that containment is based on ID equality,
+/// so elements must have been added to the complex to be considered contained.
 impl<T: ComplexElement> Collection for Complex<T> {
   type Item = T;
 
@@ -296,6 +1264,16 @@ impl<T: ComplexElement> Collection for Complex<T> {
   fn is_empty(&self) -> bool { self.elements.is_empty() }
 }
 
+/// Implementation of [`Poset`] for complexes.
+///
+/// Defines the face relation as the partial order: σ ≤ τ means "σ is a face of τ".
+/// This implementation delegates to the attachment lattice for efficiency while
+/// providing the full element objects in the interface.
+///
+/// The face relation satisfies all poset axioms:
+/// - **Reflexivity**: σ ≤ σ (every element is a face of itself)
+/// - **Antisymmetry**: σ ≤ τ and τ ≤ σ implies σ = τ
+/// - **Transitivity**: σ ≤ τ and τ ≤ ρ implies σ ≤ ρ
 impl<T: ComplexElement> Poset for Complex<T> {
   fn leq(&self, a: &Self::Item, b: &Self::Item) -> Option<bool> {
     match (a.id(), b.id()) {
@@ -395,6 +1373,14 @@ impl<T: ComplexElement> Poset for Complex<T> {
   }
 }
 
+/// Implementation of [`Topology`] for complexes.
+///
+/// Provides topological operations that integrate with the broader framework:
+/// - **Neighborhood**: Returns cofaces (elements containing the given element)
+/// - **Boundary**: Computes oriented boundary using element-specific operators
+///
+/// The boundary implementation is crucial for homology computations as it provides
+/// the chain complex structure with proper orientation handling.
 impl<T: ComplexElement> Topology for Complex<T> {
   fn neighborhood(&self, item: &Self::Item) -> Vec<Self::Item> {
     // Return direct cofaces (elements that have this item as a face)
@@ -437,6 +1423,36 @@ mod tests {
   use harness_algebra::algebras::boolean::Boolean;
 
   use super::*;
+
+  // =============================================================================
+  // COMPREHENSIVE TEST SUITE
+  // =============================================================================
+  //
+  // This test suite demonstrates and validates the key features of the complexes
+  // module across multiple dimensions:
+  //
+  // 1. **Generic Complex Operations**: Tests that work with both simplicial and cubical complexes,
+  //    showing the power of the generic Complex<T> design
+  //
+  // 2. **Closure Property**: Verifies that adding elements automatically includes all faces,
+  //    maintaining the fundamental complex property
+  //
+  // 3. **ID Management**: Tests automatic ID assignment, deduplication, and proper handling of
+  //    elements with/without IDs
+  //
+  // 4. **Poset Structure**: Validates that face relations form a proper partial order with correct
+  //    upset/downset computations
+  //
+  // 5. **Topology Integration**: Tests neighborhood operations and boundary computations that
+  //    integrate with the topology framework
+  //
+  // 6. **Homology Computations**: Comprehensive tests of homology computation for standard
+  //    topological spaces (circles, spheres, etc.) over different coefficient fields
+  //
+  // 7. **Cross-Complex Compatibility**: Demonstrates that the same algorithms work on both
+  //    simplicial and cubical complexes, producing mathematically consistent results
+  //
+  // These tests serve both as validation and as examples of proper usage patterns.
 
   #[test]
   fn test_generic_complex_with_simplex() {
@@ -541,8 +1557,8 @@ mod tests {
     let edges = complex.elements_of_dimension(1);
 
     // Find specific vertex and edge by content
-    let vertex = vertices.iter().find(|v| v.vertices() == &[0]).unwrap().clone();
-    let edge = edges.iter().find(|e| e.vertices() == &[0, 1]).unwrap().clone();
+    let vertex = vertices.iter().find(|v| v.vertices() == [0]).unwrap().clone();
+    let edge = edges.iter().find(|e| e.vertices() == [0, 1]).unwrap().clone();
 
     // Test leq relationships
     assert_eq!(complex.leq(&vertex, &edge), Some(true));
@@ -571,7 +1587,7 @@ mod tests {
 
     // Get the actual vertex with ID from the complex
     let vertices = complex.elements_of_dimension(0);
-    let vertex = vertices.iter().find(|v| v.vertices() == &[0]).unwrap().clone();
+    let vertex = vertices.iter().find(|v| v.vertices() == [0]).unwrap().clone();
 
     // Test neighborhood (cofaces)
     let vertex_neighborhood = complex.neighborhood(&vertex);

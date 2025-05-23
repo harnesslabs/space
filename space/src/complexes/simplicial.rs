@@ -1,3 +1,224 @@
+//! # Simplicial Complexes Module
+//!
+//! This module provides implementations for working with simplicial complexes, one of the most
+//! fundamental structures in algebraic topology. Simplicial complexes are built from simplices
+//! - geometric objects that generalize triangles to arbitrary dimensions.
+//!
+//! ## Mathematical Background
+//!
+//! A **simplex** is the simplest possible convex polytope in any given dimension:
+//! - **0-simplex**: A point (vertex)
+//! - **1-simplex**: A line segment (edge)
+//! - **2-simplex**: A triangle
+//! - **3-simplex**: A tetrahedron
+//! - **k-simplex**: The convex hull of k+1 affinely independent points
+//!
+//! A **simplicial complex** K is a collection of simplices that satisfies:
+//! 1. **Closure Property**: If σ ∈ K, then all faces of σ are also in K
+//! 2. **Intersection Property**: The intersection of any two simplices in K is either empty or a
+//!    common face
+//!
+//! ## Simplicial vs Other Complex Types
+//!
+//! Simplicial complexes have several advantages:
+//! - **Natural Geometry**: Built from the simplest convex shapes
+//! - **Well-Established Theory**: Extensive literature and algorithms
+//! - **Efficient Computation**: Many optimized algorithms available
+//! - **Universal Approximation**: Any topological space can be triangulated
+//!
+//! However, they can be more complex than cubical complexes for some applications due to
+//! the varying face structures at different dimensions.
+//!
+//! ## Implementation Design
+//!
+//! ### Canonical Representation
+//!
+//! Simplices are represented by their **sorted vertex lists**, ensuring a unique canonical
+//! form for each geometric simplex regardless of how vertices were originally specified.
+//! This enables efficient deduplication and comparison.
+//!
+//! ### Orientation Conventions
+//!
+//! The simplicial boundary operator uses the **standard alternating orientation**:
+//! ```text
+//! ∂[v₀, v₁, ..., vₖ] = Σᵢ (-1)ⁱ [v₀, ..., v̂ᵢ, ..., vₖ]
+//! ```
+//! where v̂ᵢ indicates that vertex vᵢ is omitted. This ensures the fundamental property ∂² = 0.
+//!
+//! ### Integration with Generic Framework
+//!
+//! The [`Simplex`] type implements [`ComplexElement`], making it compatible with the generic
+//! [`Complex<T>`] framework. This allows:
+//! - Uniform algorithms for homology computation
+//! - Consistent interfaces across complex types
+//! - Reuse of lattice and poset operations
+//!
+//! ## Core Types
+//!
+//! ### [`Simplex`]
+//!
+//! The fundamental building block representing a k-dimensional simplex. Key features:
+//! - Vertex-based representation with automatic sorting
+//! - Dimension automatically determined from vertex count
+//! - Efficient face computation using combinatorial methods
+//! - Standard orientation for boundary operators
+//!
+//! ### [`SimplicialComplex`] (Type Alias)
+//!
+//! A type alias for `Complex<Simplex>` that provides:
+//! - Automatic closure property enforcement
+//! - Efficient face relationship tracking
+//! - Homology computation capabilities
+//! - Integration with poset and topology traits
+//!
+//! ## Usage Patterns
+//!
+//! ### Basic Simplex Creation
+//!
+//! ```rust
+//! use harness_space::complexes::simplicial::Simplex;
+//!
+//! // Create by dimension and vertices
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//!
+//! // Create with automatic dimension detection
+//! let edge = Simplex::from_vertices(vec![3, 4]);
+//!
+//! // Vertices are automatically sorted for canonical representation
+//! let same_triangle = Simplex::new(2, vec![2, 0, 1]); // Same as first triangle
+//! assert!(triangle.same_content(&same_triangle));
+//! ```
+//!
+//! ### Building Simplicial Complexes
+//!
+//! ```rust
+//! use harness_space::complexes::{Complex, SimplicialComplex};
+//!
+//! let mut complex = SimplicialComplex::new();
+//!
+//! // Add a triangle - automatically includes all faces
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//! let added = complex.join_element(triangle);
+//!
+//! // Complex now contains: 1 triangle + 3 edges + 3 vertices
+//! assert_eq!(complex.elements_of_dimension(2).len(), 1);
+//! assert_eq!(complex.elements_of_dimension(1).len(), 3);
+//! assert_eq!(complex.elements_of_dimension(0).len(), 3);
+//! ```
+//!
+//! ### Computing Homology
+//!
+//! ```rust
+//! use harness_algebra::algebras::boolean::Boolean;
+//!
+//! // Create a triangle boundary (circle)
+//! let mut complex = SimplicialComplex::new();
+//! complex.join_element(Simplex::new(1, vec![0, 1]));
+//! complex.join_element(Simplex::new(1, vec![1, 2]));
+//! complex.join_element(Simplex::new(1, vec![2, 0]));
+//!
+//! // Compute homology over Z/2Z
+//! let h1 = complex.homology::<Boolean>(1);
+//! assert_eq!(h1.betti_number, 1); // One 1-dimensional hole
+//! ```
+//!
+//! ### Working with Face Relations
+//!
+//! ```rust
+//! # use harness_space::complexes::{SimplicialComplex, Simplex};
+//! # let mut complex = SimplicialComplex::new();
+//! # let triangle = Simplex::new(2, vec![0, 1, 2]);
+//! # let added = complex.join_element(triangle);
+//!
+//! // Get faces using the element's method
+//! let abstract_faces = added.faces(); // Returns simplices without IDs
+//!
+//! // Get faces that exist in the complex
+//! let complex_faces = complex.faces(&added); // Returns elements with IDs
+//!
+//! // Work with boundary operators
+//! let boundary_with_signs = added.boundary_with_orientations();
+//! for (face, orientation) in boundary_with_signs {
+//!   println!("Face: {:?}, Orientation: {}", face.vertices(), orientation);
+//! }
+//! ```
+//!
+//! ## Standard Constructions
+//!
+//! ### Common Geometric Objects
+//!
+//! ```rust
+//! use harness_space::complexes::{Simplex, SimplicialComplex};
+//!
+//! // Point
+//! let point = Simplex::new(0, vec![0]);
+//!
+//! // Line segment
+//! let edge = Simplex::new(1, vec![0, 1]);
+//!
+//! // Triangle
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//!
+//! // Tetrahedron
+//! let tetrahedron = Simplex::new(3, vec![0, 1, 2, 3]);
+//! ```
+//!
+//! ### Topological Spaces
+//!
+//! ```rust
+//! # use harness_space::complexes::{SimplicialComplex, Simplex};
+//!
+//! // Circle (S¹) - triangle boundary
+//! let mut circle = SimplicialComplex::new();
+//! circle.join_element(Simplex::new(1, vec![0, 1]));
+//! circle.join_element(Simplex::new(1, vec![1, 2]));
+//! circle.join_element(Simplex::new(1, vec![2, 0]));
+//!
+//! // Sphere (S²) - tetrahedron boundary
+//! let mut sphere = SimplicialComplex::new();
+//! sphere.join_element(Simplex::new(2, vec![0, 1, 2]));
+//! sphere.join_element(Simplex::new(2, vec![0, 1, 3]));
+//! sphere.join_element(Simplex::new(2, vec![0, 2, 3]));
+//! sphere.join_element(Simplex::new(2, vec![1, 2, 3]));
+//! ```
+//!
+//! ## Performance Characteristics
+//!
+//! - **Face Computation**: O(kⁿ) where k is dimension and n is vertex count
+//! - **Boundary Operator**: O(k) where k is the number of faces
+//! - **Complex Construction**: O(f·log f) where f is the total number of faces
+//! - **Homology Computation**: O(n³) where n is the number of elements in relevant dimensions
+//!
+//! ## Implementation Notes
+//!
+//! ### Memory Layout
+//!
+//! Simplices store only their vertex indices (as `Vec<usize>`), making them lightweight.
+//! The dimension is cached for efficiency, and IDs are assigned only when needed.
+//!
+//! ### Ordering and Hashing
+//!
+//! Simplices are ordered lexicographically by their vertex lists, then by dimension.
+//! This provides a consistent total ordering suitable for use in sorted collections.
+//!
+//! ### Thread Safety
+//!
+//! Individual simplices are `Send + Sync` when their vertices are. Complexes use
+//! interior mutability patterns and may require careful synchronization for concurrent access.
+//!
+//! ## Related Modules
+//!
+//! - [`crate::complexes::cubical`]: Alternative cubical complex implementation
+//! - [`crate::complexes`]: Generic complex framework and algorithms
+//! - [`crate::homology`]: Homological algebra computations
+//! - [`crate::lattice`]: Underlying lattice structures for face relations
+//!
+//! ## References
+//!
+//! - Hatcher, A. "Algebraic Topology" - Comprehensive reference for simplicial complexes
+//! - Munkres, J. "Elements of Algebraic Topology" - Classic text with clear foundations
+//! - Edelsbrunner, H. "Computational Topology" - Algorithmic perspective on simplicial complexes
+
 use itertools::Itertools;
 
 use super::*;
@@ -68,30 +289,152 @@ impl Simplex {
   }
 
   /// Creates a new simplex from vertices, automatically determining the dimension.
-  /// This is useful when you want to create a simplex without specifying the dimension explicitly.
+  ///
+  /// This is a convenience constructor that calculates the dimension based on the number
+  /// of vertices provided. The dimension will be `vertices.len() - 1`.
+  ///
+  /// # Arguments
+  /// * `vertices`: A vector of `usize` vertex indices. Must contain distinct values.
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// // Create a point (0-simplex)
+  /// let point = Simplex::from_vertices(vec![0]);
+  /// assert_eq!(point.dimension(), 0);
+  ///
+  /// // Create an edge (1-simplex)
+  /// let edge = Simplex::from_vertices(vec![0, 1]);
+  /// assert_eq!(edge.dimension(), 1);
+  ///
+  /// // Create a triangle (2-simplex)
+  /// let triangle = Simplex::from_vertices(vec![0, 1, 2]);
+  /// assert_eq!(triangle.dimension(), 2);
+  /// ```
+  ///
+  /// # Panics
+  /// * If any vertex indices are repeated
+  /// * If the vertices vector is empty
   pub fn from_vertices(vertices: Vec<usize>) -> Self {
     let dimension = vertices.len().saturating_sub(1);
     Self::new(dimension, vertices)
   }
 
-  /// Creates a new simplex with a specific ID.
-  pub fn with_id(mut self, new_id: usize) -> Self {
+  /// Creates a new simplex with a specific ID assigned.
+  ///
+  /// This method is primarily used internally by the complex management system when
+  /// adding elements to a [`Complex`]. It creates a copy of the current simplex with
+  /// the specified ID assigned.
+  ///
+  /// # Arguments
+  /// * `new_id`: The unique identifier to assign to this simplex
+  ///
+  /// # Returns
+  /// A new `Simplex` instance with the same mathematical content but with the specified ID
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// let simplex = Simplex::new(1, vec![0, 1]);
+  /// assert_eq!(simplex.id(), None);
+  ///
+  /// let with_id = simplex.with_id(42);
+  /// assert_eq!(with_id.id(), Some(42));
+  /// assert!(simplex.same_content(&with_id)); // Same mathematical content
+  /// ```
+  pub const fn with_id(mut self, new_id: usize) -> Self {
     self.id = Some(new_id);
     self
   }
 
   /// Returns a slice reference to the sorted vertex indices of the simplex.
+  ///
+  /// The vertices are always maintained in sorted order to ensure canonical representation.
+  /// This means that two simplices with the same vertex set (regardless of input order)
+  /// will have identical vertex arrays.
+  ///
+  /// # Returns
+  /// A slice `&[usize]` containing the vertex indices in ascending order
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// let simplex = Simplex::new(2, vec![2, 0, 1]); // Input order doesn't matter
+  /// assert_eq!(simplex.vertices(), &[0, 1, 2]); // Always sorted
+  /// ```
   pub fn vertices(&self) -> &[usize] { &self.vertices }
 
   /// Returns the dimension of the simplex.
   ///
-  /// The dimension $k$ is equal to the number of vertices minus one.
+  /// The dimension $k$ is equal to the number of vertices minus one. This follows the
+  /// standard topological convention where:
+  /// - Points have dimension 0
+  /// - Line segments have dimension 1
+  /// - Triangles have dimension 2
+  /// - Tetrahedra have dimension 3
+  /// - etc.
+  ///
+  /// # Returns
+  /// The dimension as a `usize`
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// let point = Simplex::new(0, vec![0]);
+  /// assert_eq!(point.dimension(), 0);
+  ///
+  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
+  /// assert_eq!(triangle.dimension(), 2);
+  /// ```
   pub const fn dimension(&self) -> usize { self.dimension }
 
   /// Returns the ID of the simplex if it has been assigned to a complex.
+  ///
+  /// Simplices start with no ID (`None`) when created. IDs are assigned automatically
+  /// when the simplex is added to a [`Complex`] via [`Complex::join_element`]. The ID
+  /// serves as a unique identifier for efficient storage and lookup operations within
+  /// the complex.
+  ///
+  /// # Returns
+  /// `Some(usize)` if the simplex has been assigned to a complex, `None` otherwise
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// # use harness_space::complexes::SimplicialComplex;
+  /// let simplex = Simplex::new(1, vec![0, 1]);
+  /// assert_eq!(simplex.id(), None); // No ID initially
+  ///
+  /// let mut complex = SimplicialComplex::new();
+  /// let added = complex.join_element(simplex);
+  /// assert!(added.id().is_some()); // ID assigned by complex
+  /// ```
   pub const fn id(&self) -> Option<usize> { self.id }
 
   /// Checks if this simplex has the same mathematical content as another.
+  ///
+  /// Two simplices are considered to have the same content if they have the same
+  /// dimension and the same set of vertices. This comparison ignores ID assignment
+  /// and is used for deduplication when adding elements to complexes.
+  ///
+  /// # Arguments
+  /// * `other`: The other simplex to compare against
+  ///
+  /// # Returns
+  /// `true` if the simplices represent the same geometric object, `false` otherwise
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// let s1 = Simplex::new(1, vec![0, 1]);
+  /// let s2 = Simplex::new(1, vec![1, 0]); // Different input order
+  /// let s3 = s1.clone().with_id(42); // Same content, different ID
+  /// let s4 = Simplex::new(1, vec![0, 2]); // Different vertices
+  ///
+  /// assert!(s1.same_content(&s2)); // Same despite input order
+  /// assert!(s1.same_content(&s3)); // Same despite different ID
+  /// assert!(!s1.same_content(&s4)); // Different vertices
+  /// ```
   pub fn same_content(&self, other: &Self) -> bool {
     self.dimension == other.dimension && self.vertices == other.vertices
   }
@@ -123,7 +466,7 @@ impl ComplexElement for Simplex {
       .clone()
       .into_iter()
       .combinations(self.dimension)
-      .map(|v| Self::from_vertices(v))
+      .map(Self::from_vertices)
       .collect()
   }
 
@@ -449,12 +792,6 @@ mod tests {
     let mut complex: Complex<Simplex> = Complex::new();
 
     // Create a triangle
-    let v0 = Simplex::new(0, vec![0]);
-    let v1 = Simplex::new(0, vec![1]);
-    let v2 = Simplex::new(0, vec![2]);
-    let e01 = Simplex::new(1, vec![0, 1]);
-    let e12 = Simplex::new(1, vec![1, 2]);
-    let e02 = Simplex::new(1, vec![0, 2]);
     let triangle = Simplex::new(2, vec![0, 1, 2]);
 
     let added_triangle = complex.join_element(triangle);
@@ -462,31 +799,23 @@ mod tests {
     // Get all elements
     let vertices = complex.elements_of_dimension(0);
     let edges = complex.elements_of_dimension(1);
-    let triangles = complex.elements_of_dimension(2);
+    let _triangles = complex.elements_of_dimension(2);
 
     // Test that triangle's boundary consists only of direct faces (edges)
     let boundary_with_orientations = added_triangle.boundary_with_orientations();
     for (face, _orientation) in boundary_with_orientations {
-      // Each face should be an edge (1-dimensional)
       assert_eq!(face.dimension(), 1);
-      // Each face should be in the complex
       assert!(edges.iter().any(|e| e.same_content(&face)));
-      // There should be no elements between the triangle and its faces
-      // (already guaranteed by construction since triangle is 2D and faces are 1D)
     }
 
     // Test that edges' boundaries consist only of direct faces (vertices)
     for edge in &edges {
       let edge_boundary = edge.boundary_with_orientations();
       for (vertex_face, _orientation) in edge_boundary {
-        // Each face should be a vertex (0-dimensional)
         assert_eq!(vertex_face.dimension(), 0);
-        // Each face should be in the complex
         assert!(vertices.iter().any(|v| v.same_content(&vertex_face)));
       }
     }
-
-    println!("✓ Simplicial Incidence Condition 1: Non-zero incidence implies direct face relation");
   }
 
   #[test]
