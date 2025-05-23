@@ -44,6 +44,10 @@
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
+use harness_algebra::tensors::dynamic::{
+  block::BlockMatrix, matrix::RowMajor, vector::DynamicVector,
+};
+
 use super::*;
 use crate::{definitions::Topology, set::Poset};
 
@@ -211,6 +215,16 @@ where
     }
     true
   }
+}
+
+// TODO: This is a temporary implementation for the coboundary map specifically for the vector
+// stalks.
+impl<T, F: Field + Copy> Sheaf<T, DynamicVector<F>>
+where
+  T: Topology + Poset,
+  T::Item: Hash + Eq + Clone + Debug,
+{
+  pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> { todo!() }
 }
 
 #[cfg(test)]

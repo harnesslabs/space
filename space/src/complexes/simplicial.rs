@@ -110,10 +110,12 @@ use crate::{
 /// # Fields
 /// * `vertices`: A sorted `Vec<usize>` of vertex indices that define the simplex.
 /// * `dimension`: The dimension of the simplex, equal to `vertices.len() - 1`.
+/// * `id`: An optional unique identifier assigned when the simplex is added to a complex.
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub struct Simplex {
   vertices:  Vec<usize>,
   dimension: usize,
+  id:        Option<usize>,
 }
 
 impl Eq for Simplex {}
@@ -129,14 +131,18 @@ impl Ord for Simplex {
   /// Provides a total ordering for simplices, primarily for use in sorted collections (e.g.,
   /// `BTreeSet` or when sorting `Vec<Simplex>`).
   ///
-  /// The ordering is based on the lexicographical comparison of their sorted vertex lists.
-  fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.vertices.cmp(&other.vertices) }
+  /// The ordering is based on the lexicographical comparison of their sorted vertex lists,
+  /// then by dimension.
+  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    self.vertices.cmp(&other.vertices).then_with(|| self.dimension.cmp(&other.dimension))
+  }
 }
 
 impl Simplex {
   /// Creates a new simplex of a given `dimension` from a set of `vertices`.
   ///
   /// The provided `vertices` will be sorted internally to ensure a canonical representation.
+  /// The simplex is created without an ID (id = None).
   ///
   /// # Arguments
   /// * `dimension`: The dimension of the simplex (e.g., 0 for a point, 1 for an edge, 2 for a
@@ -150,7 +156,20 @@ impl Simplex {
   pub fn new(dimension: usize, vertices: Vec<usize>) -> Self {
     assert!(vertices.iter().combinations(2).all(|v| v[0] != v[1]));
     assert!(vertices.len() == dimension + 1);
-    Self { vertices: vertices.into_iter().sorted().collect(), dimension }
+    Self { vertices: vertices.into_iter().sorted().collect(), dimension, id: None }
+  }
+
+  /// Creates a new simplex from vertices, automatically determining the dimension.
+  /// This is useful when you want to create a simplex without specifying the dimension explicitly.
+  pub fn from_vertices(vertices: Vec<usize>) -> Self {
+    let dimension = vertices.len().saturating_sub(1);
+    Self::new(dimension, vertices)
+  }
+
+  /// Creates a new simplex with a specific ID.
+  pub fn with_id(mut self, new_id: usize) -> Self {
+    self.id = Some(new_id);
+    self
   }
 
   /// Returns a slice reference to the sorted vertex indices of the simplex.
@@ -160,6 +179,9 @@ impl Simplex {
   ///
   /// The dimension $k$ is equal to the number of vertices minus one.
   pub const fn dimension(&self) -> usize { self.dimension }
+
+  /// Returns the ID of the simplex if it has been assigned to a complex.
+  pub const fn id(&self) -> Option<usize> { self.id }
 
   /// Computes all $(k-1)$-dimensional faces of this $k$-simplex.
   ///
@@ -183,9 +205,26 @@ impl Simplex {
       .clone()
       .into_iter()
       .combinations(self.dimension)
-      .map(|v| Self::new(self.dimension - 1, v))
+      .map(|v| Self::from_vertices(v))
       .collect()
   }
+
+  /// Checks if this simplex has the same mathematical content as another.
+  pub fn same_content(&self, other: &Self) -> bool {
+    self.dimension == other.dimension && self.vertices == other.vertices
+  }
+}
+
+impl ComplexElement for Simplex {
+  fn dimension(&self) -> usize { self.dimension }
+
+  fn faces(&self) -> Vec<Self> { self.faces() }
+
+  fn id(&self) -> Option<usize> { self.id }
+
+  fn same_content(&self, other: &Self) -> bool { self.same_content(other) }
+
+  fn with_id(&self, new_id: usize) -> Self { self.clone().with_id(new_id) }
 }
 
 /// A simplicial complex $K$ is a collection of simplices satisfying two conditions:
