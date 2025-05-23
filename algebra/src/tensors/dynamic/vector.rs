@@ -52,6 +52,8 @@
 // TODO (autoparallel): We could also have this be generic over an inner vector too and use
 // `smallvec` and `tinyvec` if need be.
 
+use std::fmt;
+
 use super::*;
 use crate::category::Category;
 
@@ -376,6 +378,39 @@ impl<F> Iterator for DynamicVector<F> {
   fn next(&mut self) -> Option<Self::Item> { self.components.pop() }
 }
 
+impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicVector<F> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.components.is_empty() {
+      return write!(f, "( )");
+    }
+
+    if self.components.len() == 1 {
+      // Single element: use simple parentheses
+      return write!(f, "( {} )", self.components[0]);
+    }
+
+    // Calculate the width needed for proper alignment
+    let mut max_width = 0;
+    for component in &self.components {
+      let component_str = format!("{component}");
+      max_width = max_width.max(component_str.len());
+    }
+
+    // Multi-element: use tall parentheses
+    for (i, component) in self.components.iter().enumerate() {
+      if i == 0 {
+        writeln!(f, "⎛ {component:>max_width$} ⎞")?;
+      } else if i == self.components.len() - 1 {
+        write!(f, "⎝ {component:>max_width$} ⎠")?;
+      } else {
+        writeln!(f, "⎜ {component:>max_width$} ⎟")?;
+      }
+    }
+
+    Ok(())
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use fixtures::Mod7;
@@ -520,5 +555,20 @@ mod tests {
   fn test_zeros() {
     let zero_vec = DynamicVector::<Mod7>::zeros(3);
     assert_eq!(zero_vec.components, vec![Mod7::from(0), Mod7::from(0), Mod7::from(0)]);
+  }
+
+  #[test]
+  fn test_display_formatting() {
+    // Test empty vector
+    let empty: DynamicVector<f64> = DynamicVector::new(vec![]);
+    println!("Empty vector: \n{empty}");
+
+    // Test single element
+    let single = DynamicVector::from([42.0]);
+    println!("Single element: \n{single}");
+
+    // Test multiple elements
+    let multi = DynamicVector::from([1.0, 2.5, -3.7, 0.0]);
+    println!("Multiple elements: \n{multi}");
   }
 }

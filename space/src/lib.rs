@@ -20,6 +20,7 @@ pub mod prelude {
   //! It provides a convenient way to import these types and traits into your code without
   //! having to specify the crate name each time.
   pub use crate::{
+    complexes::ComplexElement,
     definitions::{MetricSpace, NormedSpace, Topology},
     set::{Collection, Poset},
   };

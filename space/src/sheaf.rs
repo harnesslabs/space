@@ -44,8 +44,16 @@
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
+use harness_algebra::tensors::dynamic::{
+  block::BlockMatrix, matrix::RowMajor, vector::DynamicVector,
+};
+
 use super::*;
-use crate::{definitions::Topology, set::Poset};
+use crate::{
+  complexes::{Complex, ComplexElement},
+  definitions::Topology,
+  set::Poset,
+};
 
 // TODO: We should make this have a nice construction setup so you can build the underlying space
 // and the restrictions simultaneously
@@ -82,7 +90,7 @@ impl<T, C> Sheaf<T, C>
 where
   T: Topology + Poset,
   T::Item: Hash + Eq + Clone + Debug,
-  C: Category + Clone + Eq + Debug,
+  C: Category + Clone + PartialEq + Debug,
   C::Morphism: Clone + Debug,
 {
   /// Creates a new sheaf from a given topological space and a set of restriction maps.
@@ -213,204 +221,559 @@ where
   }
 }
 
+use harness_algebra::tensors::dynamic::matrix::DynamicDenseMatrix;
+
+// TODO: This is a temporary implementation for the coboundary map specifically for the vector
+// stalks.
+impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, DynamicVector<F>>
+where T: Hash + Eq + Clone + Debug
+{
+  /// Constructs the coboundary matrix δ^k: C^k → C^(k+1) for the sheaf.
+  ///
+  /// The coboundary map is dual to the boundary map of the underlying complex.
+  /// For dimension k, this maps k-cochains (sections over k-dimensional elements)
+  /// to (k+1)-cochains (sections over (k+1)-dimensional elements).
+  ///
+  /// The matrix has:
+  /// - Rows indexed by (k+1)-dimensional elements
+  /// - Columns indexed by k-dimensional elements
+  /// - Entry (σ, τ) equals the orientation coefficient of τ in ∂σ where σ is (k+1)-dimensional and
+  ///   τ is k-dimensional
+  ///
+  /// # Arguments
+  /// * `dimension`: The dimension k of the domain (k-cochains)
+  ///
+  /// # Returns
+  /// A block matrix representing δ^k: C^k → C^(k+1)
+  pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> {
+    // Get sorted k-dimensional and (k+1)-dimensional elements
+    let k_elements = {
+      let mut elements = self.space.elements_of_dimension(dimension);
+      elements.sort_unstable();
+      elements
+    };
+
+    let k_plus_1_elements = {
+      let mut elements = self.space.elements_of_dimension(dimension + 1);
+      elements.sort_unstable();
+      elements
+    };
+
+    if k_elements.is_empty() || k_plus_1_elements.is_empty() {
+      // No source elements or no target elements - return completely empty matrix (0,0)
+      return BlockMatrix::new(vec![], vec![]);
+    }
+
+    // Determine block sizes based on stalk dimensions
+    let mut col_block_sizes = Vec::new();
+    for k_element in &k_elements {
+      // Find any restriction involving this k_element to determine its stalk dimension
+      let stalk_dim = self
+        .restrictions
+        .iter()
+        .find_map(|((from, to), matrix)| {
+          if from.same_content(k_element) {
+            Some(matrix.num_cols()) // When k_element is the source, its stalk dimension is num_cols
+          } else if to.same_content(k_element) {
+            Some(matrix.num_rows()) // When k_element is the target, its stalk dimension is num_rows
+          } else {
+            None
+          }
+        })
+        .unwrap_or(1); // Default to 1 if no restriction found
+      col_block_sizes.push(stalk_dim);
+    }
+
+    let mut row_block_sizes = Vec::new();
+    for k_plus_1_element in &k_plus_1_elements {
+      // Find any restriction involving this (k+1)-element to determine its stalk dimension
+      let stalk_dim = self
+        .restrictions
+        .iter()
+        .find_map(|((from, to), matrix)| {
+          if from.same_content(k_plus_1_element) {
+            Some(matrix.num_cols()) // When k_plus_1_element is the source, its stalk dimension is
+                                    // num_cols
+          } else if to.same_content(k_plus_1_element) {
+            Some(matrix.num_rows()) // When k_plus_1_element is the target, its stalk dimension is
+                                    // num_rows
+          } else {
+            None
+          }
+        })
+        .unwrap_or(1); // Default to 1 if no restriction found
+      row_block_sizes.push(stalk_dim);
+    }
+
+    // Create the block matrix with proper structure
+    let mut block_matrix = BlockMatrix::new(row_block_sizes, col_block_sizes);
+
+    // Fill in the blocks
+    for (row_idx, k_plus_1_element) in k_plus_1_elements.iter().enumerate() {
+      for (col_idx, k_element) in k_elements.iter().enumerate() {
+        // Check if k_element appears in the boundary of k_plus_1_element
+        let boundary_with_orientations = k_plus_1_element.boundary_with_orientations();
+
+        if let Some((_, orientation_coeff)) =
+          boundary_with_orientations.iter().find(|(face, _)| face.same_content(k_element))
+        {
+          // k_element is in the boundary, so we need the restriction matrix
+          if let Some(restriction_matrix) =
+            self.restrictions.get(&(k_element.clone(), k_plus_1_element.clone()))
+          {
+            // Apply the orientation sign to the restriction matrix
+            let signed_matrix = if *orientation_coeff > 0 {
+              restriction_matrix.clone()
+            } else if *orientation_coeff < 0 {
+              // Multiply by -1
+              let mut negated = restriction_matrix.clone();
+              for i in 0..negated.num_rows() {
+                for j in 0..negated.num_cols() {
+                  let val = *negated.get_component(i, j);
+                  negated.set_component(i, j, -val);
+                }
+              }
+              negated
+            } else {
+              // Zero coefficient - create zero matrix
+              DynamicDenseMatrix::<F, RowMajor>::zeros(
+                block_matrix.row_block_sizes()[row_idx],
+                block_matrix.col_block_sizes()[col_idx],
+              )
+            };
+
+            block_matrix.set_block(row_idx, col_idx, signed_matrix);
+          }
+          // If no restriction found, the block remains zero (not stored)
+        }
+        // If k_element is not in the boundary, the block remains zero (not stored)
+      }
+    }
+
+    block_matrix
+  }
+}
+
 #[cfg(test)]
 mod tests {
   #![allow(clippy::type_complexity)]
-  use harness_algebra::{
-    modular, prime_field,
-    tensors::dynamic::{
-      matrix::{DynamicDenseMatrix, RowMajor},
-      vector::DynamicVector,
-    },
+  #![allow(clippy::too_many_lines)]
+  #![allow(clippy::float_cmp)]
+  use harness_algebra::tensors::dynamic::{
+    matrix::{DynamicDenseMatrix, RowMajor},
+    vector::DynamicVector,
   };
 
   use super::*;
-  use crate::complexes::cell::{Cell, CellComplex};
+  use crate::complexes::{Cube, CubicalComplex, Simplex, SimplicialComplex};
 
-  modular!(Mod7, u32, 7);
-  prime_field!(Mod7);
-
-  fn cell_complex_1d(
-  ) -> (CellComplex, HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>, Cell, Cell, Cell)
-  {
-    let mut cc = CellComplex::new();
-    let v1 = cc.add_cell(0, &[]);
-    let v2 = cc.add_cell(0, &[]);
-    let e1 = cc.add_cell(1, &[&v1, &v2]);
+  fn simplicial_complex_1d() -> (
+    SimplicialComplex,
+    HashMap<(Simplex, Simplex), DynamicDenseMatrix<f64, RowMajor>>,
+    Simplex,
+    Simplex,
+    Simplex,
+  ) {
+    let mut cc = SimplicialComplex::new();
+    let v0 = Simplex::new(0, vec![0]);
+    let v1 = Simplex::new(0, vec![1]);
+    let e01 = Simplex::new(1, vec![0, 1]);
+    let v0 = cc.join_element(v0);
+    let v1 = cc.join_element(v1);
+    let e01 = cc.join_element(e01);
     let restrictions = HashMap::from([
-      ((v1, e1), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
+      ((v0.clone(), e01.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 2.0]));
         mat
       }),
-      ((v2, e1), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
+      ((v1.clone(), e01.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
         mat
       }),
     ]);
-    (cc, restrictions, v1, v2, e1)
+    (cc, restrictions, v0, v1, e01)
   }
 
   #[test]
-  fn test_sheaf_global_section_1d() {
-    let (cc, restrictions, v1, v2, e1) = cell_complex_1d();
+  fn test_simplicial_sheaf_global_section_1d() {
+    let (cc, restrictions, v1, v2, e1) = simplicial_complex_1d();
 
-    let sheaf = Sheaf::<CellComplex, DynamicVector<Mod7>>::new(cc, restrictions);
+    let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (v1.clone(), DynamicVector::<f64>::new(vec![2.0])), // R^1
+      (v2.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1.clone(), DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(1)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (v1.clone(), DynamicVector::<f64>::new(vec![1.0])), // R^1
+      (v2.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1.clone(), DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
+      (v1.clone(), DynamicVector::<f64>::new(vec![2.0])), // R^1
+      (v2.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(2)])), // R^1
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(3), Mod7::from(3)])), // R^2
-      (e1, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
+      (v1, DynamicVector::<f64>::new(vec![2.0])),      // R^1
+      (v2, DynamicVector::<f64>::new(vec![3.0, 3.0])), // R^2
+      (e1, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
   }
 
-  fn cell_complex_2d() -> (
-    CellComplex,
-    HashMap<(Cell, Cell), DynamicDenseMatrix<Mod7, RowMajor>>,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
+  #[test]
+  fn test_simplicial_sheaf_coboundary_1d() {
+    let (cc, restrictions, ..) = simplicial_complex_1d();
+    let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
+    let coboundary = sheaf.coboundary(0);
+
+    // Expected structure: 1 block row × 2 block columns
+    // Block (0,0): 2×1 (from v0's R¹ stalk to e01's R² stalk)
+    // Block (0,1): 2×2 (from v1's R² stalk to e01's R² stalk)
+    assert_eq!(coboundary.block_structure(), (1, 2));
+    assert_eq!(coboundary.row_block_sizes(), &[2]); // e01 has R² stalk
+    assert_eq!(coboundary.col_block_sizes(), &[1, 2]); // v0 has R¹, v1 has R²
+
+    // Block (0,0): Should be -1 × [[1.0], [2.0]] = [[-1.0], [-2.0]]
+    // (since v0 has orientation coefficient -1 in ∂e01 = v1 - v0)
+    let block_00 = coboundary.get_block(0, 0).expect("Block (0,0) should exist");
+    assert_eq!(block_00.num_rows(), 2);
+    assert_eq!(block_00.num_cols(), 1);
+    assert_eq!(*block_00.get_component(0, 0), -1.0);
+    assert_eq!(*block_00.get_component(1, 0), -2.0);
+
+    // Block (0,1): Should be +1 × [[2.0, 0.0], [0.0, 2.0]] = [[2.0, 0.0], [0.0, 2.0]]
+    // (since v1 has orientation coefficient +1 in ∂e01 = v1 - v0)
+    let block_01 = coboundary.get_block(0, 1).expect("Block (0,1) should exist");
+    assert_eq!(block_01.num_rows(), 2);
+    assert_eq!(block_01.num_cols(), 2);
+    assert_eq!(*block_01.get_component(0, 0), 2.0);
+    assert_eq!(*block_01.get_component(0, 1), 0.0);
+    assert_eq!(*block_01.get_component(1, 0), 0.0);
+    assert_eq!(*block_01.get_component(1, 1), 2.0);
+
+    // Verify the flattened matrix is correct
+    let flattened = coboundary.flatten();
+    assert_eq!(flattened.num_rows(), 2);
+    assert_eq!(flattened.num_cols(), 3);
+
+    // Row 0: [-1, 2, 0]
+    assert_eq!(*flattened.get_component(0, 0), -1.0);
+    assert_eq!(*flattened.get_component(0, 1), 2.0);
+    assert_eq!(*flattened.get_component(0, 2), 0.0);
+
+    // Row 1: [-2, 0, 2]
+    assert_eq!(*flattened.get_component(1, 0), -2.0);
+    assert_eq!(*flattened.get_component(1, 1), 0.0);
+    assert_eq!(*flattened.get_component(1, 2), 2.0);
+
+    println!("Coboundary matrix:");
+    println!("{coboundary}");
+
+    let coboundary = sheaf.coboundary(1);
+    println!("{coboundary}");
+    assert_eq!(coboundary.block_structure(), (0, 0));
+  }
+
+  fn simplicial_complex_2d() -> (
+    SimplicialComplex,
+    HashMap<(Simplex, Simplex), DynamicDenseMatrix<f64, RowMajor>>,
+    Simplex,
+    Simplex,
+    Simplex,
+    Simplex,
+    Simplex,
+    Simplex,
+    Simplex,
   ) {
-    let mut cc = CellComplex::new();
+    let mut cc = SimplicialComplex::new();
     // Vertices
-    let v0 = cc.add_cell(0, &[]); // R^1
-    let v1 = cc.add_cell(0, &[]); // R^2
-    let v2 = cc.add_cell(0, &[]); // R^3
-                                  // Edges
-    let e01 = cc.add_cell(1, &[&v0, &v1]); // R^2
-    let e02 = cc.add_cell(1, &[&v0, &v2]); // R^2
-    let e12 = cc.add_cell(1, &[&v1, &v2]); // R^2
+    let v0 = Simplex::new(0, vec![0]); // R^1
+    let v1 = Simplex::new(0, vec![1]); // R^2
+    let v2 = Simplex::new(0, vec![2]); // R^3
+                                       // Edges
+    let e01 = Simplex::new(1, vec![0, 1]); // R^2
+    let e02 = Simplex::new(1, vec![0, 2]); // R^2
+    let e12 = Simplex::new(1, vec![1, 2]); // R^2
 
     // Faces
-    let f012 = cc.add_cell(2, &[&e01, &e02, &e12]); // R^3
+    let f012 = Simplex::new(2, vec![0, 1, 2]); // R^3
+
+    let v0 = cc.join_element(v0);
+    let v1 = cc.join_element(v1);
+    let v2 = cc.join_element(v2);
+    let e01 = cc.join_element(e01);
+    let e02 = cc.join_element(e02);
+    let e12 = cc.join_element(e12);
+    let f012 = cc.join_element(f012);
 
     let restrictions = HashMap::from([
-      ((v0, e01), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)]));
+      ((v0.clone(), e01.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 2.0]));
         mat
       }),
-      ((v1, e01), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(1)]));
+      ((v1.clone(), e01.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0]));
         mat
       }),
-      ((v0, e02), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
+      ((v0.clone(), e02.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
         mat
       }),
-      ((v2, e02), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
+      ((v2.clone(), e02.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
-      ((v1, e12), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
+      ((v1.clone(), e12.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
         mat
       }),
-      ((v2, e12), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(2)]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![Mod7::from(0), Mod7::from(0)]));
+      ((v2.clone(), e12.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
         mat
       }),
-      ((e01, f012), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(2),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
+      ((e01.clone(), f012.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
-      ((e02, f012), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(2),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(1),
-          Mod7::from(0),
-        ]));
+      ((e02.clone(), f012.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0]));
         mat
       }),
-      ((e12, f012), {
-        let mut mat = DynamicDenseMatrix::<Mod7, RowMajor>::new();
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(1),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
-        mat.append_column(&DynamicVector::<Mod7>::new(vec![
-          Mod7::from(0),
-          Mod7::from(0),
-          Mod7::from(0),
-        ]));
+      ((e12.clone(), f012.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
+        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
         mat
       }),
     ]);
-
     (cc, restrictions, v0, v1, v2, e01, e02, e12, f012)
   }
 
   #[test]
-  fn test_sheaf_global_section_2d() {
-    let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = cell_complex_2d();
+  fn test_simplicial_sheaf_global_section_2d() {
+    let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = simplicial_complex_2d();
 
-    let sheaf = Sheaf::<CellComplex, DynamicVector<Mod7>>::new(cc, restrictions);
+    let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v0, DynamicVector::<Mod7>::new(vec![Mod7::from(1)])), // R^1
-      (v1, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (v2, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2), Mod7::from(3)])), // R^3
-      (e01, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(2)])), // R^2
-      (e02, DynamicVector::<Mod7>::new(vec![Mod7::from(1), Mod7::from(0)])), // R^2
-      (e12, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(4)])), // R^2
-      (f012, DynamicVector::<Mod7>::new(vec![Mod7::from(2), Mod7::from(0), Mod7::from(0)])), // R^3
+      (v0, DynamicVector::<f64>::new(vec![1.0])),      // R^1
+      (v1, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0, 3.0])), // R^3
+      (e01, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e02, DynamicVector::<f64>::new(vec![1.0, 0.0])), // R^2
+      (e12, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
+      (f012, DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0])), // R^3
     ]);
     assert!(sheaf.is_global_section(&section));
+  }
+
+  #[test]
+  fn test_simplicial_sheaf_coboundary_2d() {
+    let (cc, restrictions, ..) = simplicial_complex_2d();
+    let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
+    let coboundary = sheaf.coboundary(0);
+    println!("{coboundary}");
+    assert_eq!(coboundary.block_structure(), (3, 3));
+
+    let coboundary = sheaf.coboundary(1);
+    println!("{coboundary}");
+    assert_eq!(coboundary.block_structure(), (1, 3));
+
+    let coboundary = sheaf.coboundary(2);
+    println!("{coboundary}");
+    assert_eq!(coboundary.block_structure(), (0, 0));
+  }
+
+  fn cubical_complex_2d(
+  ) -> (CubicalComplex, HashMap<(Cube, Cube), DynamicDenseMatrix<f64, RowMajor>>) {
+    let mut cc = CubicalComplex::new();
+
+    // Create a 2x2 grid of cubes
+    // Vertices (0-cubes) at grid positions
+    let v00 = Cube::vertex(0);
+    let v10 = Cube::vertex(1);
+    let v01 = Cube::vertex(2);
+    let v11 = Cube::vertex(3);
+
+    // Horizontal edges (1-cubes)
+    let e_h1 = Cube::edge(0, 1);
+    let e_h2 = Cube::edge(2, 3);
+
+    // Vertical edges (1-cubes)
+    let e_v1 = Cube::edge(0, 2);
+    let e_v2 = Cube::edge(1, 3);
+
+    // Square face (2-cube)
+    let square = Cube::square([0, 1, 2, 3]); // R^4 stalk
+
+    // Add all elements to complex
+    let v00 = cc.join_element(v00); // R^2
+    let v10 = cc.join_element(v10); // R^2
+    let v01 = cc.join_element(v01); // R^3
+    let v11 = cc.join_element(v11); // R^3
+    let e_h1 = cc.join_element(e_h1); // R^2
+    let e_h2 = cc.join_element(e_h2); // R^3
+    let e_v1 = cc.join_element(e_v1); // R^2
+    let e_v2 = cc.join_element(e_v2); // R^3
+    let square = cc.join_element(square); // R^4
+
+    let restrictions = HashMap::from([
+      ((v00.clone(), e_h1.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.5])); // R^2 → R^2
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat
+      }),
+      ((v10.clone(), e_h1.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^2
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
+        mat
+      }),
+      ((v01.clone(), e_h2.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^3
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat
+      }),
+      ((v11.clone(), e_h2.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0])); // R^3 → R^3
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 1.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
+        mat
+      }),
+      ((v00, e_v1.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![2.0, 1.0])); // R^2 → R^2
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat
+      }),
+      ((v01, e_v1.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^2
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat
+      }),
+      ((v10, e_v2.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^3
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat
+      }),
+      ((v11, e_v2.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0])); // R^3 → R^3
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat
+      }),
+      ((e_h1, square.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat
+      }),
+      ((e_h2, square.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 1.0])); // R^3 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
+        mat
+      }),
+      ((e_v1, square.clone()), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![1.0, 0.0])); // R^2 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0]));
+        mat
+      }),
+      ((e_v2, square), {
+        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0])); // R^3 → R^4
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat.append_row(DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+        mat
+      }),
+    ]);
+
+    (cc, restrictions)
+  }
+
+  #[test]
+  fn test_cubical_sheaf_coboundary_2d() {
+    let (cc, restrictions) = cubical_complex_2d();
+    let sheaf = Sheaf::<CubicalComplex, DynamicVector<f64>>::new(cc, restrictions);
+
+    println!("=== 2D Cubical Sheaf Analysis ===");
+
+    // Test 0-dimensional coboundary (vertices → edges)
+    let coboundary_0 = sheaf.coboundary(0);
+    println!("\n0-dimensional coboundary (vertices → edges):");
+    println!("{coboundary_0}");
+
+    // Expected: 4 block rows (edges) × 4 block columns (vertices)
+    assert_eq!(coboundary_0.block_structure().0, 4); // 4 edges
+    assert_eq!(coboundary_0.block_structure().1, 4); // 4 vertices
+
+    // Verify block sizes
+    assert_eq!(coboundary_0.row_block_sizes(), &[2, 2, 3, 3]);
+    assert_eq!(coboundary_0.col_block_sizes(), &[2, 2, 3, 3]);
+
+    // Test 1-dimensional coboundary (edges → faces)
+    let coboundary_1 = sheaf.coboundary(1);
+    println!("\n1-dimensional coboundary (edges → faces):");
+    println!("{coboundary_1}");
+
+    // Expected: 1 block row (square) × 4 block columns (edges)
+    assert_eq!(coboundary_1.block_structure().0, 1); // 1 square
+    assert_eq!(coboundary_1.block_structure().1, 4); // 4 edges
+
+    // Verify block sizes
+    assert_eq!(coboundary_1.row_block_sizes(), &[4]);
+    assert_eq!(coboundary_1.col_block_sizes(), &[2, 2, 3, 3]);
+
+    // Test 2-dimensional coboundary (faces → higher dim, should be empty)
+    let coboundary_2 = sheaf.coboundary(2);
+    println!("\n2-dimensional coboundary (faces → 3-cubes, should be empty):");
+    println!("{coboundary_2}");
+
+    // Should be empty since no 3-cubes
+    assert_eq!(coboundary_2.block_structure(), (0, 0));
   }
 }

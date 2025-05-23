@@ -8,12 +8,12 @@
 //! Given a finite set of points $X = \\{x_1, x_2, \dots, x_n\\}$ in a metric space $(M, d)$
 //! and a real number $\\epsilon > 0$ (the distance threshold), the **Vietoris-Rips complex**
 //! $VR_\\epsilon(X)$ is an abstract simplicial complex whose vertices are the points in $X$.
-//! A $k$-simplex $[x_{i_0}, x_{i_1}, \dots, x_{i_k}]$ is included in $VR_\\epsilon(X)$ if and only
-//! if the distance between any pair of its vertices is less than or equal to $\\epsilon$. That is:
-//!
+//! A $k$-simplex $[x_{i_0}, x_{i_1}, \dots, x_{i_k}]$ is included in $VR_\\epsilon(X)$ if and
+//! only if the distance between any pair of its vertices is less than or equal to $\\epsilon$.
+//! That is:
 //! $$
-//! [x_{i_0}, x_{i_1}, \dots, x_{i_k}] \\in VR_\\epsilon(X) \\iff d(x_{i_j}, x_{i_l}) \\le \\epsilon
-//! \\quad \\forall j, l \\in \\{0, 1, \dots, k\\}
+//! [x_{i_0}, x_{i_1}, \dots, x_{i_k}] \\in VR_\\epsilon(X) \\iff d(x_{i_j}, x_{i_l}) \\le
+//! \\epsilon \\quad \\forall j, l \\in \\{0, 1, \dots, k\\}
 //! $$
 //!
 //! In simpler terms, a set of points forms a simplex if all points in that set are pairwise
@@ -21,8 +21,8 @@
 //!
 //! ## Filtration
 //!
-//! The Vietoris-Rips complex naturally forms a filtration. As $\\epsilon$ increases, more simplices
-//! are added to the complex, and no simplices are ever removed:
+//! The Vietoris-Rips complex naturally forms a filtration. As $\\epsilon$ increases, more
+//! simplices are added to the complex, and no simplices are ever removed:
 //!
 //! $$
 //! VR_{\\epsilon_1}(X) \\subseteq VR_{\\epsilon_2}(X) \\quad \\text{if} \\quad \\epsilon_1 \\le
@@ -42,7 +42,7 @@
 //! use harness_algebra::tensors::fixed::FixedVector;
 //! use harness_space::{
 //!   cloud::Cloud,
-//!   complexes::simplicial::SimplicialComplex,
+//!   complexes::SimplicialComplex,
 //!   filtration::{vietoris_rips::VietorisRips, Filtration},
 //! };
 //!
@@ -58,9 +58,9 @@
 //! // Build the complex with epsilon = 1.1 (all points are within this distance)
 //! let complex = vr_builder.build(&cloud, 1.1, &());
 //!
-//! assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3); // 3 vertices
-//! assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3); // 3 edges
-//! assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1); // 1 triangle (2-simplex)
+//! assert_eq!(complex.elements_of_dimension(0).len(), 3); // 3 vertices
+//! assert_eq!(complex.elements_of_dimension(1).len(), 3); // 3 edges
+//! assert_eq!(complex.elements_of_dimension(2).len(), 1); // 1 triangle (2-simplex)
 //! ```
 //!
 //! When the `"parallel"` feature is enabled, this module also provides implementations for
@@ -80,7 +80,7 @@ use itertools::Itertools;
 use crate::filtration::ParallelFiltration;
 use crate::{
   cloud::Cloud,
-  complexes::simplicial::{Simplex, SimplicialComplex},
+  complexes::{Complex, Simplex, SimplicialComplex},
   filtration::Filtration,
   homology::Homology,
   prelude::MetricSpace,
@@ -114,7 +114,7 @@ impl<const N: usize, F, O> VietorisRips<N, F, O> {
   pub const fn new() -> Self { Self { _phantom: PhantomData, _output_space: PhantomData } }
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, SimplicialComplex> {
+impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, Complex<Simplex>> {
   /// Builds a Vietoris-Rips [`SimplicialComplex`] from a given point [`Cloud`] and distance
   /// threshold `epsilon`.
   ///
@@ -134,8 +134,8 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, S
   /// 1. All points in the `cloud` are added as 0-simplices (vertices).
   /// 2. For $k > 0$, a $k$-simplex is formed by $k+1$ vertices if all pairwise distances between
   ///    these vertices are $\\le \\epsilon$.
-  /// 3. The method iterates through all combinations of $k+1$ points for increasing $k$ (from $k=1$
-  ///    up to number of points minus 1).
+  /// 3. The method iterates through all combinations of $k+1$ points for increasing $k$ (from up to
+  ///    number of points minus 1).
   /// 4. Distances are typically squared Euclidean distances for efficiency, so `epsilon` is squared
   ///    for comparison.
   pub fn build_complex(&self, cloud: &Cloud<N, F>, epsilon: F) -> SimplicialComplex {
@@ -146,34 +146,20 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, S
       return complex;
     }
 
-    // Add all points as 0-simplices (vertices).
-    // The vertex indices in Simplex will correspond to indices in points_vec.
     for i in 0..points_vec.len() {
-      complex.join_simplex(Simplex::new(0, vec![i]));
+      complex.join_element(Simplex::new(0, vec![i]));
     }
 
-    // Generate higher-dimensional simplices.
-    // A k-simplex [p0, ..., pk] exists if all pairwise distances d(pi, pj) <= epsilon.
-    // We iterate through simplex dimensions (dim_k), which is k.
-    // A k-simplex has k+1 vertices.
     for dim_k in 1..points_vec.len() {
-      // k from 1 up to num_points-1
-      // Iterate over all combinations of (dim_k + 1) point indices
       for vertex_indices in (0..points_vec.len()).combinations(dim_k + 1) {
         let mut form_simplex = true;
-        // Check pairwise distances for the current combination of points (potential simplex)
-        // `vertex_indices` contains indices of points in `points_vec`.
         for edge_node_indices in vertex_indices.iter().copied().combinations(2) {
           let p1_idx = edge_node_indices[0];
           let p2_idx = edge_node_indices[1];
 
-          // Retrieve the actual Vector points using the indices
           let point_a = points_vec[p1_idx];
           let point_b = points_vec[p2_idx];
 
-          // Cloud::distance returns squared Euclidean distance.
-          // Epsilon is the Euclidean distance threshold.
-          // So, compare squared distance with epsilon * epsilon.
           if Cloud::<N, F>::distance(point_a, point_b) > epsilon * epsilon {
             form_simplex = false;
             break;
@@ -181,10 +167,7 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, S
         }
 
         if form_simplex {
-          // If all pairs are within epsilon, this combination forms a simplex.
-          // `vertex_indices` from `itertools::combinations` on a sorted range
-          // will be sorted. `Simplex::new` also sorts, which is harmless.
-          complex.join_simplex(Simplex::new(dim_k, vertex_indices));
+          complex.join_element(Simplex::new(dim_k, vertex_indices));
         }
       }
     }
@@ -204,12 +187,12 @@ impl<const N: usize, F> Default for VietorisRips<N, F, SimplicialComplex> {
 /// This allows the `VietorisRips` struct to be used in contexts expecting a `Filtration`
 /// that produces a simplicial complex for a given distance threshold `epsilon`.
 impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration
-  for VietorisRips<N, F, SimplicialComplex>
+  for VietorisRips<N, F, Complex<Simplex>>
 {
   type InputParameter = F;
   type InputSpace = Cloud<N, F>;
   type OutputParameter = ();
-  type OutputSpace = SimplicialComplex;
+  type OutputSpace = Complex<Simplex>;
 
   /// Builds the Vietoris-Rips [`SimplicialComplex`].
   ///
@@ -220,7 +203,7 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration
     &self,
     cloud: &Self::InputSpace,
     epsilon: Self::InputParameter,
-    _output_param: &(), // Not used when output is SimplicialComplex
+    _output_param: &(),
   ) -> Self::OutputSpace {
     self.build_complex(cloud, epsilon)
   }
@@ -238,11 +221,7 @@ impl<const N: usize, F> ParallelFiltration for VietorisRips<N, F, SimplicialComp
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
   Cloud<N, F>: Sync,
-  SimplicialComplex: Send,
 {
-  // No additional methods are required by ParallelFiltration if the base Filtration methods
-  // are sufficient and types are Send + Sync.
-  // build_parallel and build_serial will be available from the ParallelFiltration trait.
 }
 
 /// Implements the [`Filtration`] trait for `VietorisRips` to generate [`Homology`]s
@@ -255,19 +234,13 @@ where
 /// * `R`: The coefficient [`Field`] for homology computations.
 impl<const N: usize, F, R> Filtration for VietorisRips<N, F, Homology<R>>
 where
-  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync, // Send + Sync for potential parallelism
-  R: Field + Copy + Send + Sync + std::fmt::Debug,     // Send + Sync for homology result
-  Cloud<N, F>: Sync,
-  SimplicialComplex: Send, // SimplicialComplex is built as an intermediate step
+  F: Field + Copy + Sum<F> + PartialOrd,
+  R: Field + Copy,
 {
   type InputParameter = F;
-  // Epsilon
   type InputSpace = Cloud<N, F>;
   type OutputParameter = HashSet<usize>;
-  // Set of dimensions for which to compute homology
   type OutputSpace = HashMap<usize, Homology<R>>;
-
-  // Map from dimension to HomologyGroup
 
   /// Builds the Vietoris-Rips complex for the given `input` (cloud) and `param` (epsilon),
   /// and then computes homology groups for the dimensions specified in `output_param`.
@@ -289,7 +262,7 @@ where
     param: Self::InputParameter,          // epsilon
     output_param: &Self::OutputParameter, // dimensions for homology
   ) -> Self::OutputSpace {
-    let complex_builder = VietorisRips::<N, F, SimplicialComplex>::new();
+    let complex_builder = VietorisRips::<N, F, Complex<Simplex>>::new();
     let complex = complex_builder.build_complex(input, param);
 
     let mut homology_groups = HashMap::new();
@@ -314,7 +287,7 @@ where
 impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, Homology<R>>
 where
   F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
-  R: Field + Copy + Send + Sync + std::fmt::Debug,
+  R: Field + Copy + Send + Sync,
   Cloud<N, F>: Sync,
   Homology<R>: Send,
 {
@@ -334,7 +307,7 @@ mod tests {
     let cloud: Cloud<2, f64> = Cloud::new(vec![]);
     let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
     let complex = vr.build(&cloud, 0.5, &());
-    assert!(complex.simplices_by_dimension(0).is_none());
+    assert!(complex.elements_of_dimension(0).is_empty());
   }
 
   #[test]
@@ -344,10 +317,10 @@ mod tests {
     let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
     let complex = vr.build(&cloud, 0.5, &());
 
-    let simplices_dim_0 = complex.simplices_by_dimension(0);
-    assert_eq!(simplices_dim_0.unwrap().len(), 1);
-    assert_eq!(simplices_dim_0.unwrap()[0].vertices(), &[0]);
-    assert!(complex.simplices_by_dimension(1).is_none());
+    let simplices_dim_0 = complex.elements_of_dimension(0);
+    assert_eq!(simplices_dim_0.len(), 1);
+    assert_eq!(simplices_dim_0[0].vertices(), &[0]);
+    assert!(complex.elements_of_dimension(1).is_empty());
   }
 
   #[test]
@@ -359,15 +332,15 @@ mod tests {
 
     // Epsilon too small for an edge
     let complex_no_edge = vr.build(&cloud, 0.5, &()); // distance is 1.0
-    assert_eq!(complex_no_edge.simplices_by_dimension(0).unwrap().len(), 2);
-    assert!(complex_no_edge.simplices_by_dimension(1).is_none());
+    assert_eq!(complex_no_edge.elements_of_dimension(0).len(), 2);
+    assert!(complex_no_edge.elements_of_dimension(1).is_empty());
 
     // Epsilon large enough for an edge
     let complex_with_edge = vr.build(&cloud, 1.5, &());
-    assert_eq!(complex_with_edge.simplices_by_dimension(0).unwrap().len(), 2);
-    let simplices_dim_1 = complex_with_edge.simplices_by_dimension(1);
-    assert_eq!(simplices_dim_1.unwrap().len(), 1);
-    assert_eq!(simplices_dim_1.unwrap()[0].vertices(), &[0, 1]);
+    assert_eq!(complex_with_edge.elements_of_dimension(0).len(), 2);
+    let simplices_dim_1 = complex_with_edge.elements_of_dimension(1);
+    assert_eq!(simplices_dim_1.len(), 1);
+    assert_eq!(simplices_dim_1[0].vertices(), &[0, 1]);
   }
 
   #[test]
@@ -389,10 +362,10 @@ mod tests {
     // by `join_simplex` for the 2-simplex.
     let complex = vr.build(&cloud, 1.1, &());
 
-    assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3);
-    assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3);
-    assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1);
-    assert_eq!(complex.simplices_by_dimension(2).unwrap()[0].vertices(), &[0, 1, 2]);
+    assert_eq!(complex.elements_of_dimension(0).len(), 3);
+    assert_eq!(complex.elements_of_dimension(1).len(), 3);
+    assert_eq!(complex.elements_of_dimension(2).len(), 1);
+    assert_eq!(complex.elements_of_dimension(2)[0].vertices(), &[0, 1, 2]);
   }
 
   modular!(Mod7, u32, 7);

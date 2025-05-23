@@ -55,6 +55,7 @@ use vector::DynamicVector;
 
 use super::*;
 
+pub mod block;
 pub mod matrix;
 pub mod vector;
 

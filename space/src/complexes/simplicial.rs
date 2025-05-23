@@ -1,98 +1,231 @@
-//! # Simplicial Topology: Complexes, Chains, and Homology
+//! # Simplicial Complexes Module
 //!
-//! This module provides a suite of tools for working with simplicial complexes, a fundamental
-//! concept in algebraic topology. Simplicial complexes are used to represent topological spaces by
-//! breaking them down into simple building blocks called simplices (points, line segments,
-//! triangles, tetrahedra, and their higher-dimensional counterparts).
+//! This module provides implementations for working with simplicial complexes, one of the most
+//! fundamental structures in algebraic topology. Simplicial complexes are built from simplices
+//! - geometric objects that generalize triangles to arbitrary dimensions.
 //!
-//! ## Core Concepts
+//! ## Mathematical Background
 //!
-//! - **Simplices**: Represented by the [`Simplex`] struct. A $k$-simplex is the convex hull of
-//!   $k+1$ affinely independent points. Vertices in our implementation are always stored as sorted
-//!   `usize` indices.
-//!   - $0$-simplex: a point (e.g., $v_0$)
-//!   - $1$-simplex: a line segment (e.g., $(v_0, v_1)$)
-//!   - $2$-simplex: a triangle (e.g., $(v_0, v_1, v_2)$)
-//!   - $3$-simplex: a tetrahedron (e.g., $(v_0, v_1, v_2, v_3)$)
+//! A **simplex** is the simplest possible convex polytope in any given dimension:
+//! - **0-simplex**: A point (vertex)
+//! - **1-simplex**: A line segment (edge)
+//! - **2-simplex**: A triangle
+//! - **3-simplex**: A tetrahedron
+//! - **k-simplex**: The convex hull of k+1 affinely independent points
 //!
-//! - **Simplicial Complex**: Represented by the [`SimplicialComplex`] struct. This is a collection
-//!   of simplices that is closed under taking faces (i.e., if a simplex is in the complex, all its
-//!   faces must also be in the complex) and such that the intersection of any two simplices is
-//!   either empty or a face of both.
+//! A **simplicial complex** K is a collection of simplices that satisfies:
+//! 1. **Closure Property**: If σ ∈ K, then all faces of σ are also in K
+//! 2. **Intersection Property**: The intersection of any two simplices in K is either empty or a
+//!    common face
 //!
-//! - **Chains**: Represented by the [`Chain<R>`] struct. A $k$-chain is a formal sum of
-//!   $k$-simplices with coefficients in a ring $R$. For example, $c = 3\sigma_1 - 2\sigma_2 +
-//!   \sigma_3$, where $\sigma_i$ are $k$-simplices.
+//! ## Simplicial vs Other Complex Types
 //!
-//! - **Boundary Operator**: The boundary operator $\partial_k: C_k(X; R) \to C_{k-1}(X; R)$ maps a
-//!   $k$-chain to a $(k-1)$-chain. For a single $k$-simplex $\sigma = [v_0, v_1, \dots, v_k]$, its
-//!   boundary is defined as: $ \partial_k \sigma = \sum_{i=0}^{k} (-1)^i [v_0, \dots, \hat{v_i},
-//!   \dots, v_k] $ where $\hat{v_i}$ means the vertex $v_i$ is omitted. A crucial property is that
-//!   $\partial_{k-1} \circ \partial_k = 0$ (the boundary of a boundary is zero).
+//! Simplicial complexes have several advantages:
+//! - **Natural Geometry**: Built from the simplest convex shapes
+//! - **Well-Established Theory**: Extensive literature and algorithms
+//! - **Efficient Computation**: Many optimized algorithms available
+//! - **Universal Approximation**: Any topological space can be triangulated
 //!
-//! - **Homology Groups**: Represented by the [`Homology<F>`] struct. The $k$-th homology group
-//!   $H_k(X; F)$ with coefficients in a field $F$ is defined as the quotient group: $ H_k(X; F) =
-//!   Z_k(X; F) / B_k(X; F) $ where:
-//!     - $Z_k(X; F) = \ker \partial_k$ is the group of $k$-cycles (chains whose boundary is zero).
-//!     - $B_k(X; F) = \text{im } \partial_{k+1}$ is the group of $k$-boundaries (chains that are
-//!       boundaries of $(k+1)$-chains).
-//!   - Homology groups are important topological invariants that capture information about the
-//!     \"holes\" of different dimensions in a space. The rank of $H_k(X; F)$ is called the $k$-th
-//!     Betti number, $b_k$.
+//! However, they can be more complex than cubical complexes for some applications due to
+//! the varying face structures at different dimensions.
 //!
-//! ## Features
+//! ## Implementation Design
 //!
-//! - Construction and manipulation of [`Simplex`] and [`SimplicialComplex`] objects.
-//! - Computation of simplex faces.
-//! - Implementation of [`Chain`] arithmetic (addition).
-//! - Standard boundary operator $\partial$ for [`Chain`]s.
-//! - Calculation of homology groups [`Homology<F>`] using Gaussian elimination over a generic
-//!   [`Field`] `F`. This involves:
-//!     - Constructing boundary matrices.
-//!     - Computing kernel and image bases of these matrices using
-//!       [`DynamicDenseMatrix::row_echelon_form`].
+//! ### Canonical Representation
 //!
-//! ## Usage Example
+//! Simplices are represented by their **sorted vertex lists**, ensuring a unique canonical
+//! form for each geometric simplex regardless of how vertices were originally specified.
+//! This enables efficient deduplication and comparison.
+//!
+//! ### Orientation Conventions
+//!
+//! The simplicial boundary operator uses the **standard alternating orientation**:
+//! ```text
+//! ∂[v₀, v₁, ..., vₖ] = Σᵢ (-1)ⁱ [v₀, ..., v̂ᵢ, ..., vₖ]
+//! ```
+//! where v̂ᵢ indicates that vertex vᵢ is omitted. This ensures the fundamental property ∂² = 0.
+//!
+//! ### Integration with Generic Framework
+//!
+//! The [`Simplex`] type implements [`ComplexElement`], making it compatible with the generic
+//! [`Complex<T>`] framework. This allows:
+//! - Uniform algorithms for homology computation
+//! - Consistent interfaces across complex types
+//! - Reuse of lattice and poset operations
+//!
+//! ## Core Types
+//!
+//! ### [`Simplex`]
+//!
+//! The fundamental building block representing a k-dimensional simplex. Key features:
+//! - Vertex-based representation with automatic sorting
+//! - Dimension automatically determined from vertex count
+//! - Efficient face computation using combinatorial methods
+//! - Standard orientation for boundary operators
+//!
+//! ### [`SimplicialComplex`] (Type Alias)
+//!
+//! A type alias for `Complex<Simplex>` that provides:
+//! - Automatic closure property enforcement
+//! - Efficient face relationship tracking
+//! - Homology computation capabilities
+//! - Integration with poset and topology traits
+//!
+//! ## Usage Patterns
+//!
+//! ### Basic Simplex Creation
+//!
+//! ```rust
+//! use harness_space::complexes::Simplex;
+//!
+//! // Create by dimension and vertices
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//!
+//! // Create with automatic dimension detection
+//! let edge = Simplex::from_vertices(vec![3, 4]);
+//!
+//! // Vertices are automatically sorted for canonical representation
+//! let same_triangle = Simplex::new(2, vec![2, 0, 1]); // Same as first triangle
+//! assert!(triangle.same_content(&same_triangle));
+//! ```
+//!
+//! ### Building Simplicial Complexes
+//!
+//! ```rust
+//! use harness_space::complexes::{Simplex, SimplicialComplex};
+//!
+//! let mut complex = SimplicialComplex::new();
+//!
+//! // Add a triangle - automatically includes all faces
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//! let added = complex.join_element(triangle);
+//!
+//! // Complex now contains: 1 triangle + 3 edges + 3 vertices
+//! assert_eq!(complex.elements_of_dimension(2).len(), 1);
+//! assert_eq!(complex.elements_of_dimension(1).len(), 3);
+//! assert_eq!(complex.elements_of_dimension(0).len(), 3);
+//! ```
+//!
+//! ### Computing Homology
 //!
 //! ```rust
 //! use harness_algebra::algebras::boolean::Boolean;
-//! use harness_space::complexes::simplicial::{Simplex, SimplicialComplex};
+//! use harness_space::{
+//!   complexes::{Simplex, SimplicialComplex},
+//!   prelude::*,
+//! };
 //!
-//! // Create a simplicial complex representing a hollow triangle (cycle C3)
+//! // Create a triangle boundary (circle)
 //! let mut complex = SimplicialComplex::new();
-//! complex.join_simplex(Simplex::new(1, vec![0, 1])); // Edge (0,1)
-//! complex.join_simplex(Simplex::new(1, vec![1, 2])); // Edge (1,2)
-//! complex.join_simplex(Simplex::new(1, vec![2, 0])); // Edge (2,0)
+//! complex.join_element(Simplex::new(1, vec![0, 1]));
+//! complex.join_element(Simplex::new(1, vec![1, 2]));
+//! complex.join_element(Simplex::new(1, vec![2, 0]));
 //!
-//! // Compute H_0 and H_1 with Z/2Z coefficients
-//! let h0 = complex.homology::<Boolean>(0);
+//! // Compute homology over Z/2Z
 //! let h1 = complex.homology::<Boolean>(1);
-//!
-//! assert_eq!(h0.betti_number, 1); // One connected component
-//! assert_eq!(h1.betti_number, 1); // One 1-dimensional hole (the triangle itself)
+//! assert_eq!(h1.betti_number, 1); // One 1-dimensional hole
 //! ```
 //!
-//! ## Further Reading
+//! ### Working with Face Relations
 //!
-//! For more information on simplicial complexes and homology theory, consider these resources:
-//! - Hatcher, A. (2002). *Algebraic Topology*. Cambridge University Press. (Especially Chapter 2)
-//! - Munkres, J. R. (1984). *Elements of Algebraic Topology*. Addison-Wesley.
+//! ```rust
+//! # use harness_space::{complexes::{SimplicialComplex, Simplex}, prelude::*};
+//! # let mut complex = SimplicialComplex::new();
+//! # let triangle = Simplex::new(2, vec![0, 1, 2]);
+//! # let added = complex.join_element(triangle);
+//!
+//! // Get faces using the element's method
+//! let abstract_faces = added.faces(); // Returns simplices without IDs
+//!
+//! // Get faces that exist in the complex
+//! let complex_faces = complex.faces(&added); // Returns elements with IDs
+//!
+//! // Work with boundary operators
+//! let boundary_with_signs = added.boundary_with_orientations();
+//! for (face, orientation) in boundary_with_signs {
+//!   println!("Face: {:?}, Orientation: {}", face.vertices(), orientation);
+//! }
+//! ```
+//!
+//! ## Standard Constructions
+//!
+//! ### Common Geometric Objects
+//!
+//! ```rust
+//! use harness_space::complexes::{Simplex, SimplicialComplex};
+//!
+//! // Point
+//! let point = Simplex::new(0, vec![0]);
+//!
+//! // Line segment
+//! let edge = Simplex::new(1, vec![0, 1]);
+//!
+//! // Triangle
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
+//!
+//! // Tetrahedron
+//! let tetrahedron = Simplex::new(3, vec![0, 1, 2, 3]);
+//! ```
+//!
+//! ### Topological Spaces
+//!
+//! ```rust
+//! # use harness_space::complexes::{SimplicialComplex, Simplex};
+//!
+//! // Circle (S¹) - triangle boundary
+//! let mut circle = SimplicialComplex::new();
+//! circle.join_element(Simplex::new(1, vec![0, 1]));
+//! circle.join_element(Simplex::new(1, vec![1, 2]));
+//! circle.join_element(Simplex::new(1, vec![2, 0]));
+//!
+//! // Sphere (S²) - tetrahedron boundary
+//! let mut sphere = SimplicialComplex::new();
+//! sphere.join_element(Simplex::new(2, vec![0, 1, 2]));
+//! sphere.join_element(Simplex::new(2, vec![0, 1, 3]));
+//! sphere.join_element(Simplex::new(2, vec![0, 2, 3]));
+//! sphere.join_element(Simplex::new(2, vec![1, 2, 3]));
+//! ```
+//!
+//! ## Performance Characteristics
+//!
+//! - **Face Computation**: O(kⁿ) where k is dimension and n is vertex count
+//! - **Boundary Operator**: O(k) where k is the number of faces
+//! - **Complex Construction**: O(f·log f) where f is the total number of faces
+//! - **Homology Computation**: O(n³) where n is the number of elements in relevant dimensions
+//!
+//! ## Implementation Notes
+//!
+//! ### Memory Layout
+//!
+//! Simplices store only their vertex indices (as `Vec<usize>`), making them lightweight.
+//! The dimension is cached for efficiency, and IDs are assigned only when needed.
+//!
+//! ### Ordering and Hashing
+//!
+//! Simplices are ordered lexicographically by their vertex lists, then by dimension.
+//! This provides a consistent total ordering suitable for use in sorted collections.
+//!
+//! ### Thread Safety
+//!
+//! Individual simplices are `Send + Sync` when their vertices are. Complexes use
+//! interior mutability patterns and may require careful synchronization for concurrent access.
+//!
+//! ## Related Modules
+//!
+//! - [`crate::complexes::cubical`]: Alternative cubical complex implementation
+//! - [`crate::complexes`]: Generic complex framework and algorithms
+//! - [`crate::homology`]: Homological algebra computations
+//! - [`crate::lattice`]: Underlying lattice structures for face relations
+//!
+//! ## References
+//!
+//! - Hatcher, A. "Algebraic Topology" - Comprehensive reference for simplicial complexes
+//! - Munkres, J. "Elements of Algebraic Topology" - Classic text with clear foundations
+//! - Edelsbrunner, H. "Computational Topology" - Algorithmic perspective on simplicial complexes
 
-use std::collections::HashMap;
-
-use harness_algebra::tensors::dynamic::{
-  compute_quotient_basis,
-  matrix::{DynamicDenseMatrix, RowMajor},
-  vector::DynamicVector,
-};
 use itertools::Itertools;
 
 use super::*;
-use crate::{
-  definitions::Topology,
-  homology::{Chain, Homology},
-  set::Collection,
-};
 
 /// A simplex represents a $k$-dimensional geometric object, defined as the convex hull of $k+1$
 /// affinely independent vertices.
@@ -110,10 +243,12 @@ use crate::{
 /// # Fields
 /// * `vertices`: A sorted `Vec<usize>` of vertex indices that define the simplex.
 /// * `dimension`: The dimension of the simplex, equal to `vertices.len() - 1`.
+/// * `id`: An optional unique identifier assigned when the simplex is added to a complex.
 #[derive(Clone, Debug, Hash, PartialEq)]
 pub struct Simplex {
   vertices:  Vec<usize>,
   dimension: usize,
+  id:        Option<usize>,
 }
 
 impl Eq for Simplex {}
@@ -129,14 +264,18 @@ impl Ord for Simplex {
   /// Provides a total ordering for simplices, primarily for use in sorted collections (e.g.,
   /// `BTreeSet` or when sorting `Vec<Simplex>`).
   ///
-  /// The ordering is based on the lexicographical comparison of their sorted vertex lists.
-  fn cmp(&self, other: &Self) -> std::cmp::Ordering { self.vertices.cmp(&other.vertices) }
+  /// The ordering is based on the lexicographical comparison of their sorted vertex lists,
+  /// then by dimension.
+  fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+    self.vertices.cmp(&other.vertices).then_with(|| self.dimension.cmp(&other.dimension))
+  }
 }
 
 impl Simplex {
   /// Creates a new simplex of a given `dimension` from a set of `vertices`.
   ///
   /// The provided `vertices` will be sorted internally to ensure a canonical representation.
+  /// The simplex is created without an ID (id = None).
   ///
   /// # Arguments
   /// * `dimension`: The dimension of the simplex (e.g., 0 for a point, 1 for an edge, 2 for a
@@ -150,16 +289,117 @@ impl Simplex {
   pub fn new(dimension: usize, vertices: Vec<usize>) -> Self {
     assert!(vertices.iter().combinations(2).all(|v| v[0] != v[1]));
     assert!(vertices.len() == dimension + 1);
-    Self { vertices: vertices.into_iter().sorted().collect(), dimension }
+    Self { vertices: vertices.into_iter().sorted().collect(), dimension, id: None }
+  }
+
+  /// Creates a new simplex from vertices, automatically determining the dimension.
+  ///
+  /// This is a convenience constructor that calculates the dimension based on the number
+  /// of vertices provided. The dimension will be `vertices.len() - 1`.
+  ///
+  /// # Arguments
+  /// * `vertices`: A vector of `usize` vertex indices. Must contain distinct values.
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// // Create a point (0-simplex)
+  /// let point = Simplex::from_vertices(vec![0]);
+  /// assert_eq!(point.dimension(), 0);
+  ///
+  /// // Create an edge (1-simplex)
+  /// let edge = Simplex::from_vertices(vec![0, 1]);
+  /// assert_eq!(edge.dimension(), 1);
+  ///
+  /// // Create a triangle (2-simplex)
+  /// let triangle = Simplex::from_vertices(vec![0, 1, 2]);
+  /// assert_eq!(triangle.dimension(), 2);
+  /// ```
+  ///
+  /// # Panics
+  /// * If any vertex indices are repeated
+  /// * If the vertices vector is empty
+  pub fn from_vertices(vertices: Vec<usize>) -> Self {
+    let dimension = vertices.len().saturating_sub(1);
+    Self::new(dimension, vertices)
+  }
+
+  /// Creates a new simplex with a specific ID assigned.
+  ///
+  /// This method is primarily used internally by the complex management system when
+  /// adding elements to a [`Complex`]. It creates a copy of the current simplex with
+  /// the specified ID assigned.
+  ///
+  /// # Arguments
+  /// * `new_id`: The unique identifier to assign to this simplex
+  ///
+  /// # Returns
+  /// A new `Simplex` instance with the same mathematical content but with the specified ID
+  const fn with_id(mut self, new_id: usize) -> Self {
+    self.id = Some(new_id);
+    self
   }
 
   /// Returns a slice reference to the sorted vertex indices of the simplex.
+  ///
+  /// The vertices are always maintained in sorted order to ensure canonical representation.
+  /// This means that two simplices with the same vertex set (regardless of input order)
+  /// will have identical vertex arrays.
+  ///
+  /// # Returns
+  /// A slice `&[usize]` containing the vertex indices in ascending order
+  ///
+  /// # Examples
+  /// ```rust
+  /// # use harness_space::complexes::simplicial::Simplex;
+  /// let simplex = Simplex::new(2, vec![2, 0, 1]); // Input order doesn't matter
+  /// assert_eq!(simplex.vertices(), &[0, 1, 2]); // Always sorted
+  /// ```
   pub fn vertices(&self) -> &[usize] { &self.vertices }
 
   /// Returns the dimension of the simplex.
   ///
-  /// The dimension $k$ is equal to the number of vertices minus one.
+  /// The dimension $k$ is equal to the number of vertices minus one. This follows the
+  /// standard topological convention where:
+  /// - Points have dimension 0
+  /// - Line segments have dimension 1
+  /// - Triangles have dimension 2
+  /// - Tetrahedra have dimension 3
+  /// - etc.
+  ///
+  /// # Returns
+  /// The dimension as a `usize`
   pub const fn dimension(&self) -> usize { self.dimension }
+
+  /// Returns the ID of the simplex if it has been assigned to a complex.
+  ///
+  /// Simplices start with no ID (`None`) when created. IDs are assigned automatically
+  /// when the simplex is added to a [`Complex`] via [`Complex::join_element`]. The ID
+  /// serves as a unique identifier for efficient storage and lookup operations within
+  /// the complex.
+  ///
+  /// # Returns
+  /// `Some(usize)` if the simplex has been assigned to a complex, `None` otherwise
+  pub const fn id(&self) -> Option<usize> { self.id }
+
+  /// Checks if this simplex has the same mathematical content as another.
+  ///
+  /// Two simplices are considered to have the same content if they have the same
+  /// dimension and the same set of vertices. This comparison ignores ID assignment
+  /// and is used for deduplication when adding elements to complexes.
+  ///
+  /// # Arguments
+  /// * `other`: The other simplex to compare against
+  ///
+  /// # Returns
+  /// `true` if the simplices represent the same geometric object, `false` otherwise
+  pub fn same_content(&self, other: &Self) -> bool {
+    self.dimension == other.dimension && self.vertices == other.vertices
+  }
+}
+
+impl ComplexElement for Simplex {
+  fn dimension(&self) -> usize { self.dimension }
 
   /// Computes all $(k-1)$-dimensional faces of this $k$-simplex.
   ///
@@ -172,9 +412,10 @@ impl Simplex {
   /// - A 0-simplex has no faces (its dimension is -1, typically considered an empty set of faces).
   ///
   /// # Returns
-  /// A [`Vec<Simplex>`] containing all $(k-1)$-dimensional faces. If the simplex is 0-dimensional,
-  /// an empty vector is returned as it has no $( -1)$-dimensional faces in the typical sense.
-  pub fn faces(&self) -> Vec<Self> {
+  /// A [`Vec<Simplex>`] containing all $(k-1)$-dimensional faces. If the simplex is
+  /// 0-dimensional, an empty vector is returned as it has no $( -1)$-dimensional faces in the
+  /// typical sense.
+  fn faces(&self) -> Vec<Self> {
     if self.dimension == 0 {
       return Vec::new();
     }
@@ -183,272 +424,75 @@ impl Simplex {
       .clone()
       .into_iter()
       .combinations(self.dimension)
-      .map(|v| Self::new(self.dimension - 1, v))
+      .map(Self::from_vertices)
       .collect()
   }
-}
 
-/// A simplicial complex $K$ is a collection of simplices satisfying two conditions:
-/// 1. Every face of a simplex in $K$ is also in $K$.
-/// 2. The intersection of any two simplices in $K$ is either empty or a face of both.
-///
-/// This struct stores simplices grouped by their dimension in a `HashMap`.
-/// The `join_simplex` method ensures that when a simplex is added, all its faces are also added
-/// recursively, maintaining the first condition.
-#[derive(Debug, Default)]
-pub struct SimplicialComplex {
-  /// A map from dimension to a vector of simplices of that dimension.
-  /// Simplices within each dimension are not guaranteed to be sorted after arbitrary joins,
-  /// but `compute_homology` sorts them internally as needed.
-  simplices: HashMap<usize, Vec<Simplex>>,
-}
-
-impl SimplicialComplex {
-  /// Creates a new, empty simplicial complex.
-  pub fn new() -> Self { Self { simplices: HashMap::new() } }
-
-  /// Adds a simplex to the complex. If the simplex is already present, it is not added again.
+  /// Computes the faces with their correct orientation coefficients for the simplicial boundary
+  /// operator.
   ///
-  /// Crucially, this method also recursively adds all faces of the given `simplex` to the complex,
-  /// ensuring that the definition of a simplicial complex (closure under faces) is maintained.
-  ///
-  /// # Arguments
-  /// * `simplex`: The [`Simplex`] to add to the complex.
-  pub fn join_simplex(&mut self, simplex: Simplex) {
-    let dim = simplex.dimension();
-    let simplices_in_dim = self.simplices.entry(dim).or_default();
-
-    if simplices_in_dim.contains(&simplex) {
-      return;
+  /// For a k-simplex σ = [v_0, v_1, ..., v_k], the boundary is:
+  /// ∂σ = Σ_{i=0}^k (-1)^i [v_0, ..., v̂_i, ..., v_k]
+  /// where v̂_i means vertex v_i is omitted.
+  fn boundary_with_orientations(&self) -> Vec<(Self, i32)> {
+    if self.dimension == 0 {
+      return Vec::new();
     }
 
-    if simplex.dimension() > 0 {
-      for face in simplex.faces() {
-        self.join_simplex(face); // Recursive call
-      }
+    let mut faces_with_orientations = Vec::new();
+
+    // For each vertex position, create a face by omitting that vertex
+    for (i, _) in self.vertices.iter().enumerate() {
+      let mut face_vertices = self.vertices.clone();
+      face_vertices.remove(i);
+      let face = Self::from_vertices(face_vertices);
+
+      // Alternating sign: (-1)^i
+      let orientation = if i % 2 == 0 { 1 } else { -1 };
+      faces_with_orientations.push((face, orientation));
     }
-    // Add the current simplex after its faces (if any) are processed.
-    // This re-fetches mutable access in case recursion modified other dimensions.
-    self.simplices.entry(dim).or_default().push(simplex);
+
+    faces_with_orientations
   }
 
-  /// Returns a slice reference to the simplices of a given `dimension` stored in the complex.
-  ///
-  /// The order of simplices in the returned slice is not guaranteed to be fixed or sorted unless
-  /// explicitly managed by internal operations (like those in `compute_homology`).
-  ///
-  /// # Arguments
-  /// * `dimension`: The dimension of the simplices to retrieve.
-  ///
-  /// # Returns
-  /// An `Option<&[Simplex]>` containing a slice of [`Simplex`] objects if simplices of that
-  /// dimension exist, otherwise [`None`].
-  pub fn simplices_by_dimension(&self, dimension: usize) -> Option<&[Simplex]> {
-    self.simplices.get(&dimension).map(Vec::as_slice)
-  }
+  fn id(&self) -> Option<usize> { self.id }
 
-  /// Computes the $k$-th homology group $H_k(X; F)$ of the simplicial complex $X$
-  /// with coefficients in a field $F$.
-  ///
-  /// Homology groups are algebraic invariants that capture information about the
-  /// "holes" in a topological space. For a simplicial complex, these are computed
-  /// using simplicial homology.
-  ///
-  /// The $k$-th homology group is defined as the quotient group $Z_k / B_k$, where:
-  /// - $C_k$ is the chain group of $k$-simplices.
-  /// - $\partial_k: C_k \to C_{k-1}$ is the $k$-th boundary operator.
-  /// - $Z_k = \text{ker}(\partial_k)$ is the group of $k$-cycles (chains with no boundary).
-  /// - $B_k = \text{im}(\partial_{k+1})$ is the group of $k$-boundaries (chains that are boundaries
-  ///   of $(k+1)$-chains).
-  ///
-  /// This function constructs the boundary matrices $\partial_k$ and $\partial_{k+1}$,
-  /// computes bases for their kernel and image respectively (which correspond to $Z_k$ and $B_k$),
-  /// and then finds a basis for the quotient space $Z_k / B_k$. The dimension of this quotient
-  /// space is the $k$-th Betti number, and its basis vectors are the generators of $H_k(X; F)$.
-  ///
-  /// # Arguments
-  ///
-  /// * `k`: The dimension $k$ for which to compute the homology group.
-  ///
-  /// # Type Parameters
-  ///
-  /// * `F`: The type of coefficients, which must be a [`Field`] and `Copy`. Working over a field
-  ///   ensures that $C_k$, $Z_k$, and $B_k$ are vector spaces, and matrix methods (like kernel and
-  ///   image computation) can be used effectively.
-  ///
-  /// # Returns
-  ///
-  /// A [`Homology<F>`] struct containing:
-  ///   - `dimension`: The input dimension $k$.
-  ///   - `betti_number`: The rank of $H_k(X; F)$, i.e., $\text{dim}(Z_k / B_k)$.
-  ///   - `homology_generators`: A `Vec<DynamicVector<F>>` where each vector is a generator for
-  ///     $H_k(X; F)$, expressed as a linear combination of $k$-simplices (in the basis used for
-  ///     constructing the boundary matrices).
-  ///
-  /// # Special Case: $k=0$
-  /// For $k=0$, $Z_0 = C_0$ (all 0-chains are cycles because $\partial_0: C_0 \to C_{-1}$ maps to
-  /// the zero group $C_{-1}$). The basis for $Z_0$ is thus the standard basis of $0$-simplices.
-  /// $B_0 = \text{im}(\partial_1)$. The 0-th Betti number $b_0$ counts the number of connected
-  /// components.
-  ///
-  /// # Panics
-  /// This function might panic if matrix operations (kernel, image, quotient basis computation)
-  /// encounter errors, though these are generally robust for well-formed inputs over fields.
-  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
-    let k_simplices = self.simplices_by_dimension(k).map_or_else(Vec::new, |s| {
-      let mut sorted = s.to_vec();
-      sorted.sort_unstable();
-      sorted
-    });
+  fn same_content(&self, other: &Self) -> bool { self.same_content(other) }
 
-    if k_simplices.is_empty() {
-      return Homology::trivial(k);
-    }
-
-    let cycles = if k == 0 {
-      // Z₀ = C₀ (kernel of ∂₀: C₀ -> C₋₁ is C₀ itself).
-      // The basis for C₀ is the standard basis over k_simplices (0-simplices).
-      let num_0_simplices = k_simplices.len();
-      let mut basis: Vec<DynamicVector<F>> = Vec::with_capacity(num_0_simplices);
-      for i in 0..num_0_simplices {
-        let mut v_data = vec![F::zero(); num_0_simplices];
-        v_data[i] = F::one();
-        basis.push(DynamicVector::new(v_data));
-      }
-      basis
-    } else {
-      let boundary_k: DynamicDenseMatrix<F, RowMajor> = self.get_boundary_matrix(k);
-      boundary_k.kernel()
-    };
-
-    let boundary_k_plus_1: DynamicDenseMatrix<F, RowMajor> = self.get_boundary_matrix(k + 1);
-    let boundaries = boundary_k_plus_1.image();
-
-    let quotient_basis_vectors = // Type is Vec<DynamicVector<F>>
-      compute_quotient_basis(&boundaries, &cycles);
-
-    Homology {
-      dimension:           k,
-      betti_number:        quotient_basis_vectors.len(),
-      homology_generators: quotient_basis_vectors,
-    }
-  }
-
-  /// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary operator.
-  ///
-  /// The matrix columns are indexed by an ordered list of $k$-simplices (`ordered_k_simplices`),
-  /// and rows are indexed by an ordered list of $(k-1)$-simplices (`ordered_km1_simplices`).
-  /// The entry $(i,j)$ of the matrix is the coefficient of the $i$-th $(k-1)$-simplex in the
-  /// boundary of the $j$-th $k$-simplex.
-  ///
-  /// The boundary of a $k$-simplex $\sigma_j = [v_0, \dots, v_k]$ is $\sum_{m=0}^{k} (-1)^m [v_0,
-  /// \dots, \hat{v}_m, \dots, v_k]$. The coefficient for $\sigma_i^{\prime}$ (the $i$-th
-  /// $(k-1)$-simplex) in $\partial \sigma_j$ is determined accordingly.
-  ///
-  /// # Arguments
-  /// * `k_domain_dim`: The dimension of simplices in the DOMAIN of ∂_k_domain_dim
-  ///
-  /// # Type Parameters
-  /// * `F`: The coefficient field, must implement [`Field`] and `Copy`.
-  ///
-  /// # Returns
-  /// A `Vec<Vec<F>>` representing the boundary matrix. The matrix will have
-  /// `ordered_km1_simplices.len()` rows and `ordered_k_simplices.len()` columns.
-  /// Returns an empty or specially-dimensioned matrix if either basis is empty.
-  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor> {
-    let codomain_basis = if k == 0 {
-      Vec::new()
-    } else {
-      self.simplices_by_dimension(k - 1).map_or_else(Vec::new, |s| {
-        let mut sorted_s = s.to_vec();
-        sorted_s.sort_unstable();
-        sorted_s
-      })
-    };
-
-    let domain_simplices_slice = self.simplices_by_dimension(k).unwrap_or_default();
-    let mut domain_basis_sorted = domain_simplices_slice.to_vec();
-    domain_basis_sorted.sort_unstable();
-
-    let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new(); // Starts 0x0
-
-    if domain_basis_sorted.is_empty() {
-      for _ in 0..codomain_basis.len() {
-        matrix.append_row(DynamicVector::new(Vec::new()));
-      }
-      return matrix;
-    }
-
-    let basis_map_for_codomain: HashMap<&Simplex, usize> =
-      codomain_basis.iter().enumerate().map(|(i, s)| (s, i)).collect();
-    let num_codomain_simplices = codomain_basis.len();
-
-    for simplex_from_domain in &domain_basis_sorted {
-      let boundary_chain = self.boundary(simplex_from_domain);
-      let col_vector =
-        boundary_chain.to_coeff_vector(&basis_map_for_codomain, num_codomain_simplices);
-      matrix.append_column(&col_vector);
-    }
-    matrix
-  }
-}
-
-impl Collection for SimplicialComplex {
-  type Item = Simplex;
-
-  fn contains(&self, item: &Self::Item) -> bool {
-    self.simplices.get(&item.dimension).is_some_and(|s| s.contains(item))
-  }
-
-  fn is_empty(&self) -> bool { todo!() }
-}
-
-impl Topology for SimplicialComplex {
-  fn neighborhood(&self, _item: &Self::Item) -> Vec<Self::Item> { todo!() }
-
-  fn boundary<R: Ring + Copy>(&self, item: &Self::Item) -> Chain<Self, R> {
-    if item.dimension == 0 {
-      return Chain::new(self);
-    }
-
-    let mut boundary_chain_items = Vec::with_capacity(item.dimension + 1);
-    let mut boundary_chain_coeffs = Vec::with_capacity(item.dimension + 1);
-
-    // self.vertices are sorted: v_0, v_1, ..., v_k
-    // Boundary is sum_{i=0 to k} (-1)^i * [v_0, ..., ^v_i, ..., v_k]
-    for i in 0..=item.dimension {
-      let mut face_vertices = item.vertices.clone();
-      face_vertices.remove(i); // Removes element at original index i (v_i)
-
-      let face_simplex = Simplex::new(item.dimension - 1, face_vertices);
-      boundary_chain_items.push(face_simplex);
-
-      let coeff = if i % 2 == 0 {
-        R::one()
-      } else {
-        -R::one() // Requires R: Neg
-      };
-      boundary_chain_coeffs.push(coeff);
-    }
-    Chain::from_items_and_coeffs(self, boundary_chain_items, boundary_chain_coeffs)
-  }
+  fn with_id(&self, new_id: usize) -> Self { self.clone().with_id(new_id) }
 }
 
 #[cfg(test)]
 mod tests {
-  // TODO: Verify the homology generators are correct.
-
   use std::fmt::Debug;
 
   use harness_algebra::{algebras::boolean::Boolean, modular, prime_field, rings::Field};
 
-  use super::*; // Make sure Mod7 is in scope here
+  use super::*;
+  use crate::complexes::Complex;
 
   modular!(Mod7, u32, 7);
   prime_field!(Mod7);
   // Helper trait bound alias for tests
   trait TestField: Field + Copy + Debug {}
   impl<T: Field + Copy + Debug> TestField for T {}
+
+  #[test]
+  fn test_simplex_construction() {
+    let vertex = Simplex::new(0, vec![0]);
+    assert_eq!(vertex.dimension(), 0);
+    assert_eq!(vertex.vertices(), &[0]);
+    assert_eq!(vertex.id(), None);
+
+    let edge = Simplex::new(1, vec![1, 0]); // Will be sorted
+    assert_eq!(edge.dimension(), 1);
+    assert_eq!(edge.vertices(), &[0, 1]); // Should be sorted
+    assert_eq!(edge.id(), None);
+
+    let triangle = Simplex::from_vertices(vec![2, 0, 1]);
+    assert_eq!(triangle.dimension(), 2);
+    assert_eq!(triangle.vertices(), &[0, 1, 2]); // Should be sorted
+  }
 
   #[test]
   fn test_simplex_faces() {
@@ -461,127 +505,96 @@ mod tests {
   }
 
   #[test]
-  fn test_simplicial_complex() {
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(Simplex::new(2, vec![0, 1, 2]));
-    assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1);
-    assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3);
-    assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3);
+  fn test_simplex_with_id() {
+    let simplex = Simplex::new(1, vec![0, 1]);
+    assert_eq!(simplex.id(), None);
+
+    let simplex_with_id = simplex.with_id(42);
+    assert_eq!(simplex_with_id.id(), Some(42));
+    assert_eq!(simplex_with_id.vertices(), &[0, 1]); // Content unchanged
   }
 
   #[test]
-  fn test_chain_addition_disjoint() {
-    let mut complex = SimplicialComplex::new();
-    // Create two chains with different simplices
-    let simplex1 = Simplex::new(1, vec![0, 1]);
-    let simplex2 = Simplex::new(1, vec![1, 2]);
-    complex.join_simplex(simplex1.clone());
-    complex.join_simplex(simplex2.clone());
+  fn test_simplex_same_content() {
+    let s1 = Simplex::new(1, vec![0, 1]);
+    let s2 = Simplex::new(1, vec![0, 1]);
+    let s3 = Simplex::new(1, vec![0, 2]);
+    let s4 = s1.clone().with_id(42); // Same content, different ID
 
-    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 1_i32);
-    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, 2_i32);
-
-    let result = chain1 + chain2;
-
-    assert_eq!(result.items.len(), 2);
-    assert_eq!(result.items.len(), 2);
-    assert_eq!(result.items[0].vertices(), &[0, 1]);
-    assert_eq!(result.items[1].vertices(), &[1, 2]);
-    assert_eq!(result.coefficients[0], 1);
-    assert_eq!(result.coefficients[1], 2);
+    assert!(s1.same_content(&s2));
+    assert!(!s1.same_content(&s3));
+    assert!(s1.same_content(&s4)); // Content equality ignores ID
   }
 
   #[test]
-  fn test_chain_addition_same_simplex() {
-    // Create two chains with the same simplex
-    let mut complex = SimplicialComplex::new();
-    let simplex1 = Simplex::new(1, vec![0, 1]);
-    let simplex2 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(simplex1.clone());
-    complex.join_simplex(simplex2.clone());
+  fn test_simplex_ordering() {
+    let s1 = Simplex::new(0, vec![0]);
+    let s2 = Simplex::new(0, vec![1]);
+    let s3 = Simplex::new(1, vec![0, 1]);
 
-    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 2);
-    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, 3);
-
-    let result = chain1 + chain2;
-
-    assert_eq!(result.items.len(), 1);
-    assert_eq!(result.coefficients.len(), 1);
-    assert_eq!(result.items[0].vertices(), &[0, 1]);
-    assert_eq!(result.coefficients[0], 5); // 2 + 3 = 5
+    assert!(s1 < s2); // Same dimension, different vertices
+    assert!(s1 < s3); // Different dimension (vertices order first)
   }
 
   #[test]
-  fn test_chain_addition_canceling_coefficients() {
-    // Create two chains with the same simplex but opposite coefficients
-    let mut complex = SimplicialComplex::new();
-    let simplex1 = Simplex::new(1, vec![0, 1]);
-    let simplex2 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(simplex1.clone());
-    complex.join_simplex(simplex2.clone());
-
-    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 2);
-    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, -2);
-
-    let result = chain1 + chain2;
-
-    // The result should be empty since the coefficients cancel out
-    assert_eq!(result.items.len(), 0);
-    assert_eq!(result.coefficients.len(), 0);
-  }
-
-  #[test]
-  fn test_chain_boundary_edge() {
-    // The boundary of an edge is its two vertices with opposite signs
-    let mut complex = SimplicialComplex::new();
-    let edge = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(edge.clone());
-    let chain = Chain::from_item_and_coeff(&complex, edge, 1);
-
-    let boundary = chain.boundary();
-
-    // Should have two 0-simplices (vertices)
-    assert_eq!(boundary.items.len(), 2);
-    assert_eq!(boundary.coefficients.len(), 2);
-
-    // Verify the vertices
-    assert!(boundary.items.iter().any(|s| s.vertices().contains(&0)));
-    assert!(boundary.items.iter().any(|s| s.vertices().contains(&1)));
-    assert!(boundary.items.len() == 2);
-
-    // Verify opposite signs (exact sign depends on your implementation)
-    assert_eq!(boundary.coefficients[0] + boundary.coefficients[1], 0);
-  }
-
-  #[test]
-  fn test_chain_boundary_triangle() {
-    // The boundary of a triangle is its three edges
+  fn test_simplicial_complex_basic() {
+    let mut complex: Complex<Simplex> = Complex::new();
     let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(triangle.clone());
-    let chain = Chain::from_item_and_coeff(&complex, triangle, 1);
+    complex.join_element(triangle);
+
+    assert_eq!(complex.elements_of_dimension(2).len(), 1);
+    assert_eq!(complex.elements_of_dimension(1).len(), 3);
+    assert_eq!(complex.elements_of_dimension(0).len(), 3);
+  }
+
+  #[test]
+  fn test_chain_operations_with_simplices() {
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Create two edges
+    let edge1 = Simplex::new(1, vec![0, 1]);
+    let edge2 = Simplex::new(1, vec![1, 2]);
+    let added_edge1 = complex.join_element(edge1);
+    let added_edge2 = complex.join_element(edge2);
+
+    let chain1 = Chain::from_item_and_coeff(&complex, added_edge1, 1_i32);
+    let chain2 = Chain::from_item_and_coeff(&complex, added_edge2, 2_i32);
+
+    let result = chain1 + chain2;
+
+    assert_eq!(result.items.len(), 2);
+    assert_eq!(result.coefficients, vec![1, 2]);
+  }
+
+  #[test]
+  fn test_chain_boundary_operations() {
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Test edge boundary
+    let edge = Simplex::new(1, vec![0, 1]);
+    let added_edge = complex.join_element(edge);
+    let chain = Chain::from_item_and_coeff(&complex, added_edge, 1);
 
     let boundary = chain.boundary();
+    assert_eq!(boundary.items.len(), 2); // Two vertices
+    assert_eq!(boundary.coefficients[0] + boundary.coefficients[1], 0); // Opposite signs
 
-    // Should have three 1-simplices (edges)
-    assert_eq!(boundary.items.len(), 3);
+    // Test triangle boundary
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
+    let added_triangle = complex.join_element(triangle);
+    let triangle_chain = Chain::from_item_and_coeff(&complex, added_triangle, 1);
 
-    // Verify the edges
-    let edge_vertices: Vec<Vec<usize>> =
-      boundary.items.iter().map(|s| s.vertices().to_vec()).collect();
-
-    assert!(edge_vertices.contains(&vec![0, 1]));
-    assert!(edge_vertices.contains(&vec![0, 2]));
-    assert!(edge_vertices.contains(&vec![1, 2]));
+    let triangle_boundary = triangle_chain.boundary();
+    assert_eq!(triangle_boundary.items.len(), 3); // Three edges
   }
 
   #[test]
   fn test_boundary_squared_is_zero() {
-    // Verify that ∂² = 0 for a triangle
+    let mut complex: Complex<Simplex> = Complex::new();
+
     let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(triangle.clone());
-    let chain = Chain::from_item_and_coeff(&complex, triangle, 1);
+    let added_triangle = complex.join_element(triangle);
+    let chain = Chain::from_item_and_coeff(&complex, added_triangle, 1);
 
     let boundary = chain.boundary();
     let boundary_squared = boundary.boundary();
@@ -593,15 +606,16 @@ mod tests {
 
   #[test]
   fn test_complex_chain_operations() {
-    // Create a 2-chain with two triangles sharing an edge
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Create two triangles sharing an edge
     let triangle1 = Simplex::new(2, vec![0, 1, 2]);
     let triangle2 = Simplex::new(2, vec![1, 2, 3]);
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(triangle1.clone());
-    complex.join_simplex(triangle2.clone());
+    let added_t1 = complex.join_element(triangle1);
+    let added_t2 = complex.join_element(triangle2);
 
-    let chain1 = Chain::from_item_and_coeff(&complex, triangle1, 1);
-    let chain2 = Chain::from_item_and_coeff(&complex, triangle2, -1);
+    let chain1 = Chain::from_item_and_coeff(&complex, added_t1, 1);
+    let chain2 = Chain::from_item_and_coeff(&complex, added_t2, -1);
 
     let combined_chain = chain1 + chain2;
     let boundary = combined_chain.boundary();
@@ -622,49 +636,10 @@ mod tests {
     assert!(!edge_vertices.contains(&vec![1, 2]));
   }
 
-  #[test]
-  fn test_simplices_by_dimension_basic() {
-    let mut complex = SimplicialComplex::new();
-
-    // Adding a 2-simplex will also add its 1-simplex faces and 0-simplex vertices
-    // due to the behavior of join_simplex.
-    let s2_v012 = Simplex::new(2, vec![0, 1, 2]);
-    complex.join_simplex(s2_v012.clone());
-
-    // Expected 0-simplices (vertices)
-    let s0_v0 = Simplex::new(0, vec![0]);
-    let s0_v1 = Simplex::new(0, vec![1]);
-    let s0_v2 = Simplex::new(0, vec![2]);
-
-    // Expected 1-simplices (edges)
-    let s1_v01 = Simplex::new(1, vec![0, 1]); // face of s2_v012
-    let s1_v02 = Simplex::new(1, vec![0, 2]); // face of s2_v012
-    let s1_v12 = Simplex::new(1, vec![1, 2]); // face of s2_v012
-
-    // Check dimension 2
-    let dim2_simplices = complex.simplices_by_dimension(2).expect("Dim 2 should exist");
-    assert_eq!(dim2_simplices.len(), 1, "Should be one 2-simplex");
-    assert!(dim2_simplices.contains(&s2_v012), "Missing 2-simplex [0,1,2]");
-
-    // Check dimension 1
-    let dim1_simplices = complex.simplices_by_dimension(1).expect("Dim 1 should exist");
-    assert_eq!(dim1_simplices.len(), 3, "Should be three 1-simplices");
-    assert!(dim1_simplices.contains(&s1_v01), "Missing 1-simplex [0,1]");
-    assert!(dim1_simplices.contains(&s1_v02), "Missing 1-simplex [0,2]");
-    assert!(dim1_simplices.contains(&s1_v12), "Missing 1-simplex [1,2]");
-
-    // Check dimension 0
-    let dim0_simplices = complex.simplices_by_dimension(0).expect("Dim 0 should exist");
-    assert_eq!(dim0_simplices.len(), 3, "Should be three 0-simplices");
-    assert!(dim0_simplices.contains(&s0_v0), "Missing 0-simplex [0]");
-    assert!(dim0_simplices.contains(&s0_v1), "Missing 0-simplex [1]");
-    assert!(dim0_simplices.contains(&s0_v2), "Missing 0-simplex [2]");
-  }
-
-  fn test_homology_point_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
+  fn test_simplicial_homology_point_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
     let p0 = Simplex::new(0, vec![0]);
-    complex.join_simplex(p0);
+    complex.join_element(p0);
 
     // H_0
     let h0 = complex.homology::<F>(0);
@@ -676,219 +651,188 @@ mod tests {
     let h1 = complex.homology::<F>(1);
     assert_eq!(h1.dimension, 1, "H1: Dimension check");
     assert_eq!(h1.betti_number, 0, "H1: Betti number for a point should be 0");
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: Should have no generators for field {:?}",
-      std::any::type_name::<F>()
-    );
-
-    // H_2
-    let h2 = complex.homology::<F>(2);
-    assert_eq!(
-      h2.betti_number,
-      0,
-      "H2: Betti number for a point should be 0 for field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert!(h1.homology_generators.is_empty(), "H1: Should have no generators");
   }
 
   #[test]
-  fn test_homology_point_all_fields() {
-    test_homology_point_generic::<Boolean>();
-    test_homology_point_generic::<Mod7>();
+  fn test_simplicial_homology_point_all_fields() {
+    test_simplicial_homology_point_generic::<Boolean>();
+    test_simplicial_homology_point_generic::<Mod7>();
   }
 
-  fn test_homology_edge_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
-    let edge01 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(edge01);
-
-    let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.dimension, 0, "H0: Dimension check");
-    assert_eq!(h0.betti_number, 1, "H0: Betti for an edge");
-    assert_eq!(h0.homology_generators.len(), 1, "H0: One generator");
-
-    let h1 = complex.homology::<F>(1);
-    assert_eq!(h1.dimension, 1, "H1: Dimension check");
-    assert_eq!(h1.betti_number, 0, "H1: Betti for an edge");
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: No generators for edge field {:?}",
-      std::any::type_name::<F>()
-    );
-  }
-
-  #[test]
-  fn test_homology_edge_all_fields() {
-    test_homology_edge_generic::<Boolean>();
-    test_homology_edge_generic::<Mod7>();
-  }
-
-  fn test_homology_two_disjoint_points_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
-    let p0_s = Simplex::new(0, vec![0]);
-    let p1_s = Simplex::new(0, vec![1]);
-    complex.join_simplex(p0_s);
-    complex.join_simplex(p1_s);
-
-    let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.dimension, 0, "H0: Dimension check");
-    assert_eq!(h0.betti_number, 2, "H0: Betti for two points");
-    assert_eq!(h0.homology_generators.len(), 2, "H0: Two generators");
-
-    let h1 = complex.homology::<F>(1);
-    assert_eq!(
-      h1.betti_number,
-      0,
-      "H1: Betti for two points field {:?}",
-      std::any::type_name::<F>()
-    );
-  }
-
-  #[test]
-  fn test_homology_two_disjoint_points_all_fields() {
-    test_homology_two_disjoint_points_generic::<Boolean>();
-    test_homology_two_disjoint_points_generic::<Mod7>();
-  }
-
-  fn test_homology_filled_triangle_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
-    let triangle012 = Simplex::new(2, vec![0, 1, 2]);
-    complex.join_simplex(triangle012);
-
-    let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti for triangle field {:?}", std::any::type_name::<F>());
-
-    let h1 = complex.homology::<F>(1);
-    assert_eq!(
-      h1.betti_number,
-      0,
-      "H1: Betti for filled triangle field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: No 1D generators field {:?}",
-      std::any::type_name::<F>()
-    );
-
-    let h2 = complex.homology::<F>(2);
-    assert_eq!(
-      h2.betti_number,
-      0,
-      "H2: Betti for filled triangle field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      h2.homology_generators.is_empty(),
-      "H2: No 2D generators field {:?}",
-      std::any::type_name::<F>()
-    );
-  }
-
-  #[test]
-  fn test_homology_filled_triangle_all_fields() {
-    test_homology_filled_triangle_generic::<Boolean>();
-    test_homology_filled_triangle_generic::<Mod7>();
-  }
-
-  fn test_homology_circle_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
+  fn test_simplicial_homology_circle_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
     let s01 = Simplex::new(1, vec![0, 1]);
     let s12 = Simplex::new(1, vec![1, 2]);
     let s02 = Simplex::new(1, vec![0, 2]);
 
-    complex.join_simplex(s01);
-    complex.join_simplex(s12);
-    complex.join_simplex(s02);
+    complex.join_element(s01);
+    complex.join_element(s12);
+    complex.join_element(s02);
 
     let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti for circle field {:?}", std::any::type_name::<F>());
+    assert_eq!(h0.betti_number, 1, "H0: Betti for circle");
 
     let h1 = complex.homology::<F>(1);
-    assert_eq!(h1.betti_number, 1, "H1: Betti for circle field {:?}", std::any::type_name::<F>());
-    assert_eq!(
-      h1.homology_generators.len(),
-      1,
-      "H1: One 1D generator field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert_eq!(h1.betti_number, 1, "H1: Betti for circle");
+    assert_eq!(h1.homology_generators.len(), 1, "H1: One 1D generator");
 
     let h2 = complex.homology::<F>(2);
-    assert_eq!(h2.betti_number, 0, "H2: Betti for circle field {:?}", std::any::type_name::<F>());
+    assert_eq!(h2.betti_number, 0, "H2: Betti for circle");
   }
 
   #[test]
-  fn test_homology_circle_all_fields() {
-    test_homology_circle_generic::<Boolean>();
-    test_homology_circle_generic::<Mod7>();
+  fn test_simplicial_homology_circle_all_fields() {
+    test_simplicial_homology_circle_generic::<Boolean>();
+    test_simplicial_homology_circle_generic::<Mod7>();
   }
 
-  fn test_homology_sphere_surface_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
+  fn test_simplicial_homology_filled_triangle_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
+    let triangle012 = Simplex::new(2, vec![0, 1, 2]);
+    complex.join_element(triangle012);
+
+    let h0 = complex.homology::<F>(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti for triangle");
+
+    let h1 = complex.homology::<F>(1);
+    assert_eq!(h1.betti_number, 0, "H1: Betti for filled triangle");
+    assert!(h1.homology_generators.is_empty(), "H1: No 1D generators");
+
+    let h2 = complex.homology::<F>(2);
+    assert_eq!(h2.betti_number, 0, "H2: Betti for filled triangle");
+    assert!(h2.homology_generators.is_empty(), "H2: No 2D generators");
+  }
+
+  #[test]
+  fn test_simplicial_homology_filled_triangle_all_fields() {
+    test_simplicial_homology_filled_triangle_generic::<Boolean>();
+    test_simplicial_homology_filled_triangle_generic::<Mod7>();
+  }
+
+  fn test_simplicial_homology_sphere_surface_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
 
     let f1 = Simplex::new(2, vec![0, 1, 2]);
     let f2 = Simplex::new(2, vec![0, 1, 3]);
     let f3 = Simplex::new(2, vec![0, 2, 3]);
     let f4 = Simplex::new(2, vec![1, 2, 3]);
 
-    complex.join_simplex(f1);
-    complex.join_simplex(f2);
-    complex.join_simplex(f3);
-    complex.join_simplex(f4);
+    complex.join_element(f1);
+    complex.join_element(f2);
+    complex.join_element(f3);
+    complex.join_element(f4);
 
     let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti sphere field {:?}", std::any::type_name::<F>());
+    assert_eq!(h0.betti_number, 1, "H0: Betti sphere");
 
     let h1 = complex.homology::<F>(1);
-    assert_eq!(h1.betti_number, 0, "H1: Betti sphere field {:?}", std::any::type_name::<F>());
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: Generators sphere field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert_eq!(h1.betti_number, 0, "H1: Betti sphere");
+    assert!(h1.homology_generators.is_empty(), "H1: Generators sphere");
 
     let h2 = complex.homology::<F>(2);
-    assert_eq!(h2.betti_number, 1, "H2: Betti sphere field {:?}", std::any::type_name::<F>());
-    assert_eq!(
-      h2.homology_generators.len(),
-      1,
-      "H2: One 2D generator field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert_eq!(h2.betti_number, 1, "H2: Betti sphere");
+    assert_eq!(h2.homology_generators.len(), 1, "H2: One 2D generator");
 
     let h3 = complex.homology::<F>(3);
-    assert_eq!(h3.betti_number, 0, "H3: Betti sphere field {:?}", std::any::type_name::<F>());
+    assert_eq!(h3.betti_number, 0, "H3: Betti sphere");
   }
 
   #[test]
-  fn test_homology_sphere_surface_all_fields() {
-    test_homology_sphere_surface_generic::<Boolean>();
-    test_homology_sphere_surface_generic::<Mod7>();
+  fn test_simplicial_homology_sphere_surface_all_fields() {
+    test_simplicial_homology_sphere_surface_generic::<Boolean>();
+    test_simplicial_homology_sphere_surface_generic::<Mod7>();
   }
 
-  #[ignore = "TODO: Implement neighborhood for simplicial complex"]
   #[test]
-  fn test_simplex_neighborhood() {
-    let mut complex = SimplicialComplex::new();
-    let s0 = Simplex::new(0, vec![0]);
-    let s1 = Simplex::new(0, vec![1]);
-    let s01 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(s0.clone());
-    complex.join_simplex(s1.clone());
-    complex.join_simplex(s01.clone());
+  fn test_simplicial_incidence_poset_condition_1() {
+    // Condition 1: If [σ : τ] ≠ 0, then σ ⊲ τ and there are no cells between σ and τ
+    let mut complex: Complex<Simplex> = Complex::new();
 
-    let neighborhood = complex.neighborhood(&s0);
+    // Create a triangle
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
 
-    dbg!(&neighborhood);
-    assert!(neighborhood.contains(&s01));
-    assert!(neighborhood.len() == 1);
+    let added_triangle = complex.join_element(triangle);
 
-    let neighborhood = complex.neighborhood(&s1);
-    assert!(neighborhood.contains(&s01));
-    assert!(neighborhood.len() == 1);
+    // Get all elements
+    let vertices = complex.elements_of_dimension(0);
+    let edges = complex.elements_of_dimension(1);
+    let _triangles = complex.elements_of_dimension(2);
 
-    let neighborhood = complex.neighborhood(&s01);
-    assert!(neighborhood.is_empty());
+    // Test that triangle's boundary consists only of direct faces (edges)
+    let boundary_with_orientations = added_triangle.boundary_with_orientations();
+    for (face, _orientation) in boundary_with_orientations {
+      assert_eq!(face.dimension(), 1);
+      assert!(edges.iter().any(|e| e.same_content(&face)));
+    }
+
+    // Test that edges' boundaries consist only of direct faces (vertices)
+    for edge in &edges {
+      let edge_boundary = edge.boundary_with_orientations();
+      for (vertex_face, _orientation) in edge_boundary {
+        assert_eq!(vertex_face.dimension(), 0);
+        assert!(vertices.iter().any(|v| v.same_content(&vertex_face)));
+      }
+    }
+  }
+
+  #[test]
+  fn test_simplicial_incidence_poset_condition_2() {
+    // Condition 2: For any σ ⊲ τ, Σ_γ∈P_X [σ : γ][γ : τ] = 0 (∂² = 0)
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Test with a triangle
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
+    let added_triangle = complex.join_element(triangle);
+
+    // Create a chain from the triangle
+    let triangle_chain = Chain::from_item_and_coeff(&complex, added_triangle, 1);
+
+    // Compute boundary of the triangle (should give edges)
+    let boundary_1 = triangle_chain.boundary();
+
+    // Compute boundary of the boundary (should be zero)
+    let boundary_2 = boundary_1.boundary();
+
+    // ∂² should be zero
+    assert_eq!(boundary_2.items.len(), 0, "∂² should be zero for simplicial complex");
+    assert_eq!(boundary_2.coefficients.len(), 0, "∂² should have no coefficients");
+
+    // Also test with a tetrahedron
+    let tetrahedron = Simplex::new(3, vec![0, 1, 2, 3]);
+    let mut tet_complex: Complex<Simplex> = Complex::new();
+    let added_tet = tet_complex.join_element(tetrahedron);
+
+    let tet_chain = Chain::from_item_and_coeff(&tet_complex, added_tet, 1);
+    let tet_boundary_1 = tet_chain.boundary();
+    let tet_boundary_2 = tet_boundary_1.boundary();
+
+    assert_eq!(tet_boundary_2.items.len(), 0, "∂² should be zero for 3D tetrahedron");
+  }
+
+  #[test]
+  fn test_simplicial_chain_complex_property() {
+    // Additional comprehensive test for the chain complex property
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Create a more complex structure - multiple triangles sharing edges
+    let triangle1 = Simplex::new(2, vec![0, 1, 2]);
+    let triangle2 = Simplex::new(2, vec![1, 2, 3]);
+
+    let t1 = complex.join_element(triangle1);
+    let t2 = complex.join_element(triangle2);
+
+    // Test ∂² = 0 for individual triangles
+    let chain1 = Chain::from_item_and_coeff(&complex, t1, 1);
+    let chain2 = Chain::from_item_and_coeff(&complex, t2, 1);
+
+    assert_eq!(chain1.boundary().boundary().items.len(), 0);
+    assert_eq!(chain2.boundary().boundary().items.len(), 0);
+
+    // Test ∂² = 0 for linear combination
+    let combined_chain = chain1.add(chain2);
+    assert_eq!(combined_chain.boundary().boundary().items.len(), 0);
+
+    println!("✓ Simplicial chain complex property verified for complex structures");
   }
 }

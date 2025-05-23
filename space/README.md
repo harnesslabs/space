@@ -55,14 +55,14 @@ impl TopologicalSpace for MySpace {
 ### Simplicial Complexes
 
 ```rust
-use harness_space::complexes::simplicial::{Simplex, SimplicialComplex};
+use harness_space::complexes::{Simplex, SimplicialComplex};
 
 // Create a simplex (e.g., a triangle)
 let triangle = Simplex::new(2, vec![0, 1, 2]);
 
 // Create a simplicial complex
 let mut complex = SimplicialComplex::new();
-complex.join_simplex(triangle);
+complex.join_element(triangle);
 ```
 
 ### Graphs
