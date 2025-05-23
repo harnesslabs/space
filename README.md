@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova.png" alt="Cova Logo" width="400">
+</p>
+
 [![Crates.io - cova](https://img.shields.io/crates/v/cova?label=cova)](https://crates.io/crates/cova)
 [![docs.rs - cova](https://img.shields.io/docsrs/cova?label=docs.rs%20cova)](https://docs.rs/cova)
 [![Crates.io - cova-space](https://img.shields.io/crates/v/cova-space?label=cova-space)](https://crates.io/crates/cova-space)

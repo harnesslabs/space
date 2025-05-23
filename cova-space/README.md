@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova.png" alt="Cova Logo" width="400">
+</p>
+
 # Cova Space
 
 A comprehensive Rust library for computational topology and geometric analysis, providing rigorous implementations of topological spaces, simplicial complexes, homology computation, and topological data analysis.

@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova.png" alt="Cova Logo" width="400">
+</p>
+
 # Cova Algebra
 
 A comprehensive Rust library for abstract algebra, providing rigorous implementations of algebraic structures from basic arithmetic to advanced category theory and tensor calculus.

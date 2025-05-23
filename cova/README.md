@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova.png" alt="Cova Logo" width="400">
+</p>
+
 # Cova
 
 A unified Rust ecosystem for rigorous mathematical computation, bridging abstract algebra and computational topology to provide a comprehensive foundation for mathematical software development.
