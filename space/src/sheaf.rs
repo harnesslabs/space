@@ -223,8 +223,86 @@ where
 
 // TODO: This is a temporary implementation for the coboundary map specifically for the vector
 // stalks.
-impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, DynamicVector<F>> {
-  pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> { todo!() }
+impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, DynamicVector<F>>
+where T: Hash + Eq + Clone + Debug
+{
+  /// Constructs the coboundary matrix δ^k: C^k → C^(k+1) for the sheaf.
+  ///
+  /// The coboundary map is dual to the boundary map of the underlying complex.
+  /// For dimension k, this maps k-cochains (sections over k-dimensional elements)
+  /// to (k+1)-cochains (sections over (k+1)-dimensional elements).
+  ///
+  /// The matrix has:
+  /// - Rows indexed by (k+1)-dimensional elements
+  /// - Columns indexed by k-dimensional elements
+  /// - Entry (σ, τ) equals the orientation coefficient of τ in ∂σ where σ is (k+1)-dimensional and
+  ///   τ is k-dimensional
+  ///
+  /// # Arguments
+  /// * `dimension`: The dimension k of the domain (k-cochains)
+  ///
+  /// # Returns
+  /// A block matrix representing δ^k: C^k → C^(k+1)
+  pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> {
+    use std::collections::HashMap;
+
+    use harness_algebra::tensors::dynamic::{matrix::DynamicDenseMatrix, vector::DynamicVector};
+
+    // Get sorted k-dimensional and (k+1)-dimensional elements
+    let k_elements = {
+      let mut elements = self.space.elements_of_dimension(dimension);
+      elements.sort_unstable();
+      elements
+    };
+
+    let k_plus_1_elements = {
+      let mut elements = self.space.elements_of_dimension(dimension + 1);
+      elements.sort_unstable();
+      elements
+    };
+
+    // Build the coboundary matrix
+    // Rows correspond to (k+1)-elements, columns to k-elements
+    let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
+
+    if k_elements.is_empty() || k_plus_1_elements.is_empty() {
+      // Return empty block matrix with appropriate structure
+      let row_sizes =
+        if k_plus_1_elements.is_empty() { vec![1] } else { vec![k_plus_1_elements.len()] };
+      let col_sizes = if k_elements.is_empty() { vec![1] } else { vec![k_elements.len()] };
+      return BlockMatrix::new(row_sizes, col_sizes);
+    }
+
+    for k_element in &k_elements {
+      let mut column = vec![F::zero(); k_plus_1_elements.len()];
+
+      // For each (k+1)-element, check if k_element appears in its boundary
+      for (row_idx, k_plus_1_element) in k_plus_1_elements.iter().enumerate() {
+        let boundary_with_orientations = k_plus_1_element.boundary_with_orientations();
+
+        // Find the coefficient of k_element in the boundary of k_plus_1_element
+        if let Some((_, orientation_coeff)) =
+          boundary_with_orientations.iter().find(|(face, _)| face.same_content(k_element))
+        {
+          column[row_idx] = if *orientation_coeff > 0 {
+            F::one()
+          } else if *orientation_coeff < 0 {
+            -F::one()
+          } else {
+            F::zero()
+          };
+        }
+        // If k_element is not in the boundary, coefficient remains zero
+      }
+
+      matrix.append_column(&DynamicVector::new(column));
+    }
+
+    // Create a block matrix with a single block containing our dense matrix
+    let mut block_matrix = BlockMatrix::new(vec![k_plus_1_elements.len()], vec![k_elements.len()]);
+    block_matrix.set_block(0, 0, matrix);
+    block_matrix
+  }
 }
 
 #[cfg(test)]
@@ -301,6 +379,14 @@ mod tests {
       (e1, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
+  }
+
+  #[test]
+  fn test_sheaf_coboundary_1d() {
+    let (cc, restrictions, v0, v1, e01) = simplicial_complex_1d();
+    let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
+    let coboundary = sheaf.coboundary(0);
+    println!("{:?}", coboundary);
   }
 
   fn simplicial_complex_2d() -> (
