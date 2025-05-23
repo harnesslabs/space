@@ -167,40 +167,37 @@ impl ComplexElement for Cube {
 
 #[cfg(test)]
 mod tests {
+  use harness_algebra::algebras::boolean::Boolean;
+
   use super::*;
+  use crate::{complexes::Complex, homology::Chain};
 
   #[test]
   fn test_cube_creation() {
     let vertex = Cube::vertex(42);
     assert_eq!(vertex.dimension(), 0);
     assert_eq!(vertex.vertices(), &[42]);
+    assert_eq!(vertex.id(), None);
 
     let edge = Cube::edge(10, 11);
     assert_eq!(edge.dimension(), 1);
     assert_eq!(edge.vertices(), &[10, 11]);
+    assert_eq!(edge.id(), None);
 
     let square = Cube::square([0, 1, 2, 3]);
     assert_eq!(square.dimension(), 2);
     assert_eq!(square.vertices(), &[0, 1, 2, 3]);
+    assert_eq!(square.id(), None);
   }
 
   #[test]
-  fn test_cube_faces() {
-    // Test 1-cube (edge) faces
-    let edge = Cube::edge(10, 11);
-    let faces = edge.faces();
-    assert_eq!(faces.len(), 2);
+  fn test_cube_with_id() {
+    let cube = Cube::edge(10, 11);
+    assert_eq!(cube.id(), None);
 
-    // Both faces should be 0-cubes
-    for face in &faces {
-      assert_eq!(face.dimension(), 0);
-      assert_eq!(face.vertices().len(), 1);
-    }
-
-    // The faces should contain the edge's vertices
-    let face_vertices: Vec<usize> = faces.iter().flat_map(|f| f.vertices()).copied().collect();
-    assert!(face_vertices.contains(&10));
-    assert!(face_vertices.contains(&11));
+    let cube_with_id = cube.with_id(42);
+    assert_eq!(cube_with_id.id(), Some(42));
+    assert_eq!(cube_with_id.vertices(), &[10, 11]); // Content unchanged
   }
 
   #[test]
@@ -208,9 +205,56 @@ mod tests {
     let cube1 = Cube::edge(10, 11);
     let cube2 = Cube::edge(10, 11); // Same content
     let cube3 = Cube::edge(10, 12); // Different vertices
+    let cube4 = cube1.clone().with_id(42); // Same content, different ID
 
     assert!(cube1.same_content(&cube2));
     assert!(!cube1.same_content(&cube3));
+    assert!(cube1.same_content(&cube4)); // Content equality ignores ID
+  }
+
+  #[test]
+  fn test_cube_ordering() {
+    let v1 = Cube::vertex(0);
+    let v2 = Cube::vertex(1);
+    let e1 = Cube::edge(0, 1);
+
+    assert!(v1 < v2); // Same dimension, different vertices
+    assert!(v1 < e1); // Different dimension
+  }
+
+  #[test]
+  fn test_cube_faces() {
+    // Test 0-cube (vertex) faces
+    let vertex = Cube::vertex(42);
+    let vertex_faces = vertex.faces();
+    assert_eq!(vertex_faces.len(), 0); // No faces for 0-cubes
+
+    // Test 1-cube (edge) faces
+    let edge = Cube::edge(10, 11);
+    let edge_faces = edge.faces();
+    assert_eq!(edge_faces.len(), 2); // Two vertices
+
+    // Both faces should be 0-cubes
+    for face in &edge_faces {
+      assert_eq!(face.dimension(), 0);
+      assert_eq!(face.vertices().len(), 1);
+    }
+
+    // The faces should contain the edge's vertices
+    let face_vertices: Vec<usize> = edge_faces.iter().flat_map(|f| f.vertices()).copied().collect();
+    assert!(face_vertices.contains(&10));
+    assert!(face_vertices.contains(&11));
+
+    // Test 2-cube (square) faces
+    let square = Cube::square([0, 1, 2, 3]);
+    let square_faces = square.faces();
+    assert_eq!(square_faces.len(), 4); // Four edges
+
+    // All faces should be 1-cubes
+    for face in &square_faces {
+      assert_eq!(face.dimension(), 1);
+      assert_eq!(face.vertices().len(), 2);
+    }
   }
 
   #[test]
@@ -218,5 +262,151 @@ mod tests {
   fn test_invalid_vertex_count() {
     // A 1-cube should have exactly 2 vertices, not 3
     Cube::new(1, vec![0, 1, 2]);
+  }
+
+  #[test]
+  fn test_cubical_complex_basic() {
+    let mut complex: Complex<Cube> = Complex::new();
+    let square = Cube::square([0, 1, 2, 3]);
+    complex.join_element(square);
+
+    assert_eq!(complex.elements_of_dimension(2).len(), 1); // 1 square
+    assert_eq!(complex.elements_of_dimension(1).len(), 4); // 4 edges
+    assert_eq!(complex.elements_of_dimension(0).len(), 4); // 4 vertices
+  }
+
+  #[test]
+  fn test_cubical_chain_operations() {
+    let mut complex: Complex<Cube> = Complex::new();
+
+    // Create two edges
+    let edge1 = Cube::edge(0, 1);
+    let edge2 = Cube::edge(1, 2);
+    let added_edge1 = complex.join_element(edge1);
+    let added_edge2 = complex.join_element(edge2);
+
+    let chain1 = Chain::from_item_and_coeff(&complex, added_edge1, 1_i32);
+    let chain2 = Chain::from_item_and_coeff(&complex, added_edge2, 2_i32);
+
+    let result = chain1 + chain2;
+
+    assert_eq!(result.items.len(), 2);
+    assert_eq!(result.coefficients, vec![1, 2]);
+  }
+
+  #[test]
+  fn test_cubical_boundary_operations() {
+    let mut complex: Complex<Cube> = Complex::new();
+
+    // Test edge boundary
+    let edge = Cube::edge(0, 1);
+    let added_edge = complex.join_element(edge);
+    let chain = Chain::from_item_and_coeff(&complex, added_edge, 1);
+
+    let boundary = chain.boundary();
+    assert_eq!(boundary.items.len(), 2); // Two vertices
+
+    // Test square boundary
+    let square = Cube::square([0, 1, 2, 3]);
+    let added_square = complex.join_element(square);
+    let square_chain = Chain::from_item_and_coeff(&complex, added_square, 1);
+
+    let square_boundary = square_chain.boundary();
+    assert_eq!(square_boundary.items.len(), 4); // Four edges
+  }
+
+  #[test]
+  fn test_cubical_boundary_squared_is_zero() {
+    let mut complex: Complex<Cube> = Complex::new();
+
+    let square = Cube::square([0, 1, 2, 3]);
+    let added_square = complex.join_element(square);
+    let chain = Chain::from_item_and_coeff(&complex, added_square, 1);
+
+    let boundary = chain.boundary();
+    let boundary_squared = boundary.boundary();
+
+    // Boundary of boundary should be empty (∂² = 0)
+    assert_eq!(boundary_squared.items.len(), 0);
+    assert_eq!(boundary_squared.coefficients.len(), 0);
+  }
+
+  #[test]
+  fn test_cubical_homology_point() {
+    let mut complex: Complex<Cube> = Complex::new();
+    let vertex = Cube::vertex(0);
+    complex.join_element(vertex);
+
+    let h0 = complex.homology::<Boolean>(0);
+    let h1 = complex.homology::<Boolean>(1);
+
+    assert_eq!(h0.betti_number, 1); // One connected component
+    assert_eq!(h1.betti_number, 0); // No 1D holes
+  }
+
+  #[test]
+  fn test_cubical_homology_edge() {
+    let mut complex: Complex<Cube> = Complex::new();
+    let edge = Cube::edge(0, 1);
+    complex.join_element(edge);
+
+    let h0 = complex.homology::<Boolean>(0);
+    let h1 = complex.homology::<Boolean>(1);
+
+    assert_eq!(h0.betti_number, 1); // One connected component
+    assert_eq!(h1.betti_number, 0); // No 1D holes (contractible)
+  }
+
+  #[test]
+  fn test_cubical_homology_square_boundary() {
+    let mut complex: Complex<Cube> = Complex::new();
+
+    // Create a square boundary (4 edges forming a cycle)
+    let edge1 = Cube::edge(0, 1);
+    let edge2 = Cube::edge(1, 2);
+    let edge3 = Cube::edge(2, 3);
+    let edge4 = Cube::edge(3, 0);
+
+    complex.join_element(edge1);
+    complex.join_element(edge2);
+    complex.join_element(edge3);
+    complex.join_element(edge4);
+
+    let h0 = complex.homology::<Boolean>(0);
+    let h1 = complex.homology::<Boolean>(1);
+
+    assert_eq!(h0.betti_number, 1); // One connected component
+    assert_eq!(h1.betti_number, 1); // One 1-dimensional hole
+  }
+
+  #[test]
+  fn test_cubical_homology_filled_square() {
+    let mut complex: Complex<Cube> = Complex::new();
+    let square = Cube::square([0, 1, 2, 3]);
+    complex.join_element(square);
+
+    let h0 = complex.homology::<Boolean>(0);
+    let h1 = complex.homology::<Boolean>(1);
+    let h2 = complex.homology::<Boolean>(2);
+
+    assert_eq!(h0.betti_number, 1); // One connected component
+    assert_eq!(h1.betti_number, 0); // No 1D holes (filled)
+    assert_eq!(h2.betti_number, 0); // No 2D holes
+  }
+
+  #[test]
+  fn test_cubical_homology_two_disjoint_squares() {
+    let mut complex: Complex<Cube> = Complex::new();
+
+    let square1 = Cube::square([0, 1, 2, 3]);
+    let square2 = Cube::square([4, 5, 6, 7]);
+    complex.join_element(square1);
+    complex.join_element(square2);
+
+    let h0 = complex.homology::<Boolean>(0);
+    let h1 = complex.homology::<Boolean>(1);
+
+    assert_eq!(h0.betti_number, 2); // Two connected components
+    assert_eq!(h1.betti_number, 0); // No 1D holes (both filled)
   }
 }

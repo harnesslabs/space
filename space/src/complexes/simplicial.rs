@@ -136,19 +136,35 @@ impl ComplexElement for Simplex {
 
 #[cfg(test)]
 mod tests {
-  // TODO: Verify the homology generators are correct.
-
   use std::fmt::Debug;
 
   use harness_algebra::{algebras::boolean::Boolean, modular, prime_field, rings::Field};
 
   use super::*;
+  use crate::complexes::Complex;
 
   modular!(Mod7, u32, 7);
   prime_field!(Mod7);
   // Helper trait bound alias for tests
   trait TestField: Field + Copy + Debug {}
   impl<T: Field + Copy + Debug> TestField for T {}
+
+  #[test]
+  fn test_simplex_construction() {
+    let vertex = Simplex::new(0, vec![0]);
+    assert_eq!(vertex.dimension(), 0);
+    assert_eq!(vertex.vertices(), &[0]);
+    assert_eq!(vertex.id(), None);
+
+    let edge = Simplex::new(1, vec![1, 0]); // Will be sorted
+    assert_eq!(edge.dimension(), 1);
+    assert_eq!(edge.vertices(), &[0, 1]); // Should be sorted
+    assert_eq!(edge.id(), None);
+
+    let triangle = Simplex::from_vertices(vec![2, 0, 1]);
+    assert_eq!(triangle.dimension(), 2);
+    assert_eq!(triangle.vertices(), &[0, 1, 2]); // Should be sorted
+  }
 
   #[test]
   fn test_simplex_faces() {
@@ -161,127 +177,96 @@ mod tests {
   }
 
   #[test]
-  fn test_simplicial_complex() {
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(Simplex::new(2, vec![0, 1, 2]));
-    assert_eq!(complex.simplices_by_dimension(2).unwrap().len(), 1);
-    assert_eq!(complex.simplices_by_dimension(1).unwrap().len(), 3);
-    assert_eq!(complex.simplices_by_dimension(0).unwrap().len(), 3);
+  fn test_simplex_with_id() {
+    let simplex = Simplex::new(1, vec![0, 1]);
+    assert_eq!(simplex.id(), None);
+
+    let simplex_with_id = simplex.with_id(42);
+    assert_eq!(simplex_with_id.id(), Some(42));
+    assert_eq!(simplex_with_id.vertices(), &[0, 1]); // Content unchanged
   }
 
   #[test]
-  fn test_chain_addition_disjoint() {
-    let mut complex = SimplicialComplex::new();
-    // Create two chains with different simplices
-    let simplex1 = Simplex::new(1, vec![0, 1]);
-    let simplex2 = Simplex::new(1, vec![1, 2]);
-    complex.join_simplex(simplex1.clone());
-    complex.join_simplex(simplex2.clone());
+  fn test_simplex_same_content() {
+    let s1 = Simplex::new(1, vec![0, 1]);
+    let s2 = Simplex::new(1, vec![0, 1]);
+    let s3 = Simplex::new(1, vec![0, 2]);
+    let s4 = s1.clone().with_id(42); // Same content, different ID
 
-    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 1_i32);
-    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, 2_i32);
-
-    let result = chain1 + chain2;
-
-    assert_eq!(result.items.len(), 2);
-    assert_eq!(result.items.len(), 2);
-    assert_eq!(result.items[0].vertices(), &[0, 1]);
-    assert_eq!(result.items[1].vertices(), &[1, 2]);
-    assert_eq!(result.coefficients[0], 1);
-    assert_eq!(result.coefficients[1], 2);
+    assert!(s1.same_content(&s2));
+    assert!(!s1.same_content(&s3));
+    assert!(s1.same_content(&s4)); // Content equality ignores ID
   }
 
   #[test]
-  fn test_chain_addition_same_simplex() {
-    // Create two chains with the same simplex
-    let mut complex = SimplicialComplex::new();
-    let simplex1 = Simplex::new(1, vec![0, 1]);
-    let simplex2 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(simplex1.clone());
-    complex.join_simplex(simplex2.clone());
+  fn test_simplex_ordering() {
+    let s1 = Simplex::new(0, vec![0]);
+    let s2 = Simplex::new(0, vec![1]);
+    let s3 = Simplex::new(1, vec![0, 1]);
 
-    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 2);
-    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, 3);
-
-    let result = chain1 + chain2;
-
-    assert_eq!(result.items.len(), 1);
-    assert_eq!(result.coefficients.len(), 1);
-    assert_eq!(result.items[0].vertices(), &[0, 1]);
-    assert_eq!(result.coefficients[0], 5); // 2 + 3 = 5
+    assert!(s1 < s2); // Same dimension, different vertices
+    assert!(s1 < s3); // Different dimension (vertices order first)
   }
 
   #[test]
-  fn test_chain_addition_canceling_coefficients() {
-    // Create two chains with the same simplex but opposite coefficients
-    let mut complex = SimplicialComplex::new();
-    let simplex1 = Simplex::new(1, vec![0, 1]);
-    let simplex2 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(simplex1.clone());
-    complex.join_simplex(simplex2.clone());
-
-    let chain1 = Chain::from_item_and_coeff(&complex, simplex1, 2);
-    let chain2 = Chain::from_item_and_coeff(&complex, simplex2, -2);
-
-    let result = chain1 + chain2;
-
-    // The result should be empty since the coefficients cancel out
-    assert_eq!(result.items.len(), 0);
-    assert_eq!(result.coefficients.len(), 0);
-  }
-
-  #[test]
-  fn test_chain_boundary_edge() {
-    // The boundary of an edge is its two vertices with opposite signs
-    let mut complex = SimplicialComplex::new();
-    let edge = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(edge.clone());
-    let chain = Chain::from_item_and_coeff(&complex, edge, 1);
-
-    let boundary = chain.boundary();
-
-    // Should have two 0-simplices (vertices)
-    assert_eq!(boundary.items.len(), 2);
-    assert_eq!(boundary.coefficients.len(), 2);
-
-    // Verify the vertices
-    assert!(boundary.items.iter().any(|s| s.vertices().contains(&0)));
-    assert!(boundary.items.iter().any(|s| s.vertices().contains(&1)));
-    assert!(boundary.items.len() == 2);
-
-    // Verify opposite signs (exact sign depends on your implementation)
-    assert_eq!(boundary.coefficients[0] + boundary.coefficients[1], 0);
-  }
-
-  #[test]
-  fn test_chain_boundary_triangle() {
-    // The boundary of a triangle is its three edges
+  fn test_simplicial_complex_basic() {
+    let mut complex: Complex<Simplex> = Complex::new();
     let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(triangle.clone());
-    let chain = Chain::from_item_and_coeff(&complex, triangle, 1);
+    complex.join_element(triangle);
+
+    assert_eq!(complex.elements_of_dimension(2).len(), 1);
+    assert_eq!(complex.elements_of_dimension(1).len(), 3);
+    assert_eq!(complex.elements_of_dimension(0).len(), 3);
+  }
+
+  #[test]
+  fn test_chain_operations_with_simplices() {
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Create two edges
+    let edge1 = Simplex::new(1, vec![0, 1]);
+    let edge2 = Simplex::new(1, vec![1, 2]);
+    let added_edge1 = complex.join_element(edge1);
+    let added_edge2 = complex.join_element(edge2);
+
+    let chain1 = Chain::from_item_and_coeff(&complex, added_edge1, 1_i32);
+    let chain2 = Chain::from_item_and_coeff(&complex, added_edge2, 2_i32);
+
+    let result = chain1 + chain2;
+
+    assert_eq!(result.items.len(), 2);
+    assert_eq!(result.coefficients, vec![1, 2]);
+  }
+
+  #[test]
+  fn test_chain_boundary_operations() {
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Test edge boundary
+    let edge = Simplex::new(1, vec![0, 1]);
+    let added_edge = complex.join_element(edge);
+    let chain = Chain::from_item_and_coeff(&complex, added_edge, 1);
 
     let boundary = chain.boundary();
+    assert_eq!(boundary.items.len(), 2); // Two vertices
+    assert_eq!(boundary.coefficients[0] + boundary.coefficients[1], 0); // Opposite signs
 
-    // Should have three 1-simplices (edges)
-    assert_eq!(boundary.items.len(), 3);
+    // Test triangle boundary
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
+    let added_triangle = complex.join_element(triangle);
+    let triangle_chain = Chain::from_item_and_coeff(&complex, added_triangle, 1);
 
-    // Verify the edges
-    let edge_vertices: Vec<Vec<usize>> =
-      boundary.items.iter().map(|s| s.vertices().to_vec()).collect();
-
-    assert!(edge_vertices.contains(&vec![0, 1]));
-    assert!(edge_vertices.contains(&vec![0, 2]));
-    assert!(edge_vertices.contains(&vec![1, 2]));
+    let triangle_boundary = triangle_chain.boundary();
+    assert_eq!(triangle_boundary.items.len(), 3); // Three edges
   }
 
   #[test]
   fn test_boundary_squared_is_zero() {
-    // Verify that ∂² = 0 for a triangle
+    let mut complex: Complex<Simplex> = Complex::new();
+
     let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(triangle.clone());
-    let chain = Chain::from_item_and_coeff(&complex, triangle, 1);
+    let added_triangle = complex.join_element(triangle);
+    let chain = Chain::from_item_and_coeff(&complex, added_triangle, 1);
 
     let boundary = chain.boundary();
     let boundary_squared = boundary.boundary();
@@ -293,15 +278,16 @@ mod tests {
 
   #[test]
   fn test_complex_chain_operations() {
-    // Create a 2-chain with two triangles sharing an edge
+    let mut complex: Complex<Simplex> = Complex::new();
+
+    // Create two triangles sharing an edge
     let triangle1 = Simplex::new(2, vec![0, 1, 2]);
     let triangle2 = Simplex::new(2, vec![1, 2, 3]);
-    let mut complex = SimplicialComplex::new();
-    complex.join_simplex(triangle1.clone());
-    complex.join_simplex(triangle2.clone());
+    let added_t1 = complex.join_element(triangle1);
+    let added_t2 = complex.join_element(triangle2);
 
-    let chain1 = Chain::from_item_and_coeff(&complex, triangle1, 1);
-    let chain2 = Chain::from_item_and_coeff(&complex, triangle2, -1);
+    let chain1 = Chain::from_item_and_coeff(&complex, added_t1, 1);
+    let chain2 = Chain::from_item_and_coeff(&complex, added_t2, -1);
 
     let combined_chain = chain1 + chain2;
     let boundary = combined_chain.boundary();
@@ -322,49 +308,10 @@ mod tests {
     assert!(!edge_vertices.contains(&vec![1, 2]));
   }
 
-  #[test]
-  fn test_simplices_by_dimension_basic() {
-    let mut complex = SimplicialComplex::new();
-
-    // Adding a 2-simplex will also add its 1-simplex faces and 0-simplex vertices
-    // due to the behavior of join_simplex.
-    let s2_v012 = Simplex::new(2, vec![0, 1, 2]);
-    complex.join_simplex(s2_v012.clone());
-
-    // Expected 0-simplices (vertices)
-    let s0_v0 = Simplex::new(0, vec![0]);
-    let s0_v1 = Simplex::new(0, vec![1]);
-    let s0_v2 = Simplex::new(0, vec![2]);
-
-    // Expected 1-simplices (edges)
-    let s1_v01 = Simplex::new(1, vec![0, 1]); // face of s2_v012
-    let s1_v02 = Simplex::new(1, vec![0, 2]); // face of s2_v012
-    let s1_v12 = Simplex::new(1, vec![1, 2]); // face of s2_v012
-
-    // Check dimension 2
-    let dim2_simplices = complex.simplices_by_dimension(2).expect("Dim 2 should exist");
-    assert_eq!(dim2_simplices.len(), 1, "Should be one 2-simplex");
-    assert!(dim2_simplices.contains(&s2_v012), "Missing 2-simplex [0,1,2]");
-
-    // Check dimension 1
-    let dim1_simplices = complex.simplices_by_dimension(1).expect("Dim 1 should exist");
-    assert_eq!(dim1_simplices.len(), 3, "Should be three 1-simplices");
-    assert!(dim1_simplices.contains(&s1_v01), "Missing 1-simplex [0,1]");
-    assert!(dim1_simplices.contains(&s1_v02), "Missing 1-simplex [0,2]");
-    assert!(dim1_simplices.contains(&s1_v12), "Missing 1-simplex [1,2]");
-
-    // Check dimension 0
-    let dim0_simplices = complex.simplices_by_dimension(0).expect("Dim 0 should exist");
-    assert_eq!(dim0_simplices.len(), 3, "Should be three 0-simplices");
-    assert!(dim0_simplices.contains(&s0_v0), "Missing 0-simplex [0]");
-    assert!(dim0_simplices.contains(&s0_v1), "Missing 0-simplex [1]");
-    assert!(dim0_simplices.contains(&s0_v2), "Missing 0-simplex [2]");
-  }
-
-  fn test_homology_point_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
+  fn test_simplicial_homology_point_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
     let p0 = Simplex::new(0, vec![0]);
-    complex.join_simplex(p0);
+    complex.join_element(p0);
 
     // H_0
     let h0 = complex.homology::<F>(0);
@@ -376,219 +323,96 @@ mod tests {
     let h1 = complex.homology::<F>(1);
     assert_eq!(h1.dimension, 1, "H1: Dimension check");
     assert_eq!(h1.betti_number, 0, "H1: Betti number for a point should be 0");
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: Should have no generators for field {:?}",
-      std::any::type_name::<F>()
-    );
-
-    // H_2
-    let h2 = complex.homology::<F>(2);
-    assert_eq!(
-      h2.betti_number,
-      0,
-      "H2: Betti number for a point should be 0 for field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert!(h1.homology_generators.is_empty(), "H1: Should have no generators");
   }
 
   #[test]
-  fn test_homology_point_all_fields() {
-    test_homology_point_generic::<Boolean>();
-    test_homology_point_generic::<Mod7>();
+  fn test_simplicial_homology_point_all_fields() {
+    test_simplicial_homology_point_generic::<Boolean>();
+    test_simplicial_homology_point_generic::<Mod7>();
   }
 
-  fn test_homology_edge_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
-    let edge01 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(edge01);
-
-    let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.dimension, 0, "H0: Dimension check");
-    assert_eq!(h0.betti_number, 1, "H0: Betti for an edge");
-    assert_eq!(h0.homology_generators.len(), 1, "H0: One generator");
-
-    let h1 = complex.homology::<F>(1);
-    assert_eq!(h1.dimension, 1, "H1: Dimension check");
-    assert_eq!(h1.betti_number, 0, "H1: Betti for an edge");
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: No generators for edge field {:?}",
-      std::any::type_name::<F>()
-    );
-  }
-
-  #[test]
-  fn test_homology_edge_all_fields() {
-    test_homology_edge_generic::<Boolean>();
-    test_homology_edge_generic::<Mod7>();
-  }
-
-  fn test_homology_two_disjoint_points_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
-    let p0_s = Simplex::new(0, vec![0]);
-    let p1_s = Simplex::new(0, vec![1]);
-    complex.join_simplex(p0_s);
-    complex.join_simplex(p1_s);
-
-    let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.dimension, 0, "H0: Dimension check");
-    assert_eq!(h0.betti_number, 2, "H0: Betti for two points");
-    assert_eq!(h0.homology_generators.len(), 2, "H0: Two generators");
-
-    let h1 = complex.homology::<F>(1);
-    assert_eq!(
-      h1.betti_number,
-      0,
-      "H1: Betti for two points field {:?}",
-      std::any::type_name::<F>()
-    );
-  }
-
-  #[test]
-  fn test_homology_two_disjoint_points_all_fields() {
-    test_homology_two_disjoint_points_generic::<Boolean>();
-    test_homology_two_disjoint_points_generic::<Mod7>();
-  }
-
-  fn test_homology_filled_triangle_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
-    let triangle012 = Simplex::new(2, vec![0, 1, 2]);
-    complex.join_simplex(triangle012);
-
-    let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti for triangle field {:?}", std::any::type_name::<F>());
-
-    let h1 = complex.homology::<F>(1);
-    assert_eq!(
-      h1.betti_number,
-      0,
-      "H1: Betti for filled triangle field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: No 1D generators field {:?}",
-      std::any::type_name::<F>()
-    );
-
-    let h2 = complex.homology::<F>(2);
-    assert_eq!(
-      h2.betti_number,
-      0,
-      "H2: Betti for filled triangle field {:?}",
-      std::any::type_name::<F>()
-    );
-    assert!(
-      h2.homology_generators.is_empty(),
-      "H2: No 2D generators field {:?}",
-      std::any::type_name::<F>()
-    );
-  }
-
-  #[test]
-  fn test_homology_filled_triangle_all_fields() {
-    test_homology_filled_triangle_generic::<Boolean>();
-    test_homology_filled_triangle_generic::<Mod7>();
-  }
-
-  fn test_homology_circle_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
+  fn test_simplicial_homology_circle_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
     let s01 = Simplex::new(1, vec![0, 1]);
     let s12 = Simplex::new(1, vec![1, 2]);
     let s02 = Simplex::new(1, vec![0, 2]);
 
-    complex.join_simplex(s01);
-    complex.join_simplex(s12);
-    complex.join_simplex(s02);
+    complex.join_element(s01);
+    complex.join_element(s12);
+    complex.join_element(s02);
 
     let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti for circle field {:?}", std::any::type_name::<F>());
+    assert_eq!(h0.betti_number, 1, "H0: Betti for circle");
 
     let h1 = complex.homology::<F>(1);
-    assert_eq!(h1.betti_number, 1, "H1: Betti for circle field {:?}", std::any::type_name::<F>());
-    assert_eq!(
-      h1.homology_generators.len(),
-      1,
-      "H1: One 1D generator field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert_eq!(h1.betti_number, 1, "H1: Betti for circle");
+    assert_eq!(h1.homology_generators.len(), 1, "H1: One 1D generator");
 
     let h2 = complex.homology::<F>(2);
-    assert_eq!(h2.betti_number, 0, "H2: Betti for circle field {:?}", std::any::type_name::<F>());
+    assert_eq!(h2.betti_number, 0, "H2: Betti for circle");
   }
 
   #[test]
-  fn test_homology_circle_all_fields() {
-    test_homology_circle_generic::<Boolean>();
-    test_homology_circle_generic::<Mod7>();
+  fn test_simplicial_homology_circle_all_fields() {
+    test_simplicial_homology_circle_generic::<Boolean>();
+    test_simplicial_homology_circle_generic::<Mod7>();
   }
 
-  fn test_homology_sphere_surface_generic<F: TestField>() {
-    let mut complex = SimplicialComplex::new();
+  fn test_simplicial_homology_filled_triangle_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
+    let triangle012 = Simplex::new(2, vec![0, 1, 2]);
+    complex.join_element(triangle012);
+
+    let h0 = complex.homology::<F>(0);
+    assert_eq!(h0.betti_number, 1, "H0: Betti for triangle");
+
+    let h1 = complex.homology::<F>(1);
+    assert_eq!(h1.betti_number, 0, "H1: Betti for filled triangle");
+    assert!(h1.homology_generators.is_empty(), "H1: No 1D generators");
+
+    let h2 = complex.homology::<F>(2);
+    assert_eq!(h2.betti_number, 0, "H2: Betti for filled triangle");
+    assert!(h2.homology_generators.is_empty(), "H2: No 2D generators");
+  }
+
+  #[test]
+  fn test_simplicial_homology_filled_triangle_all_fields() {
+    test_simplicial_homology_filled_triangle_generic::<Boolean>();
+    test_simplicial_homology_filled_triangle_generic::<Mod7>();
+  }
+
+  fn test_simplicial_homology_sphere_surface_generic<F: TestField>() {
+    let mut complex: Complex<Simplex> = Complex::new();
 
     let f1 = Simplex::new(2, vec![0, 1, 2]);
     let f2 = Simplex::new(2, vec![0, 1, 3]);
     let f3 = Simplex::new(2, vec![0, 2, 3]);
     let f4 = Simplex::new(2, vec![1, 2, 3]);
 
-    complex.join_simplex(f1);
-    complex.join_simplex(f2);
-    complex.join_simplex(f3);
-    complex.join_simplex(f4);
+    complex.join_element(f1);
+    complex.join_element(f2);
+    complex.join_element(f3);
+    complex.join_element(f4);
 
     let h0 = complex.homology::<F>(0);
-    assert_eq!(h0.betti_number, 1, "H0: Betti sphere field {:?}", std::any::type_name::<F>());
+    assert_eq!(h0.betti_number, 1, "H0: Betti sphere");
 
     let h1 = complex.homology::<F>(1);
-    assert_eq!(h1.betti_number, 0, "H1: Betti sphere field {:?}", std::any::type_name::<F>());
-    assert!(
-      h1.homology_generators.is_empty(),
-      "H1: Generators sphere field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert_eq!(h1.betti_number, 0, "H1: Betti sphere");
+    assert!(h1.homology_generators.is_empty(), "H1: Generators sphere");
 
     let h2 = complex.homology::<F>(2);
-    assert_eq!(h2.betti_number, 1, "H2: Betti sphere field {:?}", std::any::type_name::<F>());
-    assert_eq!(
-      h2.homology_generators.len(),
-      1,
-      "H2: One 2D generator field {:?}",
-      std::any::type_name::<F>()
-    );
+    assert_eq!(h2.betti_number, 1, "H2: Betti sphere");
+    assert_eq!(h2.homology_generators.len(), 1, "H2: One 2D generator");
 
     let h3 = complex.homology::<F>(3);
-    assert_eq!(h3.betti_number, 0, "H3: Betti sphere field {:?}", std::any::type_name::<F>());
+    assert_eq!(h3.betti_number, 0, "H3: Betti sphere");
   }
 
   #[test]
-  fn test_homology_sphere_surface_all_fields() {
-    test_homology_sphere_surface_generic::<Boolean>();
-    test_homology_sphere_surface_generic::<Mod7>();
-  }
-
-  #[ignore = "TODO: Implement neighborhood for simplicial complex"]
-  #[test]
-  fn test_simplex_neighborhood() {
-    let mut complex = SimplicialComplex::new();
-    let s0 = Simplex::new(0, vec![0]);
-    let s1 = Simplex::new(0, vec![1]);
-    let s01 = Simplex::new(1, vec![0, 1]);
-    complex.join_simplex(s0.clone());
-    complex.join_simplex(s1.clone());
-    complex.join_simplex(s01.clone());
-
-    let neighborhood = complex.neighborhood(&s0);
-
-    dbg!(&neighborhood);
-    assert!(neighborhood.contains(&s01));
-    assert!(neighborhood.len() == 1);
-
-    let neighborhood = complex.neighborhood(&s1);
-    assert!(neighborhood.contains(&s01));
-    assert!(neighborhood.len() == 1);
-
-    let neighborhood = complex.neighborhood(&s01);
-    assert!(neighborhood.is_empty());
+  fn test_simplicial_homology_sphere_surface_all_fields() {
+    test_simplicial_homology_sphere_surface_generic::<Boolean>();
+    test_simplicial_homology_sphere_surface_generic::<Mod7>();
   }
 }

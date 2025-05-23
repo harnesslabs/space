@@ -453,7 +453,13 @@ pub type CubicalComplex = Complex<Cube>;
 
 #[cfg(test)]
 mod tests {
+  use harness_algebra::algebras::boolean::Boolean;
+
   use super::*;
+
+  // =====================================================
+  // GENERIC COMPLEX<T> FUNCTIONALITY TESTS
+  // =====================================================
 
   #[test]
   fn test_generic_complex_with_simplex() {
@@ -498,6 +504,116 @@ mod tests {
   }
 
   #[test]
+  fn test_automatic_id_assignment() {
+    let mut complex = SimplicialComplex::new();
+
+    // Create elements without IDs
+    let vertex1 = Simplex::new(0, vec![0]);
+    let vertex2 = Simplex::new(0, vec![1]);
+    let edge = Simplex::new(1, vec![0, 1]);
+
+    // Add them to the complex - should get automatic ID assignment
+    let added_vertex1 = complex.join_element(vertex1);
+    let added_vertex2 = complex.join_element(vertex2);
+    let added_edge = complex.join_element(edge);
+
+    // All should be contained
+    assert!(complex.contains(&added_vertex1));
+    assert!(complex.contains(&added_vertex2));
+    assert!(complex.contains(&added_edge));
+
+    // Should have assigned IDs
+    assert!(added_vertex1.id().is_some());
+    assert!(added_vertex2.id().is_some());
+    assert!(added_edge.id().is_some());
+
+    // Should have proper lattice relationships
+    assert!(complex.leq(&added_vertex1, &added_edge).unwrap());
+    assert!(complex.leq(&added_vertex2, &added_edge).unwrap());
+  }
+
+  #[test]
+  fn test_element_deduplication() {
+    let mut complex = SimplicialComplex::new();
+
+    // Create two mathematically identical simplices
+    let simplex1 = Simplex::new(1, vec![0, 1]);
+    let simplex2 = Simplex::new(1, vec![0, 1]); // Same content
+
+    let added1 = complex.join_element(simplex1);
+    let added2 = complex.join_element(simplex2);
+
+    // Should return the same element (by ID)
+    assert_eq!(added1.id(), added2.id());
+    assert_eq!(complex.elements_of_dimension(1).len(), 1); // Only one edge stored
+  }
+
+  // =====================================================
+  // GENERIC POSET OPERATIONS TESTS
+  // =====================================================
+
+  #[test]
+  fn test_complex_poset_operations() {
+    let mut complex = SimplicialComplex::new();
+
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
+    let added_triangle = complex.join_element(triangle);
+
+    // Get the actual elements with IDs from the complex
+    let vertices = complex.elements_of_dimension(0);
+    let edges = complex.elements_of_dimension(1);
+
+    // Find specific vertex and edge by content
+    let vertex = vertices.iter().find(|v| v.vertices() == &[0]).unwrap().clone();
+    let edge = edges.iter().find(|e| e.vertices() == &[0, 1]).unwrap().clone();
+
+    // Test leq relationships
+    assert_eq!(complex.leq(&vertex, &edge), Some(true));
+    assert_eq!(complex.leq(&edge, &added_triangle), Some(true));
+    assert_eq!(complex.leq(&vertex, &added_triangle), Some(true));
+    assert_eq!(complex.leq(&added_triangle, &vertex), Some(false));
+
+    // Test upset/downset
+    let vertex_upset = complex.upset(vertex.clone());
+    assert!(vertex_upset.contains(&vertex));
+    assert!(vertex_upset.contains(&edge));
+    assert!(vertex_upset.contains(&added_triangle));
+
+    let triangle_downset = complex.downset(added_triangle.clone());
+    assert!(triangle_downset.contains(&vertex));
+    assert!(triangle_downset.contains(&edge));
+    assert!(triangle_downset.contains(&added_triangle));
+  }
+
+  // =====================================================
+  // GENERIC TOPOLOGY OPERATIONS TESTS
+  // =====================================================
+
+  #[test]
+  fn test_complex_topology_operations() {
+    let mut complex = SimplicialComplex::new();
+
+    let edge = Simplex::new(1, vec![0, 1]);
+    let added_edge = complex.join_element(edge);
+
+    // Get the actual vertex with ID from the complex
+    let vertices = complex.elements_of_dimension(0);
+    let vertex = vertices.iter().find(|v| v.vertices() == &[0]).unwrap().clone();
+
+    // Test neighborhood (cofaces)
+    let vertex_neighborhood = complex.neighborhood(&vertex);
+    assert_eq!(vertex_neighborhood.len(), 1);
+    assert!(vertex_neighborhood.contains(&added_edge));
+
+    let edge_neighborhood = complex.neighborhood(&added_edge);
+    assert_eq!(edge_neighborhood.len(), 0); // No 2-simplices attached
+  }
+
+  // =====================================================
+  // TYPE ALIAS TESTS
+  // =====================================================
+
+  #[test]
   fn test_simplicial_complex_type_alias() {
     let mut complex = SimplicialComplex::new();
 
@@ -537,58 +653,9 @@ mod tests {
     }
   }
 
-  #[test]
-  fn test_complex_poset_operations() {
-    let mut complex = SimplicialComplex::new();
-
-    let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let added_triangle = complex.join_element(triangle);
-
-    // Get the actual elements with IDs from the complex
-    let vertices = complex.elements_of_dimension(0);
-    let edges = complex.elements_of_dimension(1);
-
-    // Find specific vertex and edge by content
-    let vertex = vertices.iter().find(|v| v.vertices() == &[0]).unwrap().clone();
-    let edge = edges.iter().find(|e| e.vertices() == &[0, 1]).unwrap().clone();
-
-    // Test leq relationships
-    assert_eq!(complex.leq(&vertex, &edge), Some(true));
-    assert_eq!(complex.leq(&edge, &added_triangle), Some(true));
-    assert_eq!(complex.leq(&vertex, &added_triangle), Some(true));
-    assert_eq!(complex.leq(&added_triangle, &vertex), Some(false));
-
-    // Test upset/downset
-    let vertex_upset = complex.upset(vertex.clone());
-    assert!(vertex_upset.contains(&vertex));
-    assert!(vertex_upset.contains(&edge));
-    assert!(vertex_upset.contains(&added_triangle));
-
-    let triangle_downset = complex.downset(added_triangle.clone());
-    assert!(triangle_downset.contains(&vertex));
-    assert!(triangle_downset.contains(&edge));
-    assert!(triangle_downset.contains(&added_triangle));
-  }
-
-  #[test]
-  fn test_complex_topology_operations() {
-    let mut complex = SimplicialComplex::new();
-
-    let edge = Simplex::new(1, vec![0, 1]);
-    let added_edge = complex.join_element(edge);
-
-    // Get the actual vertex with ID from the complex
-    let vertices = complex.elements_of_dimension(0);
-    let vertex = vertices.iter().find(|v| v.vertices() == &[0]).unwrap().clone();
-
-    // Test neighborhood (cofaces)
-    let vertex_neighborhood = complex.neighborhood(&vertex);
-    assert_eq!(vertex_neighborhood.len(), 1);
-    assert!(vertex_neighborhood.contains(&added_edge));
-
-    let edge_neighborhood = complex.neighborhood(&added_edge);
-    assert_eq!(edge_neighborhood.len(), 0); // No 2-simplices attached
-  }
+  // =====================================================
+  // MIXED COMPLEX OPERATIONS TESTS
+  // =====================================================
 
   #[test]
   fn test_mixed_complex_operations() {
@@ -625,34 +692,12 @@ mod tests {
     assert_eq!(square_faces.len(), 4); // square has 4 edges
   }
 
-  #[test]
-  fn test_automatic_id_assignment() {
-    let mut complex = SimplicialComplex::new();
-
-    // Create elements
-    let vertex1 = Simplex::new(0, vec![0]);
-    let vertex2 = Simplex::new(0, vec![1]);
-    let edge = Simplex::new(1, vec![0, 1]);
-
-    // Add them to the complex - should all be properly stored
-    let added_vertex1 = complex.join_element(vertex1);
-    let added_vertex2 = complex.join_element(vertex2);
-    let added_edge = complex.join_element(edge);
-
-    // All should be contained
-    assert!(complex.contains(&added_vertex1));
-    assert!(complex.contains(&added_vertex2));
-    assert!(complex.contains(&added_edge));
-
-    // Should have proper lattice relationships
-    assert!(complex.leq(&added_vertex1, &added_edge).unwrap());
-    assert!(complex.leq(&added_vertex2, &added_edge).unwrap());
-  }
+  // =====================================================
+  // GENERIC HOMOLOGY COMPUTATION TESTS
+  // =====================================================
 
   #[test]
   fn test_generic_homology_computation() {
-    use harness_algebra::algebras::boolean::Boolean;
-
     // Test simplicial complex - triangle boundary (should have H_1 = 1)
     let mut simplicial_complex = SimplicialComplex::new();
 
@@ -665,20 +710,9 @@ mod tests {
     simplicial_complex.join_element(edge2);
     simplicial_complex.join_element(edge3);
 
-    // Debug: Check what elements we have
-    println!("Vertices: {:?}", simplicial_complex.elements_of_dimension(0));
-    println!("Edges: {:?}", simplicial_complex.elements_of_dimension(1));
-
-    // Debug: Check boundary matrix
-    let boundary_matrix = simplicial_complex.get_boundary_matrix::<Boolean>(1);
-    println!("Boundary matrix (∂_1): {:?}", boundary_matrix);
-
     // Compute homology over Z/2Z
     let h0 = simplicial_complex.homology::<Boolean>(0);
     let h1 = simplicial_complex.homology::<Boolean>(1);
-
-    println!("H_0 Betti number: {}", h0.betti_number);
-    println!("H_1 Betti number: {}", h1.betti_number);
 
     assert_eq!(h0.betti_number, 1); // One connected component
     assert_eq!(h1.betti_number, 1); // One 1-dimensional hole
@@ -707,5 +741,30 @@ mod tests {
     // Both simplicial and cubical complexes should give same topological result
     assert_eq!(h0.betti_number, h0_cube.betti_number);
     assert_eq!(h1.betti_number, h1_cube.betti_number);
+  }
+
+  #[test]
+  fn test_generic_homology_filled_shapes() {
+    // Test filled triangle (should have H_1 = 0)
+    let mut simplicial_complex = SimplicialComplex::new();
+    let triangle = Simplex::new(2, vec![0, 1, 2]);
+    simplicial_complex.join_element(triangle);
+
+    let h0 = simplicial_complex.homology::<Boolean>(0);
+    let h1 = simplicial_complex.homology::<Boolean>(1);
+
+    assert_eq!(h0.betti_number, 1); // One connected component
+    assert_eq!(h1.betti_number, 0); // No 1D holes (filled)
+
+    // Test filled square (should also have H_1 = 0)
+    let mut cubical_complex = CubicalComplex::new();
+    let square = Cube::square([0, 1, 2, 3]);
+    cubical_complex.join_element(square);
+
+    let h0_cube = cubical_complex.homology::<Boolean>(0);
+    let h1_cube = cubical_complex.homology::<Boolean>(1);
+
+    assert_eq!(h0_cube.betti_number, 1); // One connected component
+    assert_eq!(h1_cube.betti_number, 0); // No 1D holes (filled)
   }
 }
