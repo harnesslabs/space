@@ -211,8 +211,6 @@ where
     }
     true
   }
-
-  pub fn coboundary(&self, dimension: usize) -> C::Morphism { todo!() }
 }
 
 #[cfg(test)]

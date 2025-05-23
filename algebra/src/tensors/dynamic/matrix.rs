@@ -176,6 +176,7 @@ impl<F, O: MatrixOrientation> DynamicDenseMatrix<F, O> {
   }
 }
 
+// TODO: Not all of these require Field and Copy, we should remove unneeded bbounds where possible.
 impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
   /// Creates a new all zeros `DynamicDenseMatrix` with the specified number of rows and columns.
   ///
