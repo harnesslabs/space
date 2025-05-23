@@ -381,17 +381,33 @@ impl<F> Iterator for DynamicVector<F> {
 impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicVector<F> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if self.components.is_empty() {
-      write!(f, "[]")
-    } else {
-      write!(f, "[")?;
-      for (i, component) in self.components.iter().enumerate() {
-        if i > 0 {
-          write!(f, ", ")?;
-        }
-        write!(f, "{}", component)?;
-      }
-      write!(f, "]")
+      return write!(f, "( )");
     }
+
+    if self.components.len() == 1 {
+      // Single element: use simple parentheses
+      return write!(f, "( {} )", self.components[0]);
+    }
+
+    // Calculate the width needed for proper alignment
+    let mut max_width = 0;
+    for component in &self.components {
+      let component_str = format!("{}", component);
+      max_width = max_width.max(component_str.len());
+    }
+
+    // Multi-element: use tall parentheses
+    for (i, component) in self.components.iter().enumerate() {
+      if i == 0 {
+        writeln!(f, "⎛ {:>width$} ⎞", component, width = max_width)?;
+      } else if i == self.components.len() - 1 {
+        write!(f, "⎝ {:>width$} ⎠", component, width = max_width)?;
+      } else {
+        writeln!(f, "⎜ {:>width$} ⎟", component, width = max_width)?;
+      }
+    }
+
+    Ok(())
   }
 }
 
@@ -545,14 +561,14 @@ mod tests {
   fn test_display_formatting() {
     // Test empty vector
     let empty: DynamicVector<f64> = DynamicVector::new(vec![]);
-    println!("Empty vector: {}", empty);
+    println!("Empty vector: \n{}", empty);
 
     // Test single element
     let single = DynamicVector::from([42.0]);
-    println!("Single element: {}", single);
+    println!("Single element: \n{}", single);
 
     // Test multiple elements
     let multi = DynamicVector::from([1.0, 2.5, -3.7, 0.0]);
-    println!("Multiple elements: {}", multi);
+    println!("Multiple elements: \n{}", multi);
   }
 }

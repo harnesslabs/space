@@ -1231,7 +1231,7 @@ impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatri
 impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, RowMajor> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if self.num_rows() == 0 {
-      return write!(f, "[]");
+      return write!(f, "( )");
     }
 
     // First pass: calculate column widths for alignment
@@ -1243,30 +1243,47 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, RowM
       }
     }
 
-    // Second pass: format with proper alignment
-    writeln!(f, "[")?;
+    // Second pass: format with proper alignment and mathematical parentheses
     for i in 0..self.num_rows() {
-      write!(f, "  [")?;
+      // Print the appropriate parenthesis for this row
+      if self.num_rows() == 1 {
+        write!(f, "( ")?; // Single row: simple parentheses
+      } else if i == 0 {
+        write!(f, "⎛ ")?; // Top of parenthesis
+      } else if i == self.num_rows() - 1 {
+        write!(f, "⎝ ")?; // Bottom of parenthesis
+      } else {
+        write!(f, "⎜ ")?; // Middle of parenthesis
+      }
+
+      // Print row elements
       for j in 0..self.num_cols() {
         if j > 0 {
-          write!(f, ", ")?;
+          write!(f, "  ")?; // Space between elements
         }
         write!(f, "{:>width$}", self.get_component(i, j), width = col_widths[j])?;
       }
-      if i == self.num_rows() - 1 {
-        writeln!(f, "]")?;
+
+      // Print closing parenthesis
+      if self.num_rows() == 1 {
+        write!(f, " )")?; // Single row: simple parentheses
+      } else if i == 0 {
+        writeln!(f, " ⎞")?; // Top of parenthesis
+      } else if i == self.num_rows() - 1 {
+        write!(f, " ⎠")?; // Bottom of parenthesis
       } else {
-        writeln!(f, "],")?;
+        writeln!(f, " ⎟")?; // Middle of parenthesis
       }
     }
-    write!(f, "]")
+
+    Ok(())
   }
 }
 
 impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, ColumnMajor> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if self.num_rows() == 0 {
-      return write!(f, "[]");
+      return write!(f, "( )");
     }
 
     // First pass: calculate column widths for alignment
@@ -1278,23 +1295,40 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, Colu
       }
     }
 
-    // Second pass: format with proper alignment
-    writeln!(f, "[")?;
+    // Second pass: format with proper alignment and mathematical parentheses
     for i in 0..self.num_rows() {
-      write!(f, "  [")?;
+      // Print the appropriate parenthesis for this row
+      if self.num_rows() == 1 {
+        write!(f, "( ")?; // Single row: simple parentheses
+      } else if i == 0 {
+        write!(f, "⎛ ")?; // Top of parenthesis
+      } else if i == self.num_rows() - 1 {
+        write!(f, "⎝ ")?; // Bottom of parenthesis
+      } else {
+        write!(f, "⎜ ")?; // Middle of parenthesis
+      }
+
+      // Print row elements
       for j in 0..self.num_cols() {
         if j > 0 {
-          write!(f, ", ")?;
+          write!(f, "  ")?; // Space between elements
         }
         write!(f, "{:>width$}", self.get_component(i, j), width = col_widths[j])?;
       }
-      if i == self.num_rows() - 1 {
-        writeln!(f, "]")?;
+
+      // Print closing parenthesis
+      if self.num_rows() == 1 {
+        write!(f, " )")?; // Single row: simple parentheses
+      } else if i == 0 {
+        writeln!(f, " ⎞")?; // Top of parenthesis
+      } else if i == self.num_rows() - 1 {
+        write!(f, " ⎠")?; // Bottom of parenthesis
       } else {
-        writeln!(f, "],")?;
+        writeln!(f, " ⎟")?; // Middle of parenthesis
       }
     }
-    write!(f, "]")
+
+    Ok(())
   }
 }
 
@@ -1974,26 +2008,26 @@ mod tests {
   fn test_display_formatting() {
     // Test empty matrix
     let empty_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    println!("Empty RowMajor matrix: {}", empty_rm);
+    println!("Empty RowMajor matrix: \n{}", empty_rm);
 
     // Test small row-major matrix
     let mut small_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
     small_rm.append_row(DynamicVector::from([1.0, 2.0]));
     small_rm.append_row(DynamicVector::from([3.0, 4.0]));
-    println!("Small RowMajor matrix: {}", small_rm);
+    println!("Small RowMajor matrix: \n{}", small_rm);
 
     // Test larger row-major matrix with different sized numbers
     let mut large_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
     large_rm.append_row(DynamicVector::from([1.0, 123.456, -5.0]));
     large_rm.append_row(DynamicVector::from([42.0, 0.0, -999.123]));
     large_rm.append_row(DynamicVector::from([7.8, 100.0, 2.5]));
-    println!("Large RowMajor matrix: {}", large_rm);
+    println!("Large RowMajor matrix: \n{}", large_rm);
 
     // Test column-major matrix
     let mut col_major: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
     col_major.append_column(DynamicVector::from([10.0, 20.0]));
     col_major.append_column(DynamicVector::from([30.0, 40.0]));
     col_major.append_column(DynamicVector::from([50.0, 60.0]));
-    println!("ColumnMajor matrix: {}", col_major);
+    println!("ColumnMajor matrix: \n{}", col_major);
   }
 }
