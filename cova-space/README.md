@@ -95,7 +95,7 @@ use cova_space::prelude::*;
 
 The library covers essential areas of computational topology:
 
-```
+```text
 Set Theory & Posets
     ├── Topological Spaces (metric, normed, inner product)
     ├── Cell Complexes (simplicial, cubical, general)
