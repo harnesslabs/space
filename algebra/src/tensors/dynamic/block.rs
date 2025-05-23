@@ -45,7 +45,7 @@
 //! let flat_matrix = block_matrix.flatten();
 //! ```
 
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt};
 
 use super::{
   matrix::{DynamicDenseMatrix, MatrixOrientation, RowMajor},
@@ -64,6 +64,7 @@ use crate::prelude::*;
 ///
 /// * `F`: The field type for matrix elements, must implement [`Field`] and `Copy`
 /// * `O`: The matrix orientation, either `RowMajor` or `ColumnMajor`
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockMatrix<F, O>
 where
   F: Field + Copy,
@@ -324,6 +325,143 @@ where F: Field + Copy
   }
 }
 
+impl<F: Field + Copy + fmt::Display> fmt::Display for BlockMatrix<F, RowMajor> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    let flattened = self.flatten();
+    let total_rows = flattened.num_rows();
+    let total_cols = flattened.num_cols();
+
+    if total_rows == 0 {
+      return writeln!(f, "  ( )");
+    }
+
+    // Calculate column widths for proper alignment
+    let mut col_widths = vec![0; total_cols];
+    for i in 0..total_rows {
+      for j in 0..total_cols {
+        let element_str = format!("{}", flattened.get_component(i, j));
+        col_widths[j] = col_widths[j].max(element_str.len());
+      }
+    }
+
+    // Compute block boundary positions
+    let row_boundaries = self.compute_row_boundaries();
+    let col_boundaries = self.compute_col_boundaries();
+
+    for i in 0..total_rows {
+      // Print horizontal separator before this row if it's a block boundary (but not the first row)
+      if i > 0 && row_boundaries.contains(&i) {
+        // Print left parenthesis part for separator row
+        if total_rows == 1 {
+          write!(f, "  │ ")?; // Won't happen since single row has no separators
+        } else {
+          write!(f, "  ⎜ ")?; // Mid-section of parenthesis
+        }
+
+        self.print_horizontal_separator(f, &col_widths, &col_boundaries)?;
+
+        // Print right parenthesis part for separator row
+        writeln!(f, " ⎟")?;
+      }
+
+      // Print the row with vertical separators and parentheses
+      // Left parenthesis
+      if total_rows == 1 {
+        write!(f, "  ( ")?; // Single row: simple parentheses
+      } else if i == 0 {
+        write!(f, "  ⎛ ")?; // Top of parenthesis
+      } else if i == total_rows - 1 {
+        write!(f, "  ⎝ ")?; // Bottom of parenthesis
+      } else {
+        write!(f, "  ⎜ ")?; // Middle of parenthesis
+      }
+
+      // Print matrix elements with block separators
+      for j in 0..total_cols {
+        if j > 0 {
+          if col_boundaries.contains(&j) {
+            write!(f, " │ ")?; // Unicode vertical line with padding for block separator
+          } else {
+            write!(f, "  ")?; // Regular spacing between elements in same block
+          }
+        }
+        write!(f, "{:>width$}", flattened.get_component(i, j), width = col_widths[j])?;
+      }
+
+      // Right parenthesis
+      if total_rows == 1 {
+        writeln!(f, " )")?; // Single row: simple parentheses
+      } else if i == 0 {
+        writeln!(f, " ⎞")?; // Top of parenthesis
+      } else if i == total_rows - 1 {
+        writeln!(f, " ⎠")?; // Bottom of parenthesis
+      } else {
+        writeln!(f, " ⎟")?; // Middle of parenthesis
+      }
+    }
+
+    Ok(())
+  }
+}
+
+impl<F: Field + Copy + fmt::Display> BlockMatrix<F, RowMajor> {
+  /// Computes the row indices where block boundaries occur
+  fn compute_row_boundaries(&self) -> Vec<usize> {
+    let mut boundaries = Vec::new();
+    let mut current_row = 0;
+
+    for &block_height in &self.row_block_sizes {
+      current_row += block_height;
+      boundaries.push(current_row);
+    }
+
+    // Remove the last boundary (which is the total number of rows)
+    boundaries.pop();
+    boundaries
+  }
+
+  /// Computes the column indices where block boundaries occur
+  fn compute_col_boundaries(&self) -> Vec<usize> {
+    let mut boundaries = Vec::new();
+    let mut current_col = 0;
+
+    for &block_width in &self.col_block_sizes {
+      current_col += block_width;
+      boundaries.push(current_col);
+    }
+
+    // Remove the last boundary (which is the total number of columns)
+    boundaries.pop();
+    boundaries
+  }
+
+  /// Prints a horizontal separator line with proper alignment
+  fn print_horizontal_separator(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    col_widths: &[usize],
+    col_boundaries: &[usize],
+  ) -> fmt::Result {
+    let mut total_written = 0;
+
+    for (j, &width) in col_widths.iter().enumerate() {
+      if j > 0 {
+        if col_boundaries.contains(&j) {
+          write!(f, "─┼─")?; // Unicode cross at block boundary
+          total_written += 3;
+        } else {
+          write!(f, "──")?; // Unicode horizontal line for regular spacing
+          total_written += 2;
+        }
+      }
+      write!(f, "{}", "─".repeat(width))?; // Unicode horizontal line for column width
+      total_written += width;
+    }
+
+    Ok(())
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -532,5 +670,42 @@ mod tests {
     assert_eq!(*flat.get_component(0, 0), 1.0);
     assert_eq!(*flat.get_component(2, 0), 5.0);
     assert_eq!(*flat.get_component(4, 1), 10.0);
+  }
+
+  #[test]
+  fn test_display_formatting() {
+    // Test empty block matrix (all zero blocks)
+    let empty_block_matrix = BlockMatrix::<f64, RowMajor>::new(vec![2, 1], vec![1, 2]);
+    println!("Empty block matrix (all zeros):");
+    println!("{}", empty_block_matrix);
+
+    // Test block matrix with some non-zero blocks
+    let mut block_matrix = BlockMatrix::<f64, RowMajor>::new(vec![2, 2], vec![2, 1]);
+
+    // Create block (0,0)
+    let mut block_00 = DynamicDenseMatrix::<f64, RowMajor>::new();
+    block_00.append_row(DynamicVector::from([1.0, 2.0]));
+    block_00.append_row(DynamicVector::from([3.0, 4.0]));
+    block_matrix.set_block(0, 0, block_00);
+
+    // Create block (1,1)
+    let mut block_11 = DynamicDenseMatrix::<f64, RowMajor>::new();
+    block_11.append_row(DynamicVector::from([5.0]));
+    block_11.append_row(DynamicVector::from([6.0]));
+    block_matrix.set_block(1, 1, block_11);
+
+    println!("Block matrix with some non-zero blocks:");
+    println!("{}", block_matrix);
+
+    // Test single block matrix
+    let mut single_block = BlockMatrix::<f64, RowMajor>::new(vec![3], vec![2]);
+    let mut block = DynamicDenseMatrix::<f64, RowMajor>::new();
+    block.append_row(DynamicVector::from([10.0, 20.0]));
+    block.append_row(DynamicVector::from([30.0, 40.0]));
+    block.append_row(DynamicVector::from([50.0, 60.0]));
+    single_block.set_block(0, 0, block);
+
+    println!("Single block matrix:");
+    println!("{}", single_block);
   }
 }

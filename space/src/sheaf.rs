@@ -221,6 +221,8 @@ where
   }
 }
 
+use harness_algebra::tensors::dynamic::matrix::DynamicDenseMatrix;
+
 // TODO: This is a temporary implementation for the coboundary map specifically for the vector
 // stalks.
 impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, DynamicVector<F>>
@@ -244,10 +246,6 @@ where T: Hash + Eq + Clone + Debug
   /// # Returns
   /// A block matrix representing δ^k: C^k → C^(k+1)
   pub fn coboundary(&self, dimension: usize) -> BlockMatrix<F, RowMajor> {
-    use std::collections::HashMap;
-
-    use harness_algebra::tensors::dynamic::{matrix::DynamicDenseMatrix, vector::DynamicVector};
-
     // Get sorted k-dimensional and (k+1)-dimensional elements
     let k_elements = {
       let mut elements = self.space.elements_of_dimension(dimension);
@@ -386,7 +384,7 @@ mod tests {
     let (cc, restrictions, v0, v1, e01) = simplicial_complex_1d();
     let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
     let coboundary = sheaf.coboundary(0);
-    println!("{:?}", coboundary);
+    println!("{}", coboundary);
   }
 
   fn simplicial_complex_2d() -> (

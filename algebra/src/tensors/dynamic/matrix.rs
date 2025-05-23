@@ -55,7 +55,7 @@
 //! let result = matrix.row_echelon_form();
 //! ```
 
-use std::{fmt::Debug, marker::PhantomData};
+use std::{fmt, fmt::Debug, marker::PhantomData};
 
 use super::{vector::DynamicVector, *};
 
@@ -1182,7 +1182,7 @@ impl<T: Field + Copy> Mul<Self> for DynamicDenseMatrix<T, ColumnMajor> {
         for k in 0..n {
           // Summation index
           // C(i_res, j_res) = sum_k A(i_res, k) * B(k, j_res)
-          // self is A (ColumnMajor), rhs is B (ColumnMajor)
+          // self is A (RowMajor), rhs is B (ColumnMajor)
           sum += *self.get_component(i_res, k) * *rhs.get_component(k, j_res);
         }
         new_col_components.push(sum);
@@ -1225,6 +1225,76 @@ impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatri
       result_matrix.append_column(DynamicVector::new(new_col_components));
     }
     result_matrix
+  }
+}
+
+impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, RowMajor> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.num_rows() == 0 {
+      return write!(f, "[]");
+    }
+
+    // First pass: calculate column widths for alignment
+    let mut col_widths = vec![0; self.num_cols()];
+    for i in 0..self.num_rows() {
+      for j in 0..self.num_cols() {
+        let element_str = format!("{}", self.get_component(i, j));
+        col_widths[j] = col_widths[j].max(element_str.len());
+      }
+    }
+
+    // Second pass: format with proper alignment
+    writeln!(f, "[")?;
+    for i in 0..self.num_rows() {
+      write!(f, "  [")?;
+      for j in 0..self.num_cols() {
+        if j > 0 {
+          write!(f, ", ")?;
+        }
+        write!(f, "{:>width$}", self.get_component(i, j), width = col_widths[j])?;
+      }
+      if i == self.num_rows() - 1 {
+        writeln!(f, "]")?;
+      } else {
+        writeln!(f, "],")?;
+      }
+    }
+    write!(f, "]")
+  }
+}
+
+impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, ColumnMajor> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.num_rows() == 0 {
+      return write!(f, "[]");
+    }
+
+    // First pass: calculate column widths for alignment
+    let mut col_widths = vec![0; self.num_cols()];
+    for i in 0..self.num_rows() {
+      for j in 0..self.num_cols() {
+        let element_str = format!("{}", self.get_component(i, j));
+        col_widths[j] = col_widths[j].max(element_str.len());
+      }
+    }
+
+    // Second pass: format with proper alignment
+    writeln!(f, "[")?;
+    for i in 0..self.num_rows() {
+      write!(f, "  [")?;
+      for j in 0..self.num_cols() {
+        if j > 0 {
+          write!(f, ", ")?;
+        }
+        write!(f, "{:>width$}", self.get_component(i, j), width = col_widths[j])?;
+      }
+      if i == self.num_rows() - 1 {
+        writeln!(f, "]")?;
+      } else {
+        writeln!(f, "],")?;
+      }
+    }
+    write!(f, "]")
   }
 }
 
@@ -1898,5 +1968,32 @@ mod tests {
     assert_eq!(*result.get_component(0, 1), 1.0 * 6.0 + 2.0 * 8.0); // row 0, col 1
     assert_eq!(*result.get_component(1, 0), 3.0 * 5.0 + 4.0 * 7.0); // row 1, col 0
     assert_eq!(*result.get_component(1, 1), 3.0 * 6.0 + 4.0 * 8.0); // row 1, col 1
+  }
+
+  #[test]
+  fn test_display_formatting() {
+    // Test empty matrix
+    let empty_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    println!("Empty RowMajor matrix: {}", empty_rm);
+
+    // Test small row-major matrix
+    let mut small_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    small_rm.append_row(DynamicVector::from([1.0, 2.0]));
+    small_rm.append_row(DynamicVector::from([3.0, 4.0]));
+    println!("Small RowMajor matrix: {}", small_rm);
+
+    // Test larger row-major matrix with different sized numbers
+    let mut large_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+    large_rm.append_row(DynamicVector::from([1.0, 123.456, -5.0]));
+    large_rm.append_row(DynamicVector::from([42.0, 0.0, -999.123]));
+    large_rm.append_row(DynamicVector::from([7.8, 100.0, 2.5]));
+    println!("Large RowMajor matrix: {}", large_rm);
+
+    // Test column-major matrix
+    let mut col_major: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
+    col_major.append_column(DynamicVector::from([10.0, 20.0]));
+    col_major.append_column(DynamicVector::from([30.0, 40.0]));
+    col_major.append_column(DynamicVector::from([50.0, 60.0]));
+    println!("ColumnMajor matrix: {}", col_major);
   }
 }
