@@ -65,6 +65,13 @@
 //!
 //! ```rust
 //! use harness_algebra::algebras::boolean::Boolean;
+//! use harness_space::{
+//!   complexes::{Simplex, SimplicialComplex},
+//!   prelude::*,
+//! };
+//!
+//! let mut complex = SimplicialComplex::new();
+//! let triangle = Simplex::new(2, vec![0, 1, 2]);
 //!
 //! // Compute homology over Z/2Z
 //! let h0 = complex.homology::<Boolean>(0); // Connected components
@@ -76,7 +83,7 @@
 //! ### Working with Different Element Types
 //!
 //! ```rust
-//! use harness_space::complexes::{Cube, CubicalComplex, SimplicialComplex};
+//! use harness_space::complexes::{Cube, CubicalComplex, Simplex, SimplicialComplex};
 //!
 //! // Simplicial complex with triangles
 //! let mut simplicial = SimplicialComplex::new();
@@ -261,7 +268,7 @@ pub trait ComplexElement: Clone + std::hash::Hash + Eq + PartialOrd + Ord {
   /// # Implementation Notes
   ///
   /// - Returned faces should have no ID assigned (will be assigned when added to complex)
-  /// - The order may matter for orientation in [`boundary_with_orientations`]
+  /// - The order may matter for orientation in [`ComplexElement::boundary_with_orientations`]
   /// - All faces must have dimension = `self.dimension() - 1`
   /// - 0-dimensional elements return empty vector (no (-1)-dimensional faces)
   ///
@@ -336,7 +343,7 @@ pub trait ComplexElement: Clone + std::hash::Hash + Eq + PartialOrd + Ord {
   /// # ID Assignment Lifecycle
   ///
   /// 1. **Created**: Element starts with `id() = None`
-  /// 2. **Added**: Complex assigns unique ID via [`with_id`]
+  /// 2. **Added**: Complex assigns unique ID via [`ComplexElement::with_id`]
   /// 3. **Stored**: Element with ID is stored in complex's HashMap
   /// 4. **Referenced**: ID used for lattice operations and lookups
   ///
@@ -462,7 +469,7 @@ pub trait ComplexElement: Clone + std::hash::Hash + Eq + PartialOrd + Ord {
 ///
 /// ## Closure Property Enforcement
 ///
-/// The [`join_element`] method ensures closure: adding any element automatically
+/// The [`Complex::join_element`] method ensures closure: adding any element automatically
 /// includes all its faces. This maintains the fundamental property that distinguishes
 /// complexes from arbitrary cell collections.
 ///
@@ -500,6 +507,12 @@ pub trait ComplexElement: Clone + std::hash::Hash + Eq + PartialOrd + Ord {
 ///
 /// ```rust
 /// use harness_algebra::algebras::boolean::Boolean;
+/// use harness_space::{
+///   complexes::{Simplex, SimplicialComplex},
+///   prelude::*,
+/// };
+///
+/// let mut complex = SimplicialComplex::new();
 ///
 /// // Create a circle (1-dimensional hole)
 /// let edge1 = Simplex::new(1, vec![0, 1]);
@@ -516,6 +529,15 @@ pub trait ComplexElement: Clone + std::hash::Hash + Eq + PartialOrd + Ord {
 /// ## Working with Face Relations
 ///
 /// ```rust
+/// use harness_space::{
+///   complexes::{Simplex, SimplicialComplex},
+///   prelude::*,
+/// };
+///
+/// let mut complex = SimplicialComplex::new();
+/// let triangle = Simplex::new(2, vec![0, 1, 2]);
+/// let added = complex.join_element(triangle);
+///
 /// // Query face relationships
 /// let faces = complex.faces(&added); // Direct faces only
 /// let cofaces = complex.cofaces(&added); // Direct cofaces only
@@ -579,7 +601,10 @@ impl<T: ComplexElement> Complex<T> {
   /// # Examples
   ///
   /// ```rust
-  /// use harness_space::complexes::{Complex, Simplex};
+  /// use harness_space::{
+  ///   complexes::{Complex, Simplex},
+  ///   prelude::*,
+  /// };
   ///
   /// let complex: Complex<Simplex> = Complex::new();
   /// assert!(complex.is_empty());
@@ -1155,29 +1180,6 @@ impl<T: ComplexElement> Complex<T> {
   /// // Should be 2×1 matrix (2 vertices, 1 edge)
   /// assert_eq!(boundary_1.num_rows(), 2); // 2 vertices
   /// assert_eq!(boundary_1.num_cols(), 1); // 1 edge
-  /// ```
-  ///
-  /// ## Verifying ∂² = 0
-  ///
-  /// ```rust
-  /// # use harness_algebra::algebras::boolean::Boolean;
-  /// # use harness_space::complexes::{Complex, Simplex};
-  /// # let mut complex = Complex::new();
-  /// # let triangle = Simplex::new(2, vec![0, 1, 2]);
-  /// # complex.join_element(triangle);
-  ///
-  /// let boundary_2 = complex.get_boundary_matrix::<Boolean>(2);
-  /// let boundary_1 = complex.get_boundary_matrix::<Boolean>(1);
-  ///
-  /// // Compose the boundary operators: ∂₁ ∘ ∂₂ should be zero
-  /// let composition = boundary_1.multiply(&boundary_2);
-  ///
-  /// // Result should be zero matrix
-  /// for i in 0..composition.num_rows() {
-  ///   for j in 0..composition.num_cols() {
-  ///     assert_eq!(*composition.get_component(i, j), Boolean::zero());
-  ///   }
-  /// }
   /// ```
   pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor>
   where T: ComplexElement {

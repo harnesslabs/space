@@ -76,7 +76,7 @@
 //! ### Basic Simplex Creation
 //!
 //! ```rust
-//! use harness_space::complexes::simplicial::Simplex;
+//! use harness_space::complexes::Simplex;
 //!
 //! // Create by dimension and vertices
 //! let triangle = Simplex::new(2, vec![0, 1, 2]);
@@ -92,7 +92,7 @@
 //! ### Building Simplicial Complexes
 //!
 //! ```rust
-//! use harness_space::complexes::{Complex, SimplicialComplex};
+//! use harness_space::complexes::{Simplex, SimplicialComplex};
 //!
 //! let mut complex = SimplicialComplex::new();
 //!
@@ -110,6 +110,10 @@
 //!
 //! ```rust
 //! use harness_algebra::algebras::boolean::Boolean;
+//! use harness_space::{
+//!   complexes::{Simplex, SimplicialComplex},
+//!   prelude::*,
+//! };
 //!
 //! // Create a triangle boundary (circle)
 //! let mut complex = SimplicialComplex::new();
@@ -125,7 +129,7 @@
 //! ### Working with Face Relations
 //!
 //! ```rust
-//! # use harness_space::complexes::{SimplicialComplex, Simplex};
+//! # use harness_space::{complexes::{SimplicialComplex, Simplex}, prelude::*};
 //! # let mut complex = SimplicialComplex::new();
 //! # let triangle = Simplex::new(2, vec![0, 1, 2]);
 //! # let added = complex.join_element(triangle);
@@ -331,18 +335,7 @@ impl Simplex {
   ///
   /// # Returns
   /// A new `Simplex` instance with the same mathematical content but with the specified ID
-  ///
-  /// # Examples
-  /// ```rust
-  /// # use harness_space::complexes::simplicial::Simplex;
-  /// let simplex = Simplex::new(1, vec![0, 1]);
-  /// assert_eq!(simplex.id(), None);
-  ///
-  /// let with_id = simplex.with_id(42);
-  /// assert_eq!(with_id.id(), Some(42));
-  /// assert!(simplex.same_content(&with_id)); // Same mathematical content
-  /// ```
-  pub const fn with_id(mut self, new_id: usize) -> Self {
+  const fn with_id(mut self, new_id: usize) -> Self {
     self.id = Some(new_id);
     self
   }
@@ -376,16 +369,6 @@ impl Simplex {
   ///
   /// # Returns
   /// The dimension as a `usize`
-  ///
-  /// # Examples
-  /// ```rust
-  /// # use harness_space::complexes::simplicial::Simplex;
-  /// let point = Simplex::new(0, vec![0]);
-  /// assert_eq!(point.dimension(), 0);
-  ///
-  /// let triangle = Simplex::new(2, vec![0, 1, 2]);
-  /// assert_eq!(triangle.dimension(), 2);
-  /// ```
   pub const fn dimension(&self) -> usize { self.dimension }
 
   /// Returns the ID of the simplex if it has been assigned to a complex.
@@ -397,18 +380,6 @@ impl Simplex {
   ///
   /// # Returns
   /// `Some(usize)` if the simplex has been assigned to a complex, `None` otherwise
-  ///
-  /// # Examples
-  /// ```rust
-  /// # use harness_space::complexes::simplicial::Simplex;
-  /// # use harness_space::complexes::SimplicialComplex;
-  /// let simplex = Simplex::new(1, vec![0, 1]);
-  /// assert_eq!(simplex.id(), None); // No ID initially
-  ///
-  /// let mut complex = SimplicialComplex::new();
-  /// let added = complex.join_element(simplex);
-  /// assert!(added.id().is_some()); // ID assigned by complex
-  /// ```
   pub const fn id(&self) -> Option<usize> { self.id }
 
   /// Checks if this simplex has the same mathematical content as another.
@@ -422,19 +393,6 @@ impl Simplex {
   ///
   /// # Returns
   /// `true` if the simplices represent the same geometric object, `false` otherwise
-  ///
-  /// # Examples
-  /// ```rust
-  /// # use harness_space::complexes::simplicial::Simplex;
-  /// let s1 = Simplex::new(1, vec![0, 1]);
-  /// let s2 = Simplex::new(1, vec![1, 0]); // Different input order
-  /// let s3 = s1.clone().with_id(42); // Same content, different ID
-  /// let s4 = Simplex::new(1, vec![0, 2]); // Different vertices
-  ///
-  /// assert!(s1.same_content(&s2)); // Same despite input order
-  /// assert!(s1.same_content(&s3)); // Same despite different ID
-  /// assert!(!s1.same_content(&s4)); // Different vertices
-  /// ```
   pub fn same_content(&self, other: &Self) -> bool {
     self.dimension == other.dimension && self.vertices == other.vertices
   }

@@ -84,7 +84,7 @@ impl Cube {
   pub fn square(vertices: [usize; 4]) -> Self { Self::new(2, vertices.to_vec()) }
 
   /// Creates a new cube with a specific ID.
-  pub const fn with_id(mut self, new_id: usize) -> Self {
+  const fn with_id(mut self, new_id: usize) -> Self {
     self.id = Some(new_id);
     self
   }
