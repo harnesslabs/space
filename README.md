@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova.png" alt="Cova Logo" width="400">
+  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova-banner.png" alt="Cova Logo" width="500">
 </p>
 
 [![Crates.io - cova](https://img.shields.io/crates/v/cova?label=cova)](https://crates.io/crates/cova)
