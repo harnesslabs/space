@@ -264,8 +264,8 @@ where T: Hash + Eq + Clone + Debug
     };
 
     if k_elements.is_empty() || k_plus_1_elements.is_empty() {
-      // Return empty block matrix with minimal structure
-      return BlockMatrix::new(vec![1], vec![1]);
+      // No source elements or no target elements - return completely empty matrix (0,0)
+      return BlockMatrix::new(vec![], vec![]);
     }
 
     // Determine block sizes based on stalk dimensions
@@ -482,6 +482,10 @@ mod tests {
 
     println!("Coboundary matrix:");
     println!("{}", coboundary);
+
+    let coboundary = sheaf.coboundary(1);
+    println!("{}", coboundary);
+    assert_eq!(coboundary.block_structure(), (0, 0));
   }
 
   fn simplicial_complex_2d() -> (
@@ -599,12 +603,15 @@ mod tests {
     let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
     let coboundary = sheaf.coboundary(0);
     println!("{}", coboundary);
+    assert_eq!(coboundary.block_structure(), (3, 3));
 
     let coboundary = sheaf.coboundary(1);
     println!("{}", coboundary);
+    assert_eq!(coboundary.block_structure(), (1, 3));
 
     let coboundary = sheaf.coboundary(2);
     println!("{}", coboundary);
+    assert_eq!(coboundary.block_structure(), (0, 0));
   }
 
   fn cubical_complex_2d() -> (
@@ -781,6 +788,6 @@ mod tests {
     println!("{}", coboundary_2);
 
     // Should be empty since no 3-cubes
-    assert_eq!(coboundary_2.block_structure(), (0, 1));
+    assert_eq!(coboundary_2.block_structure(), (0, 0));
   }
 }

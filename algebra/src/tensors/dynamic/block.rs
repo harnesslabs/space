@@ -109,8 +109,6 @@ where F: Field + Copy
   /// let block_matrix = BlockMatrix::<f64, RowMajor>::new(row_sizes, col_sizes);
   /// ```
   pub fn new(row_block_sizes: Vec<usize>, col_block_sizes: Vec<usize>) -> Self {
-    assert!(!row_block_sizes.is_empty(), "Must have at least one block row");
-    assert!(!col_block_sizes.is_empty(), "Must have at least one block column");
     assert!(row_block_sizes.iter().all(|&size| size > 0), "All block row sizes must be positive");
     assert!(
       col_block_sizes.iter().all(|&size| size > 0),
