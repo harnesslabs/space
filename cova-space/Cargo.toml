@@ -1,0 +1,29 @@
+[package]
+name = "cova-space"
+
+authors     = ["Harness Labs"]
+description = "Cova's geometric and topological library"
+edition     = "2021"
+keywords    = ["mathematics", "topology", "geometry"]
+license     = "MIT"
+readme      = "README.md"
+repository  = "https://github.com/harness-labs/cova"
+version     = "0.1.0"
+
+[dependencies]
+# Local
+cova-algebra = { workspace = true }
+
+# External
+itertools  = { workspace = true, features = ["use_std"] }
+num-traits = { workspace = true }
+
+# Optional
+rayon = { workspace = true, optional = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+
+[features]
+parallel = ["dep:rayon"]

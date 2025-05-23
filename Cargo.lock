@@ -21,6 +21,33 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "baf1de4339761588bc0619e3cbc0120ee582ebb74b53b4efbf79117bd2da40fd"
 
 [[package]]
+name = "cova"
+version = "0.1.0"
+dependencies = [
+ "cova-algebra",
+ "cova-space",
+ "tempfile",
+]
+
+[[package]]
+name = "cova-algebra"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "cova-space"
+version = "0.1.0"
+dependencies = [
+ "cova-algebra",
+ "itertools",
+ "num-traits",
+ "rayon",
+ "tempfile",
+]
+
+[[package]]
 name = "crossbeam-deque"
 version = "0.8.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -77,24 +104,6 @@ dependencies = [
  "libc",
  "r-efi",
  "wasi",
-]
-
-[[package]]
-name = "harness-algebra"
-version = "0.6.0"
-dependencies = [
- "num-traits",
-]
-
-[[package]]
-name = "harness-space"
-version = "0.7.0"
-dependencies = [
- "harness-algebra",
- "itertools",
- "num-traits",
- "rayon",
- "tempfile",
 ]
 
 [[package]]
@@ -174,9 +183,9 @@ dependencies = [
 
 [[package]]
 name = "tempfile"
-version = "3.19.1"
+version = "3.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7437ac7763b9b123ccf33c338a5cc1bac6f69b45a136c19bdd8a65e3916435bf"
+checksum = "e8a64e3985349f2441a1a9ef0b853f869006c3855f2cda6862a94d26ebb9d6a1"
 dependencies = [
  "fastrand",
  "getrandom",

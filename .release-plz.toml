@@ -4,9 +4,13 @@ dependencies_update = false
 semver_check        = true
 
 [[package]]
-name    = "harness-algebra"
+name    = "cova-algebra"
 publish = true
 
 [[package]]
-name    = "harness-space"
+name    = "cova-space"
+publish = true
+
+[[package]]
+name    = "cova"
 publish = true

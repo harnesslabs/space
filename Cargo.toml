@@ -1,11 +1,11 @@
 [workspace]
-members  = ["space", "algebra"]
+members  = ["cova", "cova-space", "cova-algebra"]
 resolver = "2"
 
 [workspace.dependencies]
 # Local dependencies
-harness-algebra = { path = "algebra", version = "=0.6.0" }
-harness-space   = { path = "space", version = "=0.7.0" }
+cova-algebra = { path = "cova-algebra", version = "=0.1.0" }
+cova-space   = { path = "cova-space", version = "=0.1.0" }
 
 # External dependencies
 itertools  = { version = "0.14", default-features = false }
@@ -14,4 +14,4 @@ rayon      = { version = "1.10", default-features = false }
 
 
 # Development dependencies
-tempfile = { version = "3.19" }
+tempfile = { version = "3.20" }
