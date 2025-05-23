@@ -84,7 +84,7 @@ impl Cube {
   pub fn square(vertices: [usize; 4]) -> Self { Self::new(2, vertices.to_vec()) }
 
   /// Creates a new cube with a specific ID.
-  pub fn with_id(mut self, new_id: usize) -> Self {
+  pub const fn with_id(mut self, new_id: usize) -> Self {
     self.id = Some(new_id);
     self
   }
@@ -149,13 +149,47 @@ impl ComplexElement for Cube {
 
         // Create the (k-1)-dimensional face
         if !face_vertices.is_empty() && face_vertices.len() == (1 << (k - 1)) {
-          let face = Cube::new(k - 1, face_vertices);
+          let face = Self::new(k - 1, face_vertices);
           faces.push(face);
         }
       }
     }
 
     faces
+  }
+
+  fn boundary_with_orientations(&self) -> Vec<(Self, i32)> {
+    if self.dimension == 0 {
+      return Vec::new();
+    }
+
+    let mut faces_with_orientations = Vec::new();
+    let k = self.dimension;
+
+    // Compute cubical boundary: ∂_k σ = Σ_{i=0}^{k-1} (-1)^i (σ|_{x_i=1} - σ|_{x_i=0})
+    for coord_idx in 0..k {
+      // Get the two faces by fixing coordinate coord_idx to 0 and 1
+      for (bit_value, base_sign) in [(0, -1), (1, 1)] {
+        let mut face_vertices = Vec::new();
+
+        // Collect vertices where the coord_idx-th bit matches bit_value
+        for (vertex_idx, &vertex) in self.vertices.iter().enumerate() {
+          if ((vertex_idx >> coord_idx) & 1) == bit_value {
+            face_vertices.push(vertex);
+          }
+        }
+
+        // Create the face with proper orientation
+        if !face_vertices.is_empty() && face_vertices.len() == (1 << (k - 1)) {
+          let face = Self::new(k - 1, face_vertices);
+          // Cubical boundary orientation: (-1)^i * (face_1 - face_0)
+          let orientation = base_sign * if coord_idx % 2 == 0 { 1 } else { -1 };
+          faces_with_orientations.push((face, orientation));
+        }
+      }
+    }
+
+    faces_with_orientations
   }
 
   fn id(&self) -> Option<usize> { self.id }
@@ -241,7 +275,7 @@ mod tests {
     }
 
     // The faces should contain the edge's vertices
-    let face_vertices: Vec<usize> = edge_faces.iter().flat_map(|f| f.vertices()).copied().collect();
+    let face_vertices: Vec<usize> = edge_faces.iter().flat_map(Cube::vertices).copied().collect();
     assert!(face_vertices.contains(&10));
     assert!(face_vertices.contains(&11));
 
@@ -258,7 +292,7 @@ mod tests {
   }
 
   #[test]
-  #[should_panic]
+  #[should_panic = "A 1-cube must have exactly 2 vertices, got 3"]
   fn test_invalid_vertex_count() {
     // A 1-cube should have exactly 2 vertices, not 3
     Cube::new(1, vec![0, 1, 2]);
@@ -329,6 +363,36 @@ mod tests {
     // Boundary of boundary should be empty (∂² = 0)
     assert_eq!(boundary_squared.items.len(), 0);
     assert_eq!(boundary_squared.coefficients.len(), 0);
+  }
+
+  #[test]
+  fn debug_cube_boundary_computation() {
+    let mut complex: Complex<Cube> = Complex::new();
+
+    let square = Cube::square([0, 1, 2, 3]);
+    println!("Square: {square:?}");
+    println!("Square faces: {:?}", square.faces());
+
+    let added_square = complex.join_element(square);
+    println!("Complex elements after adding square:");
+    println!("  2D: {:?}", complex.elements_of_dimension(2));
+    println!("  1D: {:?}", complex.elements_of_dimension(1));
+    println!("  0D: {:?}", complex.elements_of_dimension(0));
+
+    let chain = Chain::from_item_and_coeff(&complex, added_square, 1);
+    let boundary = chain.boundary();
+    println!("Boundary of square: {} items", boundary.items.len());
+    for (i, (item, coeff)) in boundary.items.iter().zip(boundary.coefficients.iter()).enumerate() {
+      println!("  {i}. {item:?} with coeff {coeff}");
+    }
+
+    let boundary_squared = boundary.boundary();
+    println!("Boundary of boundary: {} items", boundary_squared.items.len());
+    for (i, (item, coeff)) in
+      boundary_squared.items.iter().zip(boundary_squared.coefficients.iter()).enumerate()
+    {
+      println!("  {i}. {item:?} with coeff {coeff}");
+    }
   }
 
   #[test]

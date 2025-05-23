@@ -46,7 +46,7 @@
 //! - Default implementations for relationships, e.g., a `MetricSpace` deriving its `Topology` from
 //!   its metric, or a `NormedSpace` deriving its `distance` function from its `norm`.
 
-use harness_algebra::rings::Ring;
+use harness_algebra::rings::{Field, Ring};
 
 use crate::{homology::Chain, set::Collection};
 

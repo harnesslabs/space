@@ -127,6 +127,33 @@ impl ComplexElement for Simplex {
       .collect()
   }
 
+  /// Computes the faces with their correct orientation coefficients for the simplicial boundary
+  /// operator.
+  ///
+  /// For a k-simplex σ = [v_0, v_1, ..., v_k], the boundary is:
+  /// ∂σ = Σ_{i=0}^k (-1)^i [v_0, ..., v̂_i, ..., v_k]
+  /// where v̂_i means vertex v_i is omitted.
+  fn boundary_with_orientations(&self) -> Vec<(Self, i32)> {
+    if self.dimension == 0 {
+      return Vec::new();
+    }
+
+    let mut faces_with_orientations = Vec::new();
+
+    // For each vertex position, create a face by omitting that vertex
+    for (i, _) in self.vertices.iter().enumerate() {
+      let mut face_vertices = self.vertices.clone();
+      face_vertices.remove(i);
+      let face = Self::from_vertices(face_vertices);
+
+      // Alternating sign: (-1)^i
+      let orientation = if i % 2 == 0 { 1 } else { -1 };
+      faces_with_orientations.push((face, orientation));
+    }
+
+    faces_with_orientations
+  }
+
   fn id(&self) -> Option<usize> { self.id }
 
   fn same_content(&self, other: &Self) -> bool { self.same_content(other) }

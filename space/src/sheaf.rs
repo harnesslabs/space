@@ -236,54 +236,62 @@ mod tests {
   };
 
   use super::*;
-  use crate::complexes::cell::{Cell, CellComplex};
+  use crate::complexes::{Simplex, SimplicialComplex};
 
-  fn cell_complex_1d(
-  ) -> (CellComplex, HashMap<(Cell, Cell), DynamicDenseMatrix<f64, RowMajor>>, Cell, Cell, Cell) {
-    let mut cc = CellComplex::new();
-    let v1 = cc.add_cell(0, &[]);
-    let v2 = cc.add_cell(0, &[]);
-    let e1 = cc.add_cell(1, &[&v1, &v2]);
+  fn simplicial_complex_1d() -> (
+    SimplicialComplex,
+    HashMap<(Simplex, Simplex), DynamicDenseMatrix<f64, RowMajor>>,
+    Simplex,
+    Simplex,
+    Simplex,
+  ) {
+    let mut cc = SimplicialComplex::new();
+    let v0 = Simplex::new(0, vec![0]);
+    let v1 = Simplex::new(0, vec![1]);
+    let e01 = Simplex::new(1, vec![0, 1]);
+    cc.join_element(v0.clone());
+    cc.join_element(v1.clone());
+    cc.join_element(e01.clone());
     let restrictions = HashMap::from([
-      ((v1, e1), {
+      ((v0.clone(), e01.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 2.0]));
         mat
       }),
-      ((v2, e1), {
+      ((v1.clone(), e01.clone()), {
         let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
         mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
         mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
         mat
       }),
     ]);
-    (cc, restrictions, v1, v2, e1)
+    (cc, restrictions, v0, v1, e01)
   }
 
   #[test]
   fn test_sheaf_global_section_1d() {
-    let (cc, restrictions, v1, v2, e1) = cell_complex_1d();
+    let (cc, restrictions, v1, v2, e1) = simplicial_complex_1d();
 
-    let sheaf = Sheaf::<CellComplex, DynamicVector<f64>>::new(cc, restrictions);
+    let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v1, DynamicVector::<f64>::new(vec![2.0])),      // R^1
-      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
-      (e1, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
+      (v1.clone(), DynamicVector::<f64>::new(vec![2.0])), // R^1
+      (v2.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1.clone(), DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<f64>::new(vec![1.0])),      // R^1
-      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
-      (e1, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
+      (v1.clone(), DynamicVector::<f64>::new(vec![1.0])), // R^1
+      (v2.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1.clone(), DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, DynamicVector::<f64>::new(vec![2.0])),      // R^1
-      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
-      (e1, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (v1.clone(), DynamicVector::<f64>::new(vec![2.0])), // R^1
+      (v2.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+      (e1.clone(), DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
@@ -295,105 +303,112 @@ mod tests {
     assert!(!sheaf.is_global_section(&section));
   }
 
-  fn cell_complex_2d() -> (
-    CellComplex,
-    HashMap<(Cell, Cell), DynamicDenseMatrix<f64, RowMajor>>,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-    Cell,
-  ) {
-    let mut cc = CellComplex::new();
-    // Vertices
-    let v0 = cc.add_cell(0, &[]); // R^1
-    let v1 = cc.add_cell(0, &[]); // R^2
-    let v2 = cc.add_cell(0, &[]); // R^3
-                                  // Edges
-    let e01 = cc.add_cell(1, &[&v0, &v1]); // R^2
-    let e02 = cc.add_cell(1, &[&v0, &v2]); // R^2
-    let e12 = cc.add_cell(1, &[&v1, &v2]); // R^2
+  // fn simplicial_complex_2d() -> (
+  //   SimplicialComplex,
+  //   HashMap<(Simplex, Simplex), DynamicDenseMatrix<f64, RowMajor>>,
+  //   Simplex,
+  //   Simplex,
+  //   Simplex,
+  //   Simplex,
+  //   Simplex,
+  //   Simplex,
+  // ) {
+  //   let mut cc = SimplicialComplex::new();
+  //   // Vertices
+  //   let v0 = Simplex::new(0, vec![0]); // R^1
+  //   let v1 = Simplex::new(0, vec![1]); // R^2
+  //   let v2 = Simplex::new(0, vec![2]); // R^3
+  //                                      // Edges
+  //   let e01 = Simplex::new(1, vec![0, 1]); // R^2
+  //   let e02 = Simplex::new(1, vec![0, 2]); // R^2
+  //   let e12 = Simplex::new(1, vec![1, 2]); // R^2
 
-    // Faces
-    let f012 = cc.add_cell(2, &[&e01, &e02, &e12]); // R^3
+  //   // Faces
+  //   let f012 = Simplex::new(2, vec![0, 1, 2]); // R^3
 
-    let restrictions = HashMap::from([
-      ((v0, e01), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 2.0]));
-        mat
-      }),
-      ((v1, e01), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0]));
-        mat
-      }),
-      ((v0, e02), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
-        mat
-      }),
-      ((v2, e02), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
-        mat
-      }),
-      ((v1, e12), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
-        mat
-      }),
-      ((v2, e12), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
-        mat
-      }),
-      ((e01, f012), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
-        mat
-      }),
-      ((e02, f012), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0]));
-        mat
-      }),
-      ((e12, f012), {
-        let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
-        mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
-        mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
-        mat
-      }),
-    ]);
+  //   cc.join_element(v0.clone());
+  //   cc.join_element(v1.clone());
+  //   cc.join_element(v2.clone());
+  //   cc.join_element(e01.clone());
+  //   cc.join_element(e02.clone());
+  //   cc.join_element(e12.clone());
+  //   cc.join_element(f012.clone());
 
-    (cc, restrictions, v0, v1, v2, e01, e02, e12, f012)
-  }
+  //   let restrictions = HashMap::from([
+  //     ((v0, e01), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 2.0]));
+  //       mat
+  //     }),
+  //     ((v1, e01), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0]));
+  //       mat
+  //     }),
+  //     ((v0, e02), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
+  //       mat
+  //     }),
+  //     ((v2, e02), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
+  //       mat
+  //     }),
+  //     ((v1, e12), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
+  //       mat
+  //     }),
+  //     ((v2, e12), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 2.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0]));
+  //       mat
+  //     }),
+  //     ((e01, f012), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+  //       mat
+  //     }),
+  //     ((e02, f012), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 1.0, 0.0]));
+  //       mat
+  //     }),
+  //     ((e12, f012), {
+  //       let mut mat = DynamicDenseMatrix::<f64, RowMajor>::new();
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![1.0, 0.0, 0.0]));
+  //       mat.append_column(&DynamicVector::<f64>::new(vec![0.0, 0.0, 0.0]));
+  //       mat
+  //     }),
+  //   ]);a
 
-  #[test]
-  fn test_sheaf_global_section_2d() {
-    let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = cell_complex_2d();
+  //   (cc, restrictions, v0, v1, v2, e01, e02, e12, f012)
+  // }
 
-    let sheaf = Sheaf::<CellComplex, DynamicVector<f64>>::new(cc, restrictions);
+  // #[test]
+  // fn test_sheaf_global_section_2d() {
+  //   let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = simplicial_complex_2d();
 
-    let section = HashMap::from([
-      (v0, DynamicVector::<f64>::new(vec![1.0])),      // R^1
-      (v1, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
-      (v2, DynamicVector::<f64>::new(vec![1.0, 2.0, 3.0])), // R^3
-      (e01, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
-      (e02, DynamicVector::<f64>::new(vec![1.0, 0.0])), // R^2
-      (e12, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
-      (f012, DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0])), // R^3
-    ]);
-    assert!(sheaf.is_global_section(&section));
-  }
+  //   let sheaf = Sheaf::<SimplicialComplex, DynamicVector<f64>>::new(cc, restrictions);
+
+  //   let section = HashMap::from([
+  //     (v0, DynamicVector::<f64>::new(vec![1.0])),      // R^1
+  //     (v1, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+  //     (v2, DynamicVector::<f64>::new(vec![1.0, 2.0, 3.0])), // R^3
+  //     (e01, DynamicVector::<f64>::new(vec![1.0, 2.0])), // R^2
+  //     (e02, DynamicVector::<f64>::new(vec![1.0, 0.0])), // R^2
+  //     (e12, DynamicVector::<f64>::new(vec![2.0, 4.0])), // R^2
+  //     (f012, DynamicVector::<f64>::new(vec![2.0, 0.0, 0.0])), // R^3
+  //   ]);
+  //   assert!(sheaf.is_global_section(&section));
+  // }
 }

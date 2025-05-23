@@ -31,9 +31,14 @@ use crate::{
   set::{Collection, Poset},
 };
 
-pub mod cell;
 pub mod cubical;
 pub mod simplicial;
+
+pub use cubical::Cube;
+pub use simplicial::Simplex;
+
+pub type SimplicialComplex = Complex<Simplex>;
+pub type CubicalComplex = Complex<Cube>;
 
 /// Trait for elements that can be part of a topological complex.
 ///
@@ -43,14 +48,18 @@ pub mod simplicial;
 /// - Compute their faces (boundary elements)
 /// - Check content equality for deduplication
 /// - Handle optional ID assignment when added to a complex
-pub trait ComplexElement:
-  Clone + std::hash::Hash + Eq + PartialOrd + Ord + std::fmt::Debug {
+pub trait ComplexElement: Clone + std::hash::Hash + Eq + PartialOrd + Ord {
   /// Returns the dimension of this element.
   fn dimension(&self) -> usize;
 
   /// Returns all faces (boundary elements) of this element.
   /// For a k-dimensional element, this returns all (k-1)-dimensional faces.
   fn faces(&self) -> Vec<Self>;
+
+  /// Returns the faces with their correct orientation coefficients for boundary computation.
+  /// This allows each element type to implement its own boundary operator convention.
+  /// Returns a vector of (face, orientation_coefficient) pairs.
+  fn boundary_with_orientations(&self) -> Vec<(Self, i32)>;
 
   /// Returns the ID if this element has been assigned to a complex, None otherwise.
   fn id(&self) -> Option<usize>;
@@ -119,46 +128,37 @@ impl<T: ComplexElement> Complex<T> {
         element.with_id(new_id)
       };
 
-    // Recursively add all faces first
     let mut face_ids = Vec::new();
     for face in element_with_id.faces() {
       let added_face = self.join_element(face);
       face_ids.push(added_face.id().unwrap()); // Safe because we just added it
     }
 
-    // Add the element itself to the lattice
     let element_id = element_with_id.id().unwrap();
     self.attachment_lattice.add_element(element_id);
 
-    // Add face relationships to the lattice
     for face_id in face_ids {
       self.attachment_lattice.add_relation(face_id, element_id);
     }
 
-    // Store the element
     self.elements.insert(element_id, element_with_id.clone());
     element_with_id
   }
 
-  /// Find an existing element with equivalent mathematical content
   fn find_equivalent_element(&self, element: &T) -> Option<T> {
     self.elements.values().find(|existing| element.same_content(existing)).cloned()
   }
 
-  /// Returns the element with the given ID, if it exists.
   pub fn get_element(&self, id: usize) -> Option<&T> { self.elements.get(&id) }
 
-  /// Returns all elements of a specific dimension.
   pub fn elements_of_dimension(&self, dimension: usize) -> Vec<T> {
     self.elements.values().filter(|element| element.dimension() == dimension).cloned().collect()
   }
 
-  /// Returns the maximum dimension of any element in the complex.
   pub fn max_dimension(&self) -> usize {
     self.elements.values().map(ComplexElement::dimension).max().unwrap_or(0)
   }
 
-  /// Returns all direct faces of the given element.
   pub fn faces(&self, element: &T) -> Vec<T> {
     element.id().map_or_else(Vec::new, |id| {
       self
@@ -170,7 +170,6 @@ impl<T: ComplexElement> Complex<T> {
     })
   }
 
-  /// Returns all direct cofaces (attachments) of the given element.
   pub fn cofaces(&self, element: &T) -> Vec<T> {
     element.id().map_or_else(Vec::new, |id| {
       self
@@ -182,21 +181,6 @@ impl<T: ComplexElement> Complex<T> {
     })
   }
 
-  /// Computes the $k$-th homology group $H_k(X; F)$ of the complex $X$
-  /// with coefficients in a field $F$.
-  ///
-  /// This is a generic implementation that works with any `ComplexElement` type.
-  /// It uses the boundary operator from the `Topology` trait implementation
-  /// to construct boundary matrices and compute homology via linear algebra.
-  ///
-  /// # Arguments
-  /// * `k`: The dimension for which to compute the homology group.
-  ///
-  /// # Type Parameters
-  /// * `F`: The coefficient field, which must implement `Field` and `Copy`.
-  ///
-  /// # Returns
-  /// A `Homology<F>` struct containing the dimension, Betti number, and generators.
   pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F> {
     let k_elements = {
       let mut elements = self.elements_of_dimension(k);
@@ -425,41 +409,34 @@ impl<T: ComplexElement> Topology for Complex<T> {
     let mut boundary_chain_items = Vec::new();
     let mut boundary_chain_coeffs = Vec::new();
 
-    // Get faces from the element itself (which computes them mathematically)
-    let faces = item.faces();
+    // Use the element-specific boundary computation with orientations
+    let faces_with_orientations = item.boundary_with_orientations();
 
-    for (i, face) in faces.into_iter().enumerate() {
+    for (face, orientation) in faces_with_orientations {
       // Find the corresponding element in the complex that matches this face's content
       if let Some(complex_face) = self.find_equivalent_element(&face) {
-        // Use alternating signs for the boundary operator
-        let coeff = if i % 2 == 0 { R::one() } else { -R::one() };
+        // Use the orientation coefficient from the element-specific boundary operator
+        let coeff = if orientation > 0 {
+          R::one()
+        } else if orientation < 0 {
+          -R::one()
+        } else {
+          continue; // Skip faces with zero coefficient
+        };
         boundary_chain_items.push(complex_face);
         boundary_chain_coeffs.push(coeff);
       }
     }
+
     Chain::from_items_and_coeffs(self, boundary_chain_items, boundary_chain_coeffs)
   }
 }
-
-// Type aliases for convenience
-pub use cubical::Cube;
-pub use simplicial::Simplex;
-
-/// A simplicial complex using the generic Complex structure
-pub type SimplicialComplex = Complex<Simplex>;
-
-/// A cubical complex using the generic Complex structure  
-pub type CubicalComplex = Complex<Cube>;
 
 #[cfg(test)]
 mod tests {
   use harness_algebra::algebras::boolean::Boolean;
 
   use super::*;
-
-  // =====================================================
-  // GENERIC COMPLEX<T> FUNCTIONALITY TESTS
-  // =====================================================
 
   #[test]
   fn test_generic_complex_with_simplex() {
@@ -585,10 +562,6 @@ mod tests {
     assert!(triangle_downset.contains(&added_triangle));
   }
 
-  // =====================================================
-  // GENERIC TOPOLOGY OPERATIONS TESTS
-  // =====================================================
-
   #[test]
   fn test_complex_topology_operations() {
     let mut complex = SimplicialComplex::new();
@@ -608,54 +581,6 @@ mod tests {
     let edge_neighborhood = complex.neighborhood(&added_edge);
     assert_eq!(edge_neighborhood.len(), 0); // No 2-simplices attached
   }
-
-  // =====================================================
-  // TYPE ALIAS TESTS
-  // =====================================================
-
-  #[test]
-  fn test_simplicial_complex_type_alias() {
-    let mut complex = SimplicialComplex::new();
-
-    let triangle = Simplex::new(2, vec![0, 1, 2]);
-    let added_triangle = complex.join_element(triangle);
-
-    assert_eq!(complex.elements_of_dimension(2).len(), 1);
-    assert!(complex.contains(&added_triangle));
-
-    // Test Poset operations
-    let faces = complex.faces(&added_triangle);
-    assert_eq!(faces.len(), 3);
-
-    // Test that all faces are actually contained in the complex
-    for face in &faces {
-      assert!(complex.contains(face));
-    }
-  }
-
-  #[test]
-  fn test_cubical_complex_type_alias() {
-    let mut complex = CubicalComplex::new();
-
-    let square = Cube::square([0, 1, 2, 3]);
-    let added_square = complex.join_element(square);
-
-    assert_eq!(complex.elements_of_dimension(2).len(), 1);
-    assert!(complex.contains(&added_square));
-
-    // Test Poset operations
-    let faces = complex.faces(&added_square);
-    assert_eq!(faces.len(), 4);
-
-    // Test that all faces are actually contained in the complex
-    for face in &faces {
-      assert!(complex.contains(face));
-    }
-  }
-
-  // =====================================================
-  // MIXED COMPLEX OPERATIONS TESTS
-  // =====================================================
 
   #[test]
   fn test_mixed_complex_operations() {
@@ -691,10 +616,6 @@ mod tests {
     assert_eq!(triangle_faces.len(), 3); // triangle has 3 edges
     assert_eq!(square_faces.len(), 4); // square has 4 edges
   }
-
-  // =====================================================
-  // GENERIC HOMOLOGY COMPUTATION TESTS
-  // =====================================================
 
   #[test]
   fn test_generic_homology_computation() {
