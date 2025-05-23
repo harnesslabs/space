@@ -14,10 +14,19 @@
 
 use std::collections::HashMap;
 
+use harness_algebra::{
+  rings::Field,
+  tensors::dynamic::{
+    compute_quotient_basis,
+    matrix::{DynamicDenseMatrix, RowMajor},
+    vector::DynamicVector,
+  },
+};
+
 use super::*;
 use crate::{
   definitions::Topology,
-  homology::Chain,
+  homology::{Chain, Homology},
   lattice::Lattice,
   set::{Collection, Poset},
 };
@@ -177,7 +186,117 @@ impl<T: ComplexElement> Complex<T> {
     }
   }
 
-  pub fn homology<R: Ring + Copy>(&self, dimension: usize) -> Chain<Self, R> { todo!() }
+  /// Computes the $k$-th homology group $H_k(X; F)$ of the complex $X$
+  /// with coefficients in a field $F$.
+  ///
+  /// This is a generic implementation that works with any `ComplexElement` type.
+  /// It uses the boundary operator from the `Topology` trait implementation
+  /// to construct boundary matrices and compute homology via linear algebra.
+  ///
+  /// # Arguments
+  /// * `k`: The dimension for which to compute the homology group.
+  ///
+  /// # Type Parameters
+  /// * `F`: The coefficient field, which must implement `Field` and `Copy`.
+  ///
+  /// # Returns
+  /// A `Homology<F>` struct containing the dimension, Betti number, and generators.
+  pub fn homology<F: Field + Copy>(&self, k: usize) -> Homology<F>
+  where T: ComplexElement {
+    let k_elements = {
+      let mut elements = self.elements_of_dimension(k);
+      elements.sort_unstable();
+      elements
+    };
+
+    if k_elements.is_empty() {
+      return Homology::trivial(k);
+    }
+
+    let cycles = if k == 0 {
+      // Z₀ = C₀ (kernel of ∂₀: C₀ -> C₋₁ is C₀ itself).
+      let num_0_elements = k_elements.len();
+      let mut basis: Vec<DynamicVector<F>> = Vec::with_capacity(num_0_elements);
+      for i in 0..num_0_elements {
+        let mut v_data = vec![F::zero(); num_0_elements];
+        v_data[i] = F::one();
+        basis.push(DynamicVector::new(v_data));
+      }
+      basis
+    } else {
+      let boundary_k = self.get_boundary_matrix::<F>(k);
+      boundary_k.kernel()
+    };
+
+    let boundary_k_plus_1 = self.get_boundary_matrix::<F>(k + 1);
+    let boundaries = boundary_k_plus_1.image();
+
+    let quotient_basis_vectors = compute_quotient_basis(&boundaries, &cycles);
+
+    Homology {
+      dimension:           k,
+      betti_number:        quotient_basis_vectors.len(),
+      homology_generators: quotient_basis_vectors,
+    }
+  }
+
+  /// Constructs the boundary matrix $\partial_k: C_k \to C_{k-1}$ for the $k$-th boundary operator.
+  ///
+  /// This generic implementation works with any `ComplexElement` type by using the
+  /// boundary computation from the `Topology` trait.
+  ///
+  /// # Arguments
+  /// * `k`: The dimension of elements in the domain of the boundary operator.
+  ///
+  /// # Type Parameters
+  /// * `F`: The coefficient field.
+  ///
+  /// # Returns
+  /// A matrix where columns correspond to k-elements and rows to (k-1)-elements,
+  /// with entries representing boundary coefficients.
+  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor>
+  where T: ComplexElement {
+    let codomain_basis = if k == 0 {
+      Vec::new()
+    } else {
+      let mut elements = self.elements_of_dimension(k - 1);
+      elements.sort_unstable();
+      elements
+    };
+
+    let domain_basis = {
+      let mut elements = self.elements_of_dimension(k);
+      elements.sort_unstable();
+      elements
+    };
+
+    let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
+
+    if domain_basis.is_empty() {
+      // Create a matrix with appropriate number of rows but no columns
+      for _ in 0..codomain_basis.len() {
+        matrix.append_row(DynamicVector::new(Vec::new()));
+      }
+      return matrix;
+    }
+
+    // Create a map from elements to their position in the codomain basis
+    let basis_map_for_codomain: HashMap<&T, usize> =
+      codomain_basis.iter().enumerate().map(|(i, s)| (s, i)).collect();
+    let num_codomain_elements = codomain_basis.len();
+
+    for element_from_domain in &domain_basis {
+      // Compute boundary using the Topology trait implementation
+      let boundary_chain: Chain<Self, F> = self.boundary(element_from_domain);
+
+      // Convert the chain to a coefficient vector
+      let col_vector =
+        boundary_chain.to_coeff_vector(&basis_map_for_codomain, num_codomain_elements);
+      matrix.append_column(&col_vector);
+    }
+
+    matrix
+  }
 }
 
 impl<T: ComplexElement> Default for Complex<T> {
@@ -315,10 +434,13 @@ impl<T: ComplexElement> Topology for Complex<T> {
     let faces = item.faces();
 
     for (i, face) in faces.into_iter().enumerate() {
-      // Use alternating signs for the boundary operator
-      let coeff = if i % 2 == 0 { R::one() } else { -R::one() };
-      boundary_chain_items.push(face);
-      boundary_chain_coeffs.push(coeff);
+      // Find the corresponding element in the complex that matches this face's content
+      if let Some(complex_face) = self.find_equivalent_element(&face) {
+        // Use alternating signs for the boundary operator
+        let coeff = if i % 2 == 0 { R::one() } else { -R::one() };
+        boundary_chain_items.push(complex_face);
+        boundary_chain_coeffs.push(coeff);
+      }
     }
 
     Chain::from_items_and_coeffs(self, boundary_chain_items, boundary_chain_coeffs)
@@ -531,5 +653,65 @@ mod tests {
     // Should have proper lattice relationships
     assert!(complex.leq(&added_vertex1, &added_edge).unwrap());
     assert!(complex.leq(&added_vertex2, &added_edge).unwrap());
+  }
+
+  #[test]
+  fn test_generic_homology_computation() {
+    use harness_algebra::algebras::boolean::Boolean;
+
+    // Test simplicial complex - triangle boundary (should have H_1 = 1)
+    let mut simplicial_complex = SimplicialComplex::new();
+
+    // Create a triangle boundary (3 edges forming a cycle)
+    let edge1 = Simplex::new(1, vec![0, 1]);
+    let edge2 = Simplex::new(1, vec![1, 2]);
+    let edge3 = Simplex::new(1, vec![2, 0]);
+
+    simplicial_complex.join_element(edge1);
+    simplicial_complex.join_element(edge2);
+    simplicial_complex.join_element(edge3);
+
+    // Debug: Check what elements we have
+    println!("Vertices: {:?}", simplicial_complex.elements_of_dimension(0));
+    println!("Edges: {:?}", simplicial_complex.elements_of_dimension(1));
+
+    // Debug: Check boundary matrix
+    let boundary_matrix = simplicial_complex.get_boundary_matrix::<Boolean>(1);
+    println!("Boundary matrix (∂_1): {:?}", boundary_matrix);
+
+    // Compute homology over Z/2Z
+    let h0 = simplicial_complex.homology::<Boolean>(0);
+    let h1 = simplicial_complex.homology::<Boolean>(1);
+
+    println!("H_0 Betti number: {}", h0.betti_number);
+    println!("H_1 Betti number: {}", h1.betti_number);
+
+    assert_eq!(h0.betti_number, 1); // One connected component
+    assert_eq!(h1.betti_number, 1); // One 1-dimensional hole
+
+    // Test cubical complex - square boundary (should also have H_1 = 1)
+    let mut cubical_complex = CubicalComplex::new();
+
+    // Create a square boundary (4 edges forming a cycle)
+    let edge1 = Cube::edge(0, 1);
+    let edge2 = Cube::edge(1, 2);
+    let edge3 = Cube::edge(2, 3);
+    let edge4 = Cube::edge(3, 0);
+
+    cubical_complex.join_element(edge1);
+    cubical_complex.join_element(edge2);
+    cubical_complex.join_element(edge3);
+    cubical_complex.join_element(edge4);
+
+    // Compute homology over Z/2Z
+    let h0_cube = cubical_complex.homology::<Boolean>(0);
+    let h1_cube = cubical_complex.homology::<Boolean>(1);
+
+    assert_eq!(h0_cube.betti_number, 1); // One connected component
+    assert_eq!(h1_cube.betti_number, 1); // One 1-dimensional hole
+
+    // Both simplicial and cubical complexes should give same topological result
+    assert_eq!(h0.betti_number, h0_cube.betti_number);
+    assert_eq!(h1.betti_number, h1_cube.betti_number);
   }
 }
