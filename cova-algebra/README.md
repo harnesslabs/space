@@ -20,7 +20,7 @@ The library is structured around core mathematical concepts, with each module bu
 
 ### Core Modules
 
-#### [`arithmetic`](src/arithmetic/)
+#### [`arithmetic`](src/arithmetic/mod.rs)
 Foundation layer providing basic arithmetic operations and modular arithmetic. Includes the `modular!` macro for creating custom modular number types and fundamental arithmetic traits that serve as building blocks for higher-level structures.
 
 #### [`groups`](src/groups.rs)
@@ -29,15 +29,15 @@ Group theory implementations covering both commutative (Abelian) and non-commuta
 #### [`rings`](src/rings.rs)
 Ring theory abstractions including rings, fields, and semirings. Establishes the algebraic foundation for structures that support both addition and multiplication, with fields providing division operations for advanced algebraic computations.
 
-#### [`modules`](src/modules/)
+#### [`modules`](src/modules/mod.rs)
 Module theory over rings, including vector spaces, semimodules, and specialized constructions like tropical modules. Provides the framework for linear algebra and generalizes vector spaces to work over arbitrary rings.
 
 ### Advanced Modules
 
-#### [`algebras`](src/algebras/)
+#### [`algebras`](src/algebras/mod.rs)
 Higher-order algebraic structures that combine vector spaces with multiplication operations. Includes Boolean algebra for logical operations and Clifford algebras for geometric applications in physics and computer graphics.
 
-#### [`tensors`](src/tensors/)
+#### [`tensors`](src/tensors/mod.rs)
 Multi-dimensional tensor implementations with both compile-time fixed dimensions and runtime dynamic sizing. Supports tensor operations fundamental to linear algebra, differential geometry, and machine learning applications.
 
 #### [`category`](src/category.rs)

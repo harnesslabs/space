@@ -133,6 +133,10 @@ book:
     @just header "Serving mdbook documentation"
     mdbook serve
 
+book-check:
+    @just header "Checking mdbook documentation"
+    mdbook build
+
 # Open cargo docs in browser
 docs:
     @just header "Building and opening cargo docs"

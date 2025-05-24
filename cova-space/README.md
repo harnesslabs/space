@@ -28,7 +28,7 @@ Fundamental trait hierarchy for mathematical spaces including topological spaces
 
 ### Topological Complexes
 
-#### [`complexes`](src/complexes/)
+#### [`complexes`](src/complexes/mod.rs)
 Comprehensive implementation of cell complexes including simplicial and cubical complexes. Provides generic complex containers, automatic face relation management, and efficient storage with ID-based lattice structures for computational topology applications.
 
 **Submodules:**
@@ -48,7 +48,7 @@ Advanced sheaf theory implementations providing categorical constructions over t
 
 ### Topological Data Analysis
 
-#### [`filtration`](src/filtration/)
+#### [`filtration`](src/filtration/mod.rs)
 Filtration frameworks for persistent homology including Vietoris-Rips constructions. Supports both serial and parallel computation of filtered complexes for analyzing multi-scale topological features in data.
 
 #### [`cloud`](src/cloud.rs)

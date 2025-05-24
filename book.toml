@@ -29,7 +29,7 @@ warning-policy              = "ignore"
 default-theme        = "dark"
 git-repository-url   = "https://github.com/harnesslabs/cova"
 preferred-dark-theme = "ayu"
-site-url             = "https://book.harnesslabs.xyz"
+site-url             = "https://cova.harnesslabs.xyz"
 
 [output.html.playground]
 editable = true
