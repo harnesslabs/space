@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova.png" alt="Cova Logo" width="400">
+  <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova-banner.png" alt="Cova Banner" width="500">
 </p>
 
 # Cova Algebra
