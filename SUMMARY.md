@@ -1,4 +1,4 @@
 - [Introduction](README.md)
-- [Algebra](algebra/README.md)
-- [Space](space/README.md)
+- [Algebra](cova-algebra/README.md)
+- [Space](cova-space/README.md)
 - [Contributing](CONTRIBUTING.md)
