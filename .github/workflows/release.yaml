@@ -25,11 +25,8 @@ jobs:
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
 
-      - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@cargo-semver-checks
-
-      - name: Run semver checks
-        run: cargo semver-checks check-release --workspace
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
 
       - name: Update Cargo.lock
         uses: stefanzweifel/git-auto-commit-action@v5

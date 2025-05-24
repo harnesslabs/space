@@ -1,10 +1,10 @@
 [book]
 authors      = ["Harness Lab"]
-description  = "Harness is a Rust ecosystem for mathematical abstractions and computations, focusing on rigorous implementations of mathematical structures and algorithms."
+description  = "Cova: A Rust ecosystem for mathematical abstractions and computations, focusing on extensible implementations of mathematical structures and algorithms."
 language     = "en"
 multilingual = false
 src          = "."
-title        = "Harness: Mathematical Abstractions and Computations"
+title        = "Cova: Abstract Mathematics made Computational"
 
 [build]
 build-dir                 = "docs"
@@ -27,9 +27,9 @@ warning-policy              = "ignore"
 
 [output.html]
 default-theme        = "dark"
-git-repository-url   = "https://github.com/harness-lab/harness"
+git-repository-url   = "https://github.com/harnesslabs/cova"
 preferred-dark-theme = "ayu"
-site-url             = "https://book.harnesslabs.xyz"
+site-url             = "https://cova.harnesslabs.xyz"
 
 [output.html.playground]
 editable = true

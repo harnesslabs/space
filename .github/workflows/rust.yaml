@@ -161,19 +161,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@nightly
-
-      - name: Rust Cache
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: rust/semver
-
-      - name: Install cargo-semver-checks
-        uses: taiki-e/install-action@cargo-semver-checks
-
-      - name: Run semver checks
-        run: cargo semver-checks check-release --workspace
+      - name: Check semver
+        uses: obi1kenobi/cargo-semver-checks-action@v2
 
   udeps:
     name: udeps
