@@ -13,6 +13,7 @@
 
 use cova::{
   algebra::tensors::fixed::FixedVector,
+  prelude::*,
   space::{
     cloud::Cloud,
     complexes::SimplicialComplex,
@@ -25,26 +26,6 @@ use web_sys::{console, CanvasRenderingContext2d};
 // Enable better error messages in debug mode
 extern crate console_error_panic_hook;
 
-/// A point in 2D space
-#[wasm_bindgen]
-#[derive(Clone, Copy, Debug)]
-pub struct Point2D {
-  x: f64,
-  y: f64,
-}
-
-#[wasm_bindgen]
-impl Point2D {
-  #[wasm_bindgen(constructor)]
-  pub fn new(x: f64, y: f64) -> Point2D { Point2D { x, y } }
-
-  #[wasm_bindgen(getter)]
-  pub fn x(&self) -> f64 { self.x }
-
-  #[wasm_bindgen(getter)]
-  pub fn y(&self) -> f64 { self.y }
-}
-
 /// Statistics about the current simplicial complex
 #[wasm_bindgen]
 pub struct ComplexStats {
@@ -52,6 +33,7 @@ pub struct ComplexStats {
   edges:     usize,
   triangles: usize,
 }
+
 #[wasm_bindgen]
 impl ComplexStats {
   #[wasm_bindgen(constructor)]
@@ -72,22 +54,22 @@ impl ComplexStats {
 /// Main demo structure that manages the interactive Vietoris-Rips visualization
 #[wasm_bindgen]
 pub struct VietorisRipsDemo {
-  points:        Vec<Point2D>,
+  cloud:         Cloud<2, f64>,
   epsilon:       f64,
   canvas_width:  f64,
   canvas_height: f64,
   vr_builder:    VietorisRips<2, f64, SimplicialComplex>,
 }
+
 #[wasm_bindgen]
 impl VietorisRipsDemo {
   /// Create a new demo instance
   #[wasm_bindgen(constructor)]
   pub fn new(canvas_width: f64, canvas_height: f64) -> Self {
-    #[cfg(feature = "console_error_panic_hook")]
     console_error_panic_hook::set_once();
 
     Self {
-      points: Vec::new(),
+      cloud: Cloud::new(Vec::new()),
       epsilon: 50.0,
       canvas_width,
       canvas_height,
@@ -98,9 +80,14 @@ impl VietorisRipsDemo {
   /// Add a point at the given coordinates
   #[wasm_bindgen]
   pub fn add_point(&mut self, x: f64, y: f64) {
-    let point = Point2D::new(x, y);
-    self.points.push(point);
-    console::log_1(&format!("Added point at ({}, {}). Total: {}", x, y, self.points.len()).into());
+    let point = FixedVector::<2, f64>::from([x, y]);
+    let mut points = self.cloud.points_ref().to_vec();
+    points.push(point);
+    self.cloud = Cloud::new(points);
+
+    console::log_1(
+      &format!("Added point at ({}, {}). Total: {}", x, y, self.cloud.points_ref().len()).into(),
+    );
   }
 
   /// Remove the point closest to the given coordinates (within threshold)
@@ -108,16 +95,19 @@ impl VietorisRipsDemo {
   pub fn remove_point(&mut self, x: f64, y: f64) -> bool {
     const REMOVE_THRESHOLD: f64 = 20.0;
 
-    if let Some((index, _)) = self
-      .points
+    let points = self.cloud.points_ref();
+    if let Some((index, _)) = points
       .iter()
       .enumerate()
-      .map(|(i, p)| (i, (p.x - x).hypot(p.y - y)))
+      .map(|(i, p)| (i, (p.0[0] - x).hypot(p.0[1] - y)))
       .filter(|(_, dist)| *dist < REMOVE_THRESHOLD)
       .min_by(|(_, d1), (_, d2)| d1.partial_cmp(d2).unwrap())
     {
-      self.points.remove(index);
-      console::log_1(&format!("Removed point. Total: {}", self.points.len()).into());
+      let mut new_points = points.to_vec();
+      new_points.remove(index);
+      self.cloud = Cloud::new(new_points);
+
+      console::log_1(&format!("Removed point. Total: {}", self.cloud.points_ref().len()).into());
       true
     } else {
       false
@@ -137,30 +127,23 @@ impl VietorisRipsDemo {
 
   /// Get the number of points
   #[wasm_bindgen]
-  pub fn point_count(&self) -> usize { self.points.len() }
+  pub fn point_count(&self) -> usize { self.cloud.points_ref().len() }
 
   /// Clear all points
   #[wasm_bindgen]
   pub fn clear_points(&mut self) {
-    self.points.clear();
+    self.cloud = Cloud::new(Vec::new());
     console::log_1(&"Cleared all points".into());
-  }
-
-  /// Convert points to FixedVector format for cova
-  fn points_to_vectors(&self) -> Vec<FixedVector<2, f64>> {
-    self.points.iter().map(|p| FixedVector([p.x, p.y])).collect()
   }
 
   /// Build the Vietoris-Rips complex and return statistics
   #[wasm_bindgen]
   pub fn get_complex_stats(&self) -> ComplexStats {
-    if self.points.is_empty() {
+    if self.cloud.is_empty() {
       return ComplexStats::new(0, 0, 0);
     }
 
-    let cloud_points = self.points_to_vectors();
-    let cloud = Cloud::<2, f64>::new(cloud_points);
-    let complex = self.vr_builder.build(&cloud, self.epsilon, &());
+    let complex = self.vr_builder.build(&self.cloud, self.epsilon, &());
 
     let vertices = complex.elements_of_dimension(0).len();
     let edges = complex.elements_of_dimension(1).len();
@@ -175,14 +158,12 @@ impl VietorisRipsDemo {
     // Clear canvas
     context.clear_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
 
-    if self.points.is_empty() {
+    if self.cloud.is_empty() {
       return;
     }
 
     // Build the complex using cova
-    let cloud_points = self.points_to_vectors();
-    let cloud = Cloud::<2, f64>::new(cloud_points);
-    let complex = self.vr_builder.build(&cloud, self.epsilon, &());
+    let complex = self.vr_builder.build(&self.cloud, self.epsilon, &());
 
     // Render in order: triangles, edges, vertices (back to front)
     self.render_triangles(&context, &complex);
@@ -196,9 +177,9 @@ impl VietorisRipsDemo {
     context.set_stroke_style(&"#1e40af".into());
     context.set_line_width(2.0);
 
-    for point in &self.points {
+    for point in self.cloud.points_ref() {
       context.begin_path();
-      context.arc(point.x, point.y, 6.0, 0.0, 2.0 * std::f64::consts::PI).unwrap();
+      context.arc(point.0[0], point.0[1], 6.0, 0.0, 2.0 * std::f64::consts::PI).unwrap();
       context.fill();
       context.stroke();
     }
@@ -209,16 +190,17 @@ impl VietorisRipsDemo {
     context.set_stroke_style(&"#059669".into());
     context.set_line_width(2.0);
 
+    let points = self.cloud.points_ref();
     let edges = complex.elements_of_dimension(1);
     for edge in edges {
       let vertices = edge.vertices();
       if vertices.len() == 2 {
-        let p1 = &self.points[vertices[0]];
-        let p2 = &self.points[vertices[1]];
+        let p1 = &points[vertices[0]];
+        let p2 = &points[vertices[1]];
 
         context.begin_path();
-        context.move_to(p1.x, p1.y);
-        context.line_to(p2.x, p2.y);
+        context.move_to(p1.0[0], p1.0[1]);
+        context.line_to(p2.0[0], p2.0[1]);
         context.stroke();
       }
     }
@@ -230,18 +212,19 @@ impl VietorisRipsDemo {
     context.set_stroke_style(&"#dc2626".into());
     context.set_line_width(1.0);
 
+    let points = self.cloud.points_ref();
     let triangles = complex.elements_of_dimension(2);
     for triangle in triangles {
       let vertices = triangle.vertices();
       if vertices.len() == 3 {
-        let p1 = &self.points[vertices[0]];
-        let p2 = &self.points[vertices[1]];
-        let p3 = &self.points[vertices[2]];
+        let p1 = &points[vertices[0]];
+        let p2 = &points[vertices[1]];
+        let p3 = &points[vertices[2]];
 
         context.begin_path();
-        context.move_to(p1.x, p1.y);
-        context.line_to(p2.x, p2.y);
-        context.line_to(p3.x, p3.y);
+        context.move_to(p1.0[0], p1.0[1]);
+        context.line_to(p2.0[0], p2.0[1]);
+        context.line_to(p3.0[0], p3.0[1]);
         context.close_path();
         context.fill();
         context.stroke();
@@ -253,8 +236,6 @@ impl VietorisRipsDemo {
 /// Initialize the WASM module
 #[wasm_bindgen(start)]
 pub fn main() {
-  #[cfg(feature = "console_error_panic_hook")]
   console_error_panic_hook::set_once();
-
   console::log_1(&"🦀 Vietoris-Rips Demo WASM module initialized!".into());
 }
