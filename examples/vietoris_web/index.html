@@ -3,69 +3,88 @@
 
 <head>
     <meta charset="utf-8">
-    <title>Interactive Vietoris-Rips Complex Demo</title>
+    <title>Vietoris-Rips Complex Demo | Harness Labs</title>
     <style>
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+        * {
             margin: 0;
-            padding: 20px;
-            background-color: #f8fafc;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #000000;
+            line-height: 1.6;
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
+            padding: 40px 20px;
         }
 
         .header {
             text-align: center;
-            margin-bottom: 30px;
+            margin-bottom: 60px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 40px;
+        }
+
+        .header .brand {
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 16px;
         }
 
         .header h1 {
-            color: #1e293b;
-            margin-bottom: 10px;
+            font-size: 48px;
+            font-weight: 300;
+            color: #000000;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
         }
 
         .header p {
-            color: #64748b;
-            font-size: 16px;
-            max-width: 600px;
+            font-size: 18px;
+            color: #4b5563;
+            max-width: 700px;
             margin: 0 auto;
-            line-height: 1.5;
+            font-weight: 300;
         }
 
         .demo-container {
-            display: flex;
-            gap: 30px;
-            align-items: flex-start;
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 40px;
+            align-items: start;
         }
 
         .canvas-container {
-            flex: 1;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            padding: 20px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
         }
 
         #canvas {
-            border: 2px solid #e2e8f0;
-            border-radius: 8px;
-            cursor: crosshair;
             display: block;
+            cursor: crosshair;
+            border: none;
         }
 
         .controls {
-            width: 300px;
-            background: white;
-            border-radius: 12px;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-            padding: 25px;
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 2px;
+            padding: 32px;
         }
 
         .control-group {
-            margin-bottom: 25px;
+            margin-bottom: 32px;
         }
 
         .control-group:last-child {
@@ -73,171 +92,172 @@
         }
 
         .control-group h3 {
-            margin: 0 0 12px 0;
-            color: #374151;
-            font-size: 16px;
+            font-size: 14px;
             font-weight: 600;
+            color: #000000;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .epsilon-control {
-            margin-bottom: 15px;
+            margin-bottom: 20px;
         }
 
         .epsilon-control label {
             display: block;
-            margin-bottom: 8px;
-            color: #6b7280;
+            margin-bottom: 12px;
+            color: #4b5563;
             font-size: 14px;
-            font-weight: 500;
+            font-weight: 400;
         }
 
         #epsilonSlider {
             width: 100%;
-            height: 6px;
-            border-radius: 3px;
+            height: 2px;
             background: #e5e7eb;
             outline: none;
             -webkit-appearance: none;
+            border-radius: 0;
         }
 
         #epsilonSlider::-webkit-slider-thumb {
             appearance: none;
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #3b82f6;
+            width: 16px;
+            height: 16px;
+            background: #000000;
             cursor: pointer;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-radius: 0;
+            border: none;
         }
 
         #epsilonSlider::-moz-range-thumb {
-            width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            background: #3b82f6;
+            width: 16px;
+            height: 16px;
+            background: #000000;
             cursor: pointer;
-            border: 2px solid white;
-            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+            border-radius: 0;
+            border: none;
         }
 
         .epsilon-value {
             text-align: center;
-            margin-top: 8px;
+            margin-top: 12px;
             font-weight: 600;
-            color: #3b82f6;
-            font-size: 16px;
+            color: #000000;
+            font-size: 18px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
         }
 
         .stats {
             background: #f9fafb;
-            border-radius: 8px;
-            padding: 15px;
             border: 1px solid #e5e7eb;
+            padding: 20px;
+            border-radius: 2px;
         }
 
         .stat-item {
             display: flex;
             justify-content: space-between;
-            margin-bottom: 8px;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
         }
 
         .stat-item:last-child {
             margin-bottom: 0;
+            border-bottom: none;
         }
 
         .stat-label {
-            color: #6b7280;
+            color: #4b5563;
             font-size: 14px;
+            font-weight: 400;
         }
 
         .stat-value {
             font-weight: 600;
-            color: #374151;
+            color: #000000;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 16px;
         }
 
         .instructions {
-            background: #eff6ff;
-            border: 1px solid #bfdbfe;
-            border-radius: 8px;
-            padding: 15px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            border-radius: 2px;
         }
 
         .instructions h4 {
-            margin: 0 0 10px 0;
-            color: #1e40af;
+            margin-bottom: 12px;
+            color: #000000;
             font-size: 14px;
             font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
         .instructions ul {
-            margin: 0;
-            padding-left: 20px;
-            color: #1e40af;
+            list-style: none;
+            color: #4b5563;
             font-size: 14px;
         }
 
         .instructions li {
-            margin-bottom: 4px;
+            margin-bottom: 8px;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .instructions li::before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #000000;
+            font-weight: 600;
         }
 
         .btn {
-            background: #ef4444;
-            color: white;
+            background: #000000;
+            color: #ffffff;
             border: none;
-            padding: 10px 16px;
-            border-radius: 6px;
+            padding: 12px 20px;
             font-size: 14px;
             font-weight: 500;
             cursor: pointer;
-            transition: background-color 0.2s;
+            transition: all 0.2s;
             width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 2px;
         }
 
         .btn:hover {
-            background: #dc2626;
+            background: #374151;
         }
 
-        .btn:active {
-            background: #b91c1c;
-        }
-
-        .color-legend {
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-        }
-
-        .legend-item {
-            display: flex;
-            align-items: center;
-            font-size: 14px;
+        .epsilon-info {
+            margin-top: 16px;
+            padding: 12px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 2px;
+            font-size: 12px;
             color: #6b7280;
-        }
-
-        .legend-color {
-            width: 16px;
-            height: 16px;
-            border-radius: 3px;
-            margin-right: 8px;
-        }
-
-        .vertex-color {
-            background: #2563eb;
-        }
-
-        .edge-color {
-            background: #059669;
-        }
-
-        .triangle-color {
-            background: rgba(239, 68, 68, 0.6);
-        }
-
-        .loading {
             text-align: center;
-            padding: 40px;
-            color: #6b7280;
+        }
+
+        @media (max-width: 1024px) {
+            .demo-container {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+
+            .controls {
+                order: -1;
+            }
         }
     </style>
 </head>
@@ -245,18 +265,13 @@
 <body>
     <div class="container">
         <div class="header">
-            <h1>Interactive Vietoris-Rips Complex Demo</h1>
-            <p>
-                Explore how simplicial complexes form as you place points and adjust the distance threshold (epsilon).
-                Click to add points, right-click to remove them, and watch the topology emerge!
-            </p>
+            <div class="brand">Harness Labs</div>
+            <h1>Vietoris-Rips Complex</h1>
+            <p>An interactive demonstration of topological data analysis. Click to place points and observe how
+                simplicial complexes emerge from geometric proximity.</p>
         </div>
 
-        <div id="loading" class="loading">
-            <p>Loading WASM module...</p>
-        </div>
-
-        <div id="demo" class="demo-container" style="display: none;">
+        <div class="demo-container">
             <div class="canvas-container">
                 <canvas id="canvas" width="800" height="600"></canvas>
             </div>
@@ -266,8 +281,11 @@
                     <h3>Distance Threshold</h3>
                     <div class="epsilon-control">
                         <label for="epsilonSlider">Epsilon (ε)</label>
-                        <input type="range" id="epsilonSlider" min="10" max="200" value="50" step="1">
+                        <input type="range" id="epsilonSlider" min="10" max="150" value="50" step="1">
                         <div class="epsilon-value" id="epsilonValue">50</div>
+                    </div>
+                    <div class="epsilon-info">
+                        Gray circles show the ε-neighborhood around each point
                     </div>
                 </div>
 
@@ -290,38 +308,20 @@
                 </div>
 
                 <div class="control-group">
-                    <h3>Visualization</h3>
-                    <div class="color-legend">
-                        <div class="legend-item">
-                            <div class="legend-color vertex-color"></div>
-                            <span>Vertices</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color edge-color"></div>
-                            <span>Edges</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color triangle-color"></div>
-                            <span>Triangles</span>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="control-group">
                     <h3>Instructions</h3>
                     <div class="instructions">
-                        <h4>How to Use:</h4>
+                        <h4>Interaction</h4>
                         <ul>
-                            <li>Left click to add points</li>
-                            <li>Right click to remove points</li>
-                            <li>Drag the epsilon slider to change the threshold</li>
-                            <li>Watch how the complex evolves!</li>
+                            <li>Click to add points</li>
+                            <li>Right-click to remove points</li>
+                            <li>Adjust ε to change connectivity</li>
+                            <li>Observe emerging topology</li>
                         </ul>
                     </div>
                 </div>
 
                 <div class="control-group">
-                    <button class="btn" onclick="clearAllPoints()">Clear All Points</button>
+                    <button class="btn" id="clearBtn">Clear All Points</button>
                 </div>
             </div>
         </div>
@@ -335,27 +335,27 @@
         let ctx;
 
         async function run() {
-            // Initialize WASM
-            await init();
+            try {
+                // Initialize WASM
+                await init();
 
-            // Hide loading, show demo
-            document.getElementById('loading').style.display = 'none';
-            document.getElementById('demo').style.display = 'flex';
+                // Get canvas and context
+                canvas = document.getElementById('canvas');
+                ctx = canvas.getContext('2d');
 
-            // Get canvas and context
-            canvas = document.getElementById('canvas');
-            ctx = canvas.getContext('2d');
+                // Initialize demo
+                demo = new VietorisRipsDemo(canvas.width, canvas.height);
 
-            // Initialize demo
-            demo = new VietorisRipsDemo(canvas.width, canvas.height);
+                // Set up event listeners
+                setupEventListeners();
 
-            // Set up event listeners
-            setupEventListeners();
+                // Initial render
+                render();
 
-            // Initial render
-            render();
-
-            console.log('Demo initialized successfully!');
+                console.log('🦀 Vietoris-Rips Demo initialized successfully!');
+            } catch (error) {
+                console.error('Failed to initialize demo:', error);
+            }
         }
 
         function setupEventListeners() {
@@ -366,6 +366,10 @@
             // Epsilon slider
             const slider = document.getElementById('epsilonSlider');
             slider.addEventListener('input', handleEpsilonChange);
+
+            // Clear button
+            const clearBtn = document.getElementById('clearBtn');
+            clearBtn.addEventListener('click', handleClearPoints);
 
             // Prevent default context menu
             canvas.addEventListener('contextmenu', e => e.preventDefault());
@@ -398,6 +402,11 @@
             render();
         }
 
+        function handleClearPoints() {
+            demo.clear_points();
+            render();
+        }
+
         function render() {
             // Render the complex
             demo.render(ctx);
@@ -409,14 +418,8 @@
             document.getElementById('triangleCount').textContent = stats.triangles;
         }
 
-        // Global function for clear button
-        window.clearAllPoints = function () {
-            demo.clear_points();
-            render();
-        };
-
         // Start the application
-        run().catch(console.error);
+        run();
     </script>
 </body>
 

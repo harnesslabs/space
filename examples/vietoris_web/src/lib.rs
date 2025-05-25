@@ -155,8 +155,9 @@ impl VietorisRipsDemo {
   /// Render the current state to the canvas
   #[wasm_bindgen]
   pub fn render(&self, context: &CanvasRenderingContext2d) {
-    // Clear canvas
-    context.clear_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
+    // Clear canvas with white background
+    context.set_fill_style(&"#ffffff".into());
+    context.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
 
     if self.cloud.is_empty() {
       return;
@@ -165,16 +166,31 @@ impl VietorisRipsDemo {
     // Build the complex using cova
     let complex = self.vr_builder.build(&self.cloud, self.epsilon, &());
 
-    // Render in order: triangles, edges, vertices (back to front)
+    // Render in order: epsilon bubbles, triangles, edges, vertices (back to front)
+    self.render_epsilon_bubbles(&context);
     self.render_triangles(&context, &complex);
     self.render_edges(&context, &complex);
     self.render_vertices(&context);
   }
 
-  /// Render vertices as blue circles
+  /// Render epsilon distance bubbles around each point
+  fn render_epsilon_bubbles(&self, context: &CanvasRenderingContext2d) {
+    context.set_stroke_style(&"#e5e7eb".into()); // Light gray
+    context.set_line_width(1.0);
+    context.set_fill_style(&"rgba(0, 0, 0, 0.02)".into()); // Very subtle fill
+
+    for point in self.cloud.points_ref() {
+      context.begin_path();
+      context.arc(point.0[0], point.0[1], self.epsilon, 0.0, 2.0 * std::f64::consts::PI).unwrap();
+      context.fill();
+      context.stroke();
+    }
+  }
+
+  /// Render vertices as sharp black circles
   fn render_vertices(&self, context: &CanvasRenderingContext2d) {
-    context.set_fill_style(&"#2563eb".into());
-    context.set_stroke_style(&"#1e40af".into());
+    context.set_fill_style(&"#000000".into()); // Pure black
+    context.set_stroke_style(&"#ffffff".into()); // White border
     context.set_line_width(2.0);
 
     for point in self.cloud.points_ref() {
@@ -185,9 +201,9 @@ impl VietorisRipsDemo {
     }
   }
 
-  /// Render edges as green lines
+  /// Render edges as clean geometric lines
   fn render_edges(&self, context: &CanvasRenderingContext2d, complex: &SimplicialComplex) {
-    context.set_stroke_style(&"#059669".into());
+    context.set_stroke_style(&"#3b82f6".into()); // Clean blue
     context.set_line_width(2.0);
 
     let points = self.cloud.points_ref();
@@ -206,10 +222,10 @@ impl VietorisRipsDemo {
     }
   }
 
-  /// Render triangles as semi-transparent red shapes
+  /// Render triangles as subtle geometric shapes
   fn render_triangles(&self, context: &CanvasRenderingContext2d, complex: &SimplicialComplex) {
-    context.set_fill_style(&"rgba(239, 68, 68, 0.3)".into());
-    context.set_stroke_style(&"#dc2626".into());
+    context.set_fill_style(&"rgba(59, 130, 246, 0.1)".into()); // Very subtle blue
+    context.set_stroke_style(&"rgba(59, 130, 246, 0.3)".into()); // Light blue border
     context.set_line_width(1.0);
 
     let points = self.cloud.points_ref();
