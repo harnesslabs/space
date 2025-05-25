@@ -6,6 +6,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/harnesslabs/cova/compare/cova-v0.1.2...cova-v0.1.3) - 2025-05-25
+
+### Other
+- update Cargo.lock dependencies
+
 ## [0.1.2](https://github.com/harnesslabs/cova/compare/cova-v0.1.1...cova-v0.1.2) - 2025-05-24
 
 ### Other
