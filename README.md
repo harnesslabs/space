@@ -18,6 +18,14 @@ A Rust ecosystem for mathematical abstractions and computations, focusing on rig
 
 Cova provides a collection of crates that implement various mathematical structures and algorithms with a focus on type safety, correctness, and composability. The project aims to provide foundational mathematical tools that can be used in scientific computing, computational topology, abstract algebra, and other domains requiring robust mathematical implementations.
 
+## Examples & Demos
+
+Cova includes interactive demos to help you get started:
+
+### 🌐 Interactive Web Demos
+
+- **[Vietoris-Rips Complex Demo](examples/vietoris_web/README.md)**: An interactive WebAssembly demo showcasing real-time topological data analysis. Click to place points and watch simplicial complexes emerge as you adjust the distance threshold.
+
 ## Design Philosophy
 
 - **Type Safety**: Mathematical properties are encoded in the type system where possible

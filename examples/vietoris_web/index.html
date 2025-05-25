@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Vietoris-Rips Complex Demo | Harness Labs</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'SF Pro Display', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #ffffff;
+            color: #000000;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 60px;
+            border-bottom: 1px solid #e5e7eb;
+            padding-bottom: 40px;
+        }
+
+        .header .brand {
+            font-size: 12px;
+            font-weight: 500;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            color: #6b7280;
+            margin-bottom: 16px;
+        }
+
+        .header h1 {
+            font-size: 48px;
+            font-weight: 300;
+            color: #000000;
+            margin-bottom: 20px;
+            letter-spacing: -1px;
+        }
+
+        .header p {
+            font-size: 18px;
+            color: #4b5563;
+            max-width: 700px;
+            margin: 0 auto;
+            font-weight: 300;
+        }
+
+        .demo-container {
+            display: grid;
+            grid-template-columns: 1fr 320px;
+            gap: 40px;
+            align-items: start;
+        }
+
+        .canvas-container {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        #canvas {
+            display: block;
+            cursor: crosshair;
+            border: none;
+        }
+
+        .controls {
+            background: #ffffff;
+            border: 1px solid #e5e7eb;
+            border-radius: 2px;
+            padding: 32px;
+        }
+
+        .control-group {
+            margin-bottom: 32px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-group h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: #000000;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .epsilon-control {
+            margin-bottom: 20px;
+        }
+
+        .epsilon-control label {
+            display: block;
+            margin-bottom: 12px;
+            color: #4b5563;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        #epsilonSlider {
+            width: 100%;
+            height: 2px;
+            background: #e5e7eb;
+            outline: none;
+            -webkit-appearance: none;
+            border-radius: 0;
+        }
+
+        #epsilonSlider::-webkit-slider-thumb {
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            background: #000000;
+            cursor: pointer;
+            border-radius: 0;
+            border: none;
+        }
+
+        #epsilonSlider::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            background: #000000;
+            cursor: pointer;
+            border-radius: 0;
+            border: none;
+        }
+
+        .epsilon-value {
+            text-align: center;
+            margin-top: 12px;
+            font-weight: 600;
+            color: #000000;
+            font-size: 18px;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        }
+
+        .stats {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            border-radius: 2px;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 12px;
+            padding: 8px 0;
+            border-bottom: 1px solid #e5e7eb;
+        }
+
+        .stat-item:last-child {
+            margin-bottom: 0;
+            border-bottom: none;
+        }
+
+        .stat-label {
+            color: #4b5563;
+            font-size: 14px;
+            font-weight: 400;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: #000000;
+            font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+            font-size: 16px;
+        }
+
+        .instructions {
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            padding: 20px;
+            border-radius: 2px;
+        }
+
+        .instructions h4 {
+            margin-bottom: 12px;
+            color: #000000;
+            font-size: 14px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .instructions ul {
+            list-style: none;
+            color: #4b5563;
+            font-size: 14px;
+        }
+
+        .instructions li {
+            margin-bottom: 8px;
+            padding-left: 16px;
+            position: relative;
+        }
+
+        .instructions li::before {
+            content: "→";
+            position: absolute;
+            left: 0;
+            color: #000000;
+            font-weight: 600;
+        }
+
+        .btn {
+            background: #000000;
+            color: #ffffff;
+            border: none;
+            padding: 12px 20px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            width: 100%;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-radius: 2px;
+        }
+
+        .btn:hover {
+            background: #374151;
+        }
+
+        .epsilon-info {
+            margin-top: 16px;
+            padding: 12px;
+            background: #f9fafb;
+            border: 1px solid #e5e7eb;
+            border-radius: 2px;
+            font-size: 12px;
+            color: #6b7280;
+            text-align: center;
+        }
+
+        @media (max-width: 1024px) {
+            .demo-container {
+                grid-template-columns: 1fr;
+                gap: 32px;
+            }
+
+            .controls {
+                order: -1;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="brand">Harness Labs</div>
+            <h1>Vietoris-Rips Complex</h1>
+            <p>An interactive demonstration of topological data analysis. Click to place points and observe how
+                simplicial complexes emerge from geometric proximity.</p>
+        </div>
+
+        <div class="demo-container">
+            <div class="canvas-container">
+                <canvas id="canvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>Distance Threshold</h3>
+                    <div class="epsilon-control">
+                        <label for="epsilonSlider">Epsilon (ε)</label>
+                        <input type="range" id="epsilonSlider" min="10" max="150" value="50" step="1">
+                        <div class="epsilon-value" id="epsilonValue">50</div>
+                    </div>
+                    <div class="epsilon-info">
+                        Gray circles show the ε-neighborhood around each point
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Complex Statistics</h3>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Vertices (0-simplices)</span>
+                            <span class="stat-value" id="vertexCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Edges (1-simplices)</span>
+                            <span class="stat-value" id="edgeCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Triangles (2-simplices)</span>
+                            <span class="stat-value" id="triangleCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Instructions</h3>
+                    <div class="instructions">
+                        <h4>Interaction</h4>
+                        <ul>
+                            <li>Click to add points</li>
+                            <li>Right-click to remove points</li>
+                            <li>Adjust ε to change connectivity</li>
+                            <li>Observe emerging topology</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <button class="btn" id="clearBtn">Clear All Points</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { VietorisRipsDemo } from './pkg/vietoris_web_demo.js';
+
+        let demo;
+        let canvas;
+        let ctx;
+
+        async function run() {
+            try {
+                // Initialize WASM
+                await init();
+
+                // Get canvas and context
+                canvas = document.getElementById('canvas');
+                ctx = canvas.getContext('2d');
+
+                // Initialize demo
+                demo = new VietorisRipsDemo(canvas.width, canvas.height);
+
+                // Set up event listeners
+                setupEventListeners();
+
+                // Initial render
+                render();
+
+                console.log('🦀 Vietoris-Rips Demo initialized successfully!');
+            } catch (error) {
+                console.error('Failed to initialize demo:', error);
+            }
+        }
+
+        function setupEventListeners() {
+            // Canvas mouse events
+            canvas.addEventListener('click', handleCanvasClick);
+            canvas.addEventListener('contextmenu', handleCanvasRightClick);
+
+            // Epsilon slider
+            const slider = document.getElementById('epsilonSlider');
+            slider.addEventListener('input', handleEpsilonChange);
+
+            // Clear button
+            const clearBtn = document.getElementById('clearBtn');
+            clearBtn.addEventListener('click', handleClearPoints);
+
+            // Prevent default context menu
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+        }
+
+        function handleCanvasClick(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            demo.add_point(x, y);
+            render();
+        }
+
+        function handleCanvasRightClick(event) {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (demo.remove_point(x, y)) {
+                render();
+            }
+        }
+
+        function handleEpsilonChange(event) {
+            const epsilon = parseFloat(event.target.value);
+            demo.set_epsilon(epsilon);
+            document.getElementById('epsilonValue').textContent = epsilon;
+            render();
+        }
+
+        function handleClearPoints() {
+            demo.clear_points();
+            render();
+        }
+
+        function render() {
+            // Render the complex
+            demo.render(ctx);
+
+            // Update statistics
+            const stats = demo.get_complex_stats();
+            document.getElementById('vertexCount').textContent = stats.vertices;
+            document.getElementById('edgeCount').textContent = stats.edges;
+            document.getElementById('triangleCount').textContent = stats.triangles;
+        }
+
+        // Start the application
+        run();
+    </script>
+</body>
+
+</html>

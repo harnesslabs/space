@@ -1,4 +1,6 @@
 - [Introduction](README.md)
 - [Algebra](cova-algebra/README.md)
 - [Space](cova-space/README.md)
+- [Examples](examples/README.md)
+    - [Vietoris-Rips Complex Demo](examples/vietoris_web/README.md)
 - [Contributing](CONTRIBUTING.md)

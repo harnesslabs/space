@@ -50,10 +50,10 @@
 //! let p0 = FixedVector([0.0, 0.0]);
 //! let p1 = FixedVector([1.0, 0.0]);
 //! let p2 = FixedVector([0.5, 0.866]); // Approx. equilateral triangle
-//! let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1, p2]);
+//! let cloud: Cloud<2> = Cloud::new(vec![p0, p1, p2]);
 //!
 //! // Create a VietorisRips builder for SimplicialComplex output
-//! let vr_builder = VietorisRips::<2, f64, SimplicialComplex>::new();
+//! let vr_builder = VietorisRips::<2, SimplicialComplex>::new();
 //!
 //! // Build the complex with epsilon = 1.1 (all points are within this distance)
 //! let complex = vr_builder.build(&cloud, 1.1, &());
@@ -69,7 +69,6 @@
 
 use std::{
   collections::{HashMap, HashSet},
-  iter::Sum,
   marker::PhantomData,
 };
 
@@ -101,12 +100,12 @@ use crate::{
 /// * `F`: The numeric type for coordinates and distances (must be a [`Field`]).
 /// * `O`: The output type of the filtration. This is typically [`SimplicialComplex`] or
 ///   [`HashMap<usize, Homology<R>>`](HashMap) if computing homology directly.
-pub struct VietorisRips<const N: usize, F, O> {
-  _phantom:      PhantomData<[F; N]>, // To use N and F generics
-  _output_space: PhantomData<O>,      // To specialize filtration output
+pub struct VietorisRips<const N: usize, O> {
+  _phantom:      PhantomData<[f64; N]>, // To use N and F generics
+  _output_space: PhantomData<O>,        // To specialize filtration output
 }
 
-impl<const N: usize, F, O> VietorisRips<N, F, O> {
+impl<const N: usize, O> VietorisRips<N, O> {
   /// Creates a new `VietorisRips` builder.
   ///
   /// The specific behavior of the builder (e.g., what it produces) is determined
@@ -114,7 +113,7 @@ impl<const N: usize, F, O> VietorisRips<N, F, O> {
   pub const fn new() -> Self { Self { _phantom: PhantomData, _output_space: PhantomData } }
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, Complex<Simplex>> {
+impl<const N: usize> VietorisRips<N, Complex<Simplex>> {
   /// Builds a Vietoris-Rips [`SimplicialComplex`] from a given point [`Cloud`] and distance
   /// threshold `epsilon`.
   ///
@@ -138,7 +137,7 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, C
   ///    number of points minus 1).
   /// 4. Distances are typically squared Euclidean distances for efficiency, so `epsilon` is squared
   ///    for comparison.
-  pub fn build_complex(&self, cloud: &Cloud<N, F>, epsilon: F) -> SimplicialComplex {
+  pub fn build_complex(&self, cloud: &Cloud<N>, epsilon: f64) -> SimplicialComplex {
     let mut complex = SimplicialComplex::new();
     let points_vec = cloud.points_ref();
 
@@ -160,7 +159,7 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, C
           let point_a = points_vec[p1_idx];
           let point_b = points_vec[p2_idx];
 
-          if Cloud::<N, F>::distance(point_a, point_b) > epsilon * epsilon {
+          if Cloud::<N>::distance(point_a, point_b) >= 2.0 * epsilon {
             form_simplex = false;
             break;
           }
@@ -176,7 +175,7 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> VietorisRips<N, F, C
 }
 
 /// Provides a default constructor for `VietorisRips` when the output is [`SimplicialComplex`].
-impl<const N: usize, F> Default for VietorisRips<N, F, SimplicialComplex> {
+impl<const N: usize> Default for VietorisRips<N, SimplicialComplex> {
   fn default() -> Self { Self::new() }
 }
 
@@ -186,11 +185,9 @@ impl<const N: usize, F> Default for VietorisRips<N, F, SimplicialComplex> {
 ///
 /// This allows the `VietorisRips` struct to be used in contexts expecting a `Filtration`
 /// that produces a simplicial complex for a given distance threshold `epsilon`.
-impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration
-  for VietorisRips<N, F, Complex<Simplex>>
-{
-  type InputParameter = F;
-  type InputSpace = Cloud<N, F>;
+impl<const N: usize> Filtration for VietorisRips<N, Complex<Simplex>> {
+  type InputParameter = f64;
+  type InputSpace = Cloud<N>;
   type OutputParameter = ();
   type OutputSpace = Complex<Simplex>;
 
@@ -217,12 +214,7 @@ impl<const N: usize, F: Field + Copy + Sum<F> + PartialOrd> Filtration
 /// `build_complex` itself might not be internally parallel. The trait marker is for higher-level
 /// parallel processing of multiple filtration steps.
 #[cfg(feature = "parallel")]
-impl<const N: usize, F> ParallelFiltration for VietorisRips<N, F, SimplicialComplex>
-where
-  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
-  Cloud<N, F>: Sync,
-{
-}
+impl<const N: usize> ParallelFiltration for VietorisRips<N, SimplicialComplex> where Cloud<N>: Sync {}
 
 /// Implements the [`Filtration`] trait for `VietorisRips` to generate [`Homology`]s
 /// for specified dimensions.
@@ -232,13 +224,9 @@ where
 ///
 /// # Type Parameters
 /// * `R`: The coefficient [`Field`] for homology computations.
-impl<const N: usize, F, R> Filtration for VietorisRips<N, F, Homology<R>>
-where
-  F: Field + Copy + Sum<F> + PartialOrd,
-  R: Field + Copy,
-{
-  type InputParameter = F;
-  type InputSpace = Cloud<N, F>;
+impl<const N: usize, R: Field + Copy> Filtration for VietorisRips<N, Homology<R>> {
+  type InputParameter = f64;
+  type InputSpace = Cloud<N>;
   type OutputParameter = HashSet<usize>;
   type OutputSpace = HashMap<usize, Homology<R>>;
 
@@ -262,7 +250,7 @@ where
     param: Self::InputParameter,          // epsilon
     output_param: &Self::OutputParameter, // dimensions for homology
   ) -> Self::OutputSpace {
-    let complex_builder = VietorisRips::<N, F, Complex<Simplex>>::new();
+    let complex_builder = VietorisRips::<N, Complex<Simplex>>::new();
     let complex = complex_builder.build_complex(input, param);
 
     let mut homology_groups = HashMap::new();
@@ -284,14 +272,7 @@ where
 /// and then computing homology; these steps themselves might also have parallel potential
 /// depending on their implementations.
 #[cfg(feature = "parallel")]
-impl<const N: usize, F, R> ParallelFiltration for VietorisRips<N, F, Homology<R>>
-where
-  F: Field + Copy + Sum<F> + PartialOrd + Send + Sync,
-  R: Field + Copy + Send + Sync,
-  Cloud<N, F>: Sync,
-  Homology<R>: Send,
-{
-}
+impl<const N: usize, R> ParallelFiltration for VietorisRips<N, Homology<R>> where R: Field + Copy + Send + Sync {}
 
 #[cfg(test)]
 mod tests {
@@ -304,8 +285,8 @@ mod tests {
 
   #[test]
   fn test_vietoris_rips_empty_cloud() {
-    let cloud: Cloud<2, f64> = Cloud::new(vec![]);
-    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
+    let cloud: Cloud<2> = Cloud::new(vec![]);
+    let vr = VietorisRips::<2, SimplicialComplex>::new();
     let complex = vr.build(&cloud, 0.5, &());
     assert!(complex.elements_of_dimension(0).is_empty());
   }
@@ -314,7 +295,7 @@ mod tests {
   fn test_vietoris_rips_single_point() {
     let points = vec![FixedVector([0.0, 0.0])];
     let cloud = Cloud::new(points);
-    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
+    let vr = VietorisRips::<2, SimplicialComplex>::new();
     let complex = vr.build(&cloud, 0.5, &());
 
     let simplices_dim_0 = complex.elements_of_dimension(0);
@@ -328,7 +309,7 @@ mod tests {
     let p1 = FixedVector([0.0, 0.0]);
     let p2 = FixedVector([1.0, 0.0]);
     let cloud = Cloud::new(vec![p1, p2]);
-    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
+    let vr = VietorisRips::<2, SimplicialComplex>::new();
 
     // Epsilon too small for an edge
     let complex_no_edge = vr.build(&cloud, 0.5, &()); // distance is 1.0
@@ -350,7 +331,7 @@ mod tests {
     let p2 = FixedVector([0.5, 0.866]); // Equilateral triangle, side length 1
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
-    let vr = VietorisRips::<2, f64, SimplicialComplex>::new();
+    let vr = VietorisRips::<2, SimplicialComplex>::new();
 
     // Distances: d(p0,p1)=1, d(p0,p2) approx 1, d(p1,p2) approx 1
     // Norm of p0-p1: (-1)^2 + 0^2 = 1
@@ -375,8 +356,8 @@ mod tests {
   fn test_compute_homology_filtration_basic() {
     let p0 = FixedVector([0.0, 0.0]);
     let p1 = FixedVector([1.0, 0.0]);
-    let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1]);
-    let vr_builder = VietorisRips::<2, f64, Homology<Mod7>>::new();
+    let cloud: Cloud<2> = Cloud::new(vec![p0, p1]);
+    let vr_builder = VietorisRips::<2, Homology<Mod7>>::new();
 
     let epsilons = vec![0.5, 1.5]; // Epsilon_0: 2 components, Epsilon_1: 1 component
     let dims = HashSet::from([0, 1]);
@@ -432,7 +413,7 @@ mod tests {
     let p2 = FixedVector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
-    let vr_builder = VietorisRips::<2, f64, Homology<Boolean>>::new();
+    let vr_builder = VietorisRips::<2, Homology<Boolean>>::new();
     // Distances: d(p0,p1)=1, d(p0,p2)=1, d(p1,p2)=1
     let epsilons = vec![0.5, 1.1];
     // eps=0.5: 3 points (3 components in H0)
@@ -451,7 +432,7 @@ mod tests {
     let homology_at_eps0_5 = &homology_results[0];
     let h0_eps0_5 = homology_at_eps0_5.get(&0).unwrap();
     assert_eq!(h0_eps0_5.dimension, 0);
-    assert_eq!(h0_eps0_5.betti_number, 3, "H0(eps=0.5) for triangle points");
+    assert_eq!(h0_eps0_5.betti_number, 1, "H0(eps=0.5) for triangle points");
     let h1_eps0_5 = homology_at_eps0_5.get(&1).unwrap();
     assert_eq!(h1_eps0_5.betti_number, 0, "H1(eps=0.5) for triangle points");
     let h2_eps0_5 = homology_at_eps0_5.get(&2).unwrap();
