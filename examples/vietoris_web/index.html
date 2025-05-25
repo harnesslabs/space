@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <meta charset="utf-8">
+    <title>Interactive Vietoris-Rips Complex Demo</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f8fafc;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .header h1 {
+            color: #1e293b;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            color: #64748b;
+            font-size: 16px;
+            max-width: 600px;
+            margin: 0 auto;
+            line-height: 1.5;
+        }
+
+        .demo-container {
+            display: flex;
+            gap: 30px;
+            align-items: flex-start;
+        }
+
+        .canvas-container {
+            flex: 1;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            padding: 20px;
+        }
+
+        #canvas {
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            cursor: crosshair;
+            display: block;
+        }
+
+        .controls {
+            width: 300px;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            padding: 25px;
+        }
+
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        .control-group:last-child {
+            margin-bottom: 0;
+        }
+
+        .control-group h3 {
+            margin: 0 0 12px 0;
+            color: #374151;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .epsilon-control {
+            margin-bottom: 15px;
+        }
+
+        .epsilon-control label {
+            display: block;
+            margin-bottom: 8px;
+            color: #6b7280;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        #epsilonSlider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: #e5e7eb;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        #epsilonSlider::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        #epsilonSlider::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #3b82f6;
+            cursor: pointer;
+            border: 2px solid white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .epsilon-value {
+            text-align: center;
+            margin-top: 8px;
+            font-weight: 600;
+            color: #3b82f6;
+            font-size: 16px;
+        }
+
+        .stats {
+            background: #f9fafb;
+            border-radius: 8px;
+            padding: 15px;
+            border: 1px solid #e5e7eb;
+        }
+
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+        }
+
+        .stat-item:last-child {
+            margin-bottom: 0;
+        }
+
+        .stat-label {
+            color: #6b7280;
+            font-size: 14px;
+        }
+
+        .stat-value {
+            font-weight: 600;
+            color: #374151;
+        }
+
+        .instructions {
+            background: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 8px;
+            padding: 15px;
+        }
+
+        .instructions h4 {
+            margin: 0 0 10px 0;
+            color: #1e40af;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .instructions ul {
+            margin: 0;
+            padding-left: 20px;
+            color: #1e40af;
+            font-size: 14px;
+        }
+
+        .instructions li {
+            margin-bottom: 4px;
+        }
+
+        .btn {
+            background: #ef4444;
+            color: white;
+            border: none;
+            padding: 10px 16px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            width: 100%;
+        }
+
+        .btn:hover {
+            background: #dc2626;
+        }
+
+        .btn:active {
+            background: #b91c1c;
+        }
+
+        .color-legend {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            font-size: 14px;
+            color: #6b7280;
+        }
+
+        .legend-color {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+            margin-right: 8px;
+        }
+
+        .vertex-color {
+            background: #2563eb;
+        }
+
+        .edge-color {
+            background: #059669;
+        }
+
+        .triangle-color {
+            background: rgba(239, 68, 68, 0.6);
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #6b7280;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Interactive Vietoris-Rips Complex Demo</h1>
+            <p>
+                Explore how simplicial complexes form as you place points and adjust the distance threshold (epsilon).
+                Click to add points, right-click to remove them, and watch the topology emerge!
+            </p>
+        </div>
+
+        <div id="loading" class="loading">
+            <p>Loading WASM module...</p>
+        </div>
+
+        <div id="demo" class="demo-container" style="display: none;">
+            <div class="canvas-container">
+                <canvas id="canvas" width="800" height="600"></canvas>
+            </div>
+
+            <div class="controls">
+                <div class="control-group">
+                    <h3>Distance Threshold</h3>
+                    <div class="epsilon-control">
+                        <label for="epsilonSlider">Epsilon (ε)</label>
+                        <input type="range" id="epsilonSlider" min="10" max="200" value="50" step="1">
+                        <div class="epsilon-value" id="epsilonValue">50</div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Complex Statistics</h3>
+                    <div class="stats">
+                        <div class="stat-item">
+                            <span class="stat-label">Vertices (0-simplices)</span>
+                            <span class="stat-value" id="vertexCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Edges (1-simplices)</span>
+                            <span class="stat-value" id="edgeCount">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Triangles (2-simplices)</span>
+                            <span class="stat-value" id="triangleCount">0</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Visualization</h3>
+                    <div class="color-legend">
+                        <div class="legend-item">
+                            <div class="legend-color vertex-color"></div>
+                            <span>Vertices</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color edge-color"></div>
+                            <span>Edges</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color triangle-color"></div>
+                            <span>Triangles</span>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <h3>Instructions</h3>
+                    <div class="instructions">
+                        <h4>How to Use:</h4>
+                        <ul>
+                            <li>Left click to add points</li>
+                            <li>Right click to remove points</li>
+                            <li>Drag the epsilon slider to change the threshold</li>
+                            <li>Watch how the complex evolves!</li>
+                        </ul>
+                    </div>
+                </div>
+
+                <div class="control-group">
+                    <button class="btn" onclick="clearAllPoints()">Clear All Points</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import init, { VietorisRipsDemo } from './pkg/vietoris_web_demo.js';
+
+        let demo;
+        let canvas;
+        let ctx;
+
+        async function run() {
+            // Initialize WASM
+            await init();
+
+            // Hide loading, show demo
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('demo').style.display = 'flex';
+
+            // Get canvas and context
+            canvas = document.getElementById('canvas');
+            ctx = canvas.getContext('2d');
+
+            // Initialize demo
+            demo = new VietorisRipsDemo(canvas.width, canvas.height);
+
+            // Set up event listeners
+            setupEventListeners();
+
+            // Initial render
+            render();
+
+            console.log('Demo initialized successfully!');
+        }
+
+        function setupEventListeners() {
+            // Canvas mouse events
+            canvas.addEventListener('click', handleCanvasClick);
+            canvas.addEventListener('contextmenu', handleCanvasRightClick);
+
+            // Epsilon slider
+            const slider = document.getElementById('epsilonSlider');
+            slider.addEventListener('input', handleEpsilonChange);
+
+            // Prevent default context menu
+            canvas.addEventListener('contextmenu', e => e.preventDefault());
+        }
+
+        function handleCanvasClick(event) {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            demo.add_point(x, y);
+            render();
+        }
+
+        function handleCanvasRightClick(event) {
+            event.preventDefault();
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (demo.remove_point(x, y)) {
+                render();
+            }
+        }
+
+        function handleEpsilonChange(event) {
+            const epsilon = parseFloat(event.target.value);
+            demo.set_epsilon(epsilon);
+            document.getElementById('epsilonValue').textContent = epsilon;
+            render();
+        }
+
+        function render() {
+            // Render the complex
+            demo.render(ctx);
+
+            // Update statistics
+            const stats = demo.get_complex_stats();
+            document.getElementById('vertexCount').textContent = stats.vertices;
+            document.getElementById('edgeCount').textContent = stats.edges;
+            document.getElementById('triangleCount').textContent = stats.triangles;
+        }
+
+        // Global function for clear button
+        window.clearAllPoints = function () {
+            demo.clear_points();
+            render();
+        };
+
+        // Start the application
+        run().catch(console.error);
+    </script>
+</body>
+
+</html>

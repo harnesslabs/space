@@ -12,6 +12,5 @@ itertools  = { version = "0.14", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 rayon      = { version = "1.10", default-features = false }
 
-
 # Development dependencies
 tempfile = { version = "3.20" }
