@@ -88,6 +88,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "cova"
+version = "0.1.2"
+dependencies = [
+ "cova-algebra",
+ "cova-space",
+]
+
+[[package]]
 name = "cova-algebra"
 version = "0.1.2"
 dependencies = [
@@ -244,8 +252,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "335ff9f135e4384c8150d6f27c6daed433577f86b4750418338c01a1a2528592"
 dependencies = [
  "cfg-if",
+ "js-sys",
  "libc",
  "wasi",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1043,10 +1053,9 @@ name = "vietoris-web-demo"
 version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
- "cova-algebra",
- "cova-space",
+ "cova",
+ "getrandom",
  "js-sys",
- "serde",
  "tokio",
  "warp",
  "wasm-bindgen",

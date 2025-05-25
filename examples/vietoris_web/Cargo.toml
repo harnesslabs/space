@@ -1,31 +1,22 @@
 [package]
-authors = ["Harness Labs"]
-description = "Interactive Vietoris-Rips Complex Demo"
-edition = "2021"
 name = "vietoris-web-demo"
 version = "0.1.0"
+edition = "2021"
+authors = ["Harness Labs"]
+description = "Interactive Vietoris-Rips Complex Demo using cova"
 
 [workspace]
 
-# This is a standalone binary
+# Server binary
 [[bin]]
-name = "vietoris_web"
+name = "server"
 path = "src/main.rs"
 
 [dependencies]
-# Local crates from the workspace
-cova-algebra = { path = "../../cova-algebra" }
-cova-space = { path = "../../cova-space" }
 
-# Web server dependencies
-serde = { version = "1.0", features = ["derive"] }
-tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
-warp = "0.3"
-
-# WASM dependencies (conditionally compiled)
-console_error_panic_hook = { version = "0.1", optional = true }
-js-sys = { version = "0.3", optional = true }
-wasm-bindgen = { version = "0.2", optional = true }
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+getrandom = { version = "0.2", features = ["js"] }
+wasm-bindgen = { version = "0.2" }
 web-sys = { version = "0.3", features = [
     "console",
     "CanvasRenderingContext2d",
@@ -37,11 +28,14 @@ web-sys = { version = "0.3", features = [
     "Window",
     "Event",
     "EventTarget",
-], optional = true }
+] }
+js-sys = { version = "0.3" }
+console_error_panic_hook = { version = "0.1" }
+cova = { path = "../../cova" }
 
-[features]
-default = []
-wasm = ["wasm-bindgen", "web-sys", "js-sys", "console_error_panic_hook"]
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+tokio = { version = "1.0", features = ["macros", "rt-multi-thread"] }
+warp = { version = "0.3" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]

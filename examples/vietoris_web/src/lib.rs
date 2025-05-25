@@ -1,32 +1,38 @@
 //! # Interactive Vietoris-Rips Complex Demo
 //!
-//! This is a WASM-based web demo that allows interactive exploration of Vietoris-Rips complexes.
-//! Users can:
-//! - Click to add points to a 2D plane
-//! - Right-click to remove points
-//! - Adjust epsilon with a slider to see how the complex changes
-//! - Visualize vertices (0-simplices), edges (1-simplices), and triangles (2-simplices)
+//! A WebAssembly library that provides an interactive demonstration of Vietoris-Rips complexes
+//! using the `cova` library.
+//!
+//! ## Features
+//! - Interactive point placement and removal
+//! - Real-time Vietoris-Rips complex computation
+//! - Canvas-based visualization of simplicial complexes
+//! - Adjustable epsilon parameter
 
-#[cfg(feature = "wasm")] use wasm_bindgen::prelude::*;
-#[cfg(feature = "wasm")]
+#![cfg(target_arch = "wasm32")]
+
+use cova::{
+  algebra::tensors::fixed::FixedVector,
+  space::{
+    cloud::Cloud,
+    complexes::SimplicialComplex,
+    filtration::{vietoris_rips::VietorisRips, Filtration},
+  },
+};
+use wasm_bindgen::prelude::*;
 use web_sys::{console, CanvasRenderingContext2d};
 
-// When the `console_error_panic_hook` feature is enabled, we can call the
-// `set_panic_hook` function at least once during initialization, and then
-// we will get better error messages if our code ever panics.
-#[cfg(all(feature = "wasm", feature = "console_error_panic_hook"))]
+// Enable better error messages in debug mode
 extern crate console_error_panic_hook;
 
-/// Represents a point in the 2D plane
-#[cfg(feature = "wasm")]
+/// A point in 2D space
 #[wasm_bindgen]
 #[derive(Clone, Copy, Debug)]
 pub struct Point2D {
-  pub x: f64,
-  pub y: f64,
+  x: f64,
+  y: f64,
 }
 
-#[cfg(feature = "wasm")]
 #[wasm_bindgen]
 impl Point2D {
   #[wasm_bindgen(constructor)]
@@ -39,76 +45,39 @@ impl Point2D {
   pub fn y(&self) -> f64 { self.y }
 }
 
-/// Simple edge representation
-#[cfg(feature = "wasm")]
-#[derive(Clone, Debug)]
-pub struct Edge {
-  pub start: usize,
-  pub end:   usize,
+/// Statistics about the current simplicial complex
+#[wasm_bindgen]
+pub struct ComplexStats {
+  vertices:  usize,
+  edges:     usize,
+  triangles: usize,
 }
+#[wasm_bindgen]
+impl ComplexStats {
+  #[wasm_bindgen(constructor)]
+  pub fn new(vertices: usize, edges: usize, triangles: usize) -> ComplexStats {
+    ComplexStats { vertices, edges, triangles }
+  }
 
-/// Simple triangle representation
-#[cfg(feature = "wasm")]
-#[derive(Clone, Debug)]
-pub struct Triangle {
-  pub a: usize,
-  pub b: usize,
-  pub c: usize,
+  #[wasm_bindgen(getter)]
+  pub fn vertices(&self) -> usize { self.vertices }
+
+  #[wasm_bindgen(getter)]
+  pub fn edges(&self) -> usize { self.edges }
+
+  #[wasm_bindgen(getter)]
+  pub fn triangles(&self) -> usize { self.triangles }
 }
 
 /// Main demo structure that manages the interactive Vietoris-Rips visualization
-#[cfg(feature = "wasm")]
 #[wasm_bindgen]
 pub struct VietorisRipsDemo {
   points:        Vec<Point2D>,
   epsilon:       f64,
   canvas_width:  f64,
   canvas_height: f64,
+  vr_builder:    VietorisRips<2, f64, SimplicialComplex>,
 }
-
-#[cfg(feature = "wasm")]
-impl VietorisRipsDemo {
-  /// Calculate distance between two points
-  fn distance(&self, i: usize, j: usize) -> f64 {
-    let p1 = &self.points[i];
-    let p2 = &self.points[j];
-    ((p1.x - p2.x).powi(2) + (p1.y - p2.y).powi(2)).sqrt()
-  }
-
-  /// Build edges for the current epsilon
-  fn build_edges(&self) -> Vec<Edge> {
-    let mut edges = Vec::new();
-    for i in 0..self.points.len() {
-      for j in (i + 1)..self.points.len() {
-        if self.distance(i, j) <= self.epsilon {
-          edges.push(Edge { start: i, end: j });
-        }
-      }
-    }
-    edges
-  }
-
-  /// Build triangles for the current epsilon
-  fn build_triangles(&self) -> Vec<Triangle> {
-    let mut triangles = Vec::new();
-    for i in 0..self.points.len() {
-      for j in (i + 1)..self.points.len() {
-        for k in (j + 1)..self.points.len() {
-          // Check if all three edges exist
-          if self.distance(i, j) <= self.epsilon
-            && self.distance(j, k) <= self.epsilon
-            && self.distance(i, k) <= self.epsilon
-          {
-            triangles.push(Triangle { a: i, b: j, c: k });
-          }
-        }
-      }
-    }
-    triangles
-  }
-}
-
-#[cfg(feature = "wasm")]
 #[wasm_bindgen]
 impl VietorisRipsDemo {
   /// Create a new demo instance
@@ -119,9 +88,10 @@ impl VietorisRipsDemo {
 
     Self {
       points: Vec::new(),
-      epsilon: 50.0, // Default epsilon
+      epsilon: 50.0,
       canvas_width,
       canvas_height,
+      vr_builder: VietorisRips::new(),
     }
   }
 
@@ -130,15 +100,13 @@ impl VietorisRipsDemo {
   pub fn add_point(&mut self, x: f64, y: f64) {
     let point = Point2D::new(x, y);
     self.points.push(point);
-    console::log_1(
-      &format!("Added point at ({}, {}). Total points: {}", x, y, self.points.len()).into(),
-    );
+    console::log_1(&format!("Added point at ({}, {}). Total: {}", x, y, self.points.len()).into());
   }
 
-  /// Remove the point closest to the given coordinates (within a threshold)
+  /// Remove the point closest to the given coordinates (within threshold)
   #[wasm_bindgen]
   pub fn remove_point(&mut self, x: f64, y: f64) -> bool {
-    const REMOVE_THRESHOLD: f64 = 20.0; // pixels
+    const REMOVE_THRESHOLD: f64 = 20.0;
 
     if let Some((index, _)) = self
       .points
@@ -149,7 +117,7 @@ impl VietorisRipsDemo {
       .min_by(|(_, d1), (_, d2)| d1.partial_cmp(d2).unwrap())
     {
       self.points.remove(index);
-      console::log_1(&format!("Removed point. Total points: {}", self.points.len()).into());
+      console::log_1(&format!("Removed point. Total: {}", self.points.len()).into());
       true
     } else {
       false
@@ -178,6 +146,11 @@ impl VietorisRipsDemo {
     console::log_1(&"Cleared all points".into());
   }
 
+  /// Convert points to FixedVector format for cova
+  fn points_to_vectors(&self) -> Vec<FixedVector<2, f64>> {
+    self.points.iter().map(|p| FixedVector([p.x, p.y])).collect()
+  }
+
   /// Build the Vietoris-Rips complex and return statistics
   #[wasm_bindgen]
   pub fn get_complex_stats(&self) -> ComplexStats {
@@ -185,10 +158,15 @@ impl VietorisRipsDemo {
       return ComplexStats::new(0, 0, 0);
     }
 
-    let edges = self.build_edges();
-    let triangles = self.build_triangles();
+    let cloud_points = self.points_to_vectors();
+    let cloud = Cloud::<2, f64>::new(cloud_points);
+    let complex = self.vr_builder.build(&cloud, self.epsilon, &());
 
-    ComplexStats::new(self.points.len(), edges.len(), triangles.len())
+    let vertices = complex.elements_of_dimension(0).len();
+    let edges = complex.elements_of_dimension(1).len();
+    let triangles = complex.elements_of_dimension(2).len();
+
+    ComplexStats::new(vertices, edges, triangles)
   }
 
   /// Render the current state to the canvas
@@ -201,24 +179,21 @@ impl VietorisRipsDemo {
       return;
     }
 
-    // Build the complex
-    let edges = self.build_edges();
-    let triangles = self.build_triangles();
+    // Build the complex using cova
+    let cloud_points = self.points_to_vectors();
+    let cloud = Cloud::<2, f64>::new(cloud_points);
+    let complex = self.vr_builder.build(&cloud, self.epsilon, &());
 
-    // Render triangles (2-simplices) first (so they appear behind edges and vertices)
-    self.render_triangles(&context, &triangles);
-
-    // Render edges (1-simplices)
-    self.render_edges(&context, &edges);
-
-    // Render vertices (0-simplices) last (so they appear on top)
+    // Render in order: triangles, edges, vertices (back to front)
+    self.render_triangles(&context, &complex);
+    self.render_edges(&context, &complex);
     self.render_vertices(&context);
   }
 
-  /// Render vertices as circles
+  /// Render vertices as blue circles
   fn render_vertices(&self, context: &CanvasRenderingContext2d) {
-    context.set_fill_style(&"#2563eb".into()); // Blue
-    context.set_stroke_style(&"#1e40af".into()); // Darker blue
+    context.set_fill_style(&"#2563eb".into());
+    context.set_stroke_style(&"#1e40af".into());
     context.set_line_width(2.0);
 
     for point in &self.points {
@@ -229,77 +204,57 @@ impl VietorisRipsDemo {
     }
   }
 
-  /// Render edges as lines
-  fn render_edges(&self, context: &CanvasRenderingContext2d, edges: &[Edge]) {
-    context.set_stroke_style(&"#059669".into()); // Green
+  /// Render edges as green lines
+  fn render_edges(&self, context: &CanvasRenderingContext2d, complex: &SimplicialComplex) {
+    context.set_stroke_style(&"#059669".into());
     context.set_line_width(2.0);
 
+    let edges = complex.elements_of_dimension(1);
     for edge in edges {
-      let p1 = &self.points[edge.start];
-      let p2 = &self.points[edge.end];
+      let vertices = edge.vertices();
+      if vertices.len() == 2 {
+        let p1 = &self.points[vertices[0]];
+        let p2 = &self.points[vertices[1]];
 
-      context.begin_path();
-      context.move_to(p1.x, p1.y);
-      context.line_to(p2.x, p2.y);
-      context.stroke();
+        context.begin_path();
+        context.move_to(p1.x, p1.y);
+        context.line_to(p2.x, p2.y);
+        context.stroke();
+      }
     }
   }
 
-  /// Render triangles as filled shapes
-  fn render_triangles(&self, context: &CanvasRenderingContext2d, triangles: &[Triangle]) {
-    context.set_fill_style(&"rgba(239, 68, 68, 0.3)".into()); // Semi-transparent red
-    context.set_stroke_style(&"#dc2626".into()); // Red border
+  /// Render triangles as semi-transparent red shapes
+  fn render_triangles(&self, context: &CanvasRenderingContext2d, complex: &SimplicialComplex) {
+    context.set_fill_style(&"rgba(239, 68, 68, 0.3)".into());
+    context.set_stroke_style(&"#dc2626".into());
     context.set_line_width(1.0);
 
+    let triangles = complex.elements_of_dimension(2);
     for triangle in triangles {
-      let p1 = &self.points[triangle.a];
-      let p2 = &self.points[triangle.b];
-      let p3 = &self.points[triangle.c];
+      let vertices = triangle.vertices();
+      if vertices.len() == 3 {
+        let p1 = &self.points[vertices[0]];
+        let p2 = &self.points[vertices[1]];
+        let p3 = &self.points[vertices[2]];
 
-      context.begin_path();
-      context.move_to(p1.x, p1.y);
-      context.line_to(p2.x, p2.y);
-      context.line_to(p3.x, p3.y);
-      context.close_path();
-      context.fill();
-      context.stroke();
+        context.begin_path();
+        context.move_to(p1.x, p1.y);
+        context.line_to(p2.x, p2.y);
+        context.line_to(p3.x, p3.y);
+        context.close_path();
+        context.fill();
+        context.stroke();
+      }
     }
   }
 }
 
-/// Statistics about the current complex
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-pub struct ComplexStats {
-  vertices:  usize,
-  edges:     usize,
-  triangles: usize,
-}
-
-#[cfg(feature = "wasm")]
-#[wasm_bindgen]
-impl ComplexStats {
-  #[wasm_bindgen(constructor)]
-  pub fn new(vertices: usize, edges: usize, triangles: usize) -> ComplexStats {
-    ComplexStats { vertices, edges, triangles }
-  }
-
-  #[wasm_bindgen(getter)]
-  pub fn vertices(&self) -> usize { self.vertices }
-
-  #[wasm_bindgen(getter)]
-  pub fn edges(&self) -> usize { self.edges }
-
-  #[wasm_bindgen(getter)]
-  pub fn triangles(&self) -> usize { self.triangles }
-}
-
-/// Initialize the demo - call this from JavaScript
-#[cfg(feature = "wasm")]
+/// Initialize the WASM module
 #[wasm_bindgen(start)]
 pub fn main() {
   #[cfg(feature = "console_error_panic_hook")]
   console_error_panic_hook::set_once();
 
-  console::log_1(&"Vietoris-Rips Demo initialized!".into());
+  console::log_1(&"🦀 Vietoris-Rips Demo WASM module initialized!".into());
 }
