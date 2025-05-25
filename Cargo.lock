@@ -38,7 +38,7 @@ dependencies = [
 
 [[package]]
 name = "cova-space"
-version = "0.1.2"
+version = "0.2.0"
 dependencies = [
  "cova-algebra",
  "itertools",
