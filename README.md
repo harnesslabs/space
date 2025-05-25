@@ -24,7 +24,7 @@ Cova includes interactive demos to help you get started:
 
 ### 🌐 Interactive Web Demos
 
-- **[Vietoris-Rips Complex Demo](examples/vietoris_web/)**: An interactive WebAssembly demo showcasing real-time topological data analysis. Click to place points and watch simplicial complexes emerge as you adjust the distance threshold.
+- **[Vietoris-Rips Complex Demo](examples/vietoris_web/README.md)**: An interactive WebAssembly demo showcasing real-time topological data analysis. Click to place points and watch simplicial complexes emerge as you adjust the distance threshold.
 
 ## Design Philosophy
 
