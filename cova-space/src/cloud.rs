@@ -1,11 +1,11 @@
 //! # Cloud - Vector Set in N-dimensional Space
 //!
-//! This module defines the `Cloud` struct and its implementations, representing a collection
-//! of points (vectors) in an `N-`dimensional space.
+//! This module defines the [`Cloud`] struct and its implementations, representing a collection
+//! of points (vectors) in an `N`-dimensional space.
 //!
 //! ## Overview
 //!
-//! A [`Cloud<N, F>`] is essentially a set of N-dimensional vectors with elements from a field `F`.
+//! A [`Cloud`] is essentially a set of N-dimensional vectors with elements [`f64`].
 //! The module provides:
 //!
 //! - Basic collection operations ([`Collection::contains`], [`Collection::is_empty`])
@@ -29,19 +29,17 @@
 //! assert!(cloud.contains(&v1));
 //!
 //! // Calculate distance between vectors
-//! let distance = Cloud::<2, f64>::distance(v1, v2);
+//! let distance = Cloud::<2>::distance(v1, v2);
 //! ```
 //!
 //! ## Implementation Details
 //!
-//! The `Cloud` implements several traits:
-//! - `Collection` - Basic set operations
-//! - `MetricSpace` - Distance calculations
-//! - `NormedSpace` - Norm calculations (Euclidean norm)
+//! The [`Cloud`] implements several traits:
+//! - [`Collection`] - Basic set operations
+//! - [`MetricSpace`] - Distance calculations
+//! - [`NormedSpace`] - Norm calculations (Euclidean norm)
 
-use std::iter::Sum;
-
-use cova_algebra::{rings::Field, tensors::fixed::FixedVector};
+use cova_algebra::tensors::fixed::FixedVector;
 
 use crate::{
   definitions::{MetricSpace, NormedSpace},

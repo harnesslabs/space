@@ -50,10 +50,10 @@
 //! let p0 = FixedVector([0.0, 0.0]);
 //! let p1 = FixedVector([1.0, 0.0]);
 //! let p2 = FixedVector([0.5, 0.866]); // Approx. equilateral triangle
-//! let cloud: Cloud<2, f64> = Cloud::new(vec![p0, p1, p2]);
+//! let cloud: Cloud<2> = Cloud::new(vec![p0, p1, p2]);
 //!
 //! // Create a VietorisRips builder for SimplicialComplex output
-//! let vr_builder = VietorisRips::<2, f64, SimplicialComplex>::new();
+//! let vr_builder = VietorisRips::<2, SimplicialComplex>::new();
 //!
 //! // Build the complex with epsilon = 1.1 (all points are within this distance)
 //! let complex = vr_builder.build(&cloud, 1.1, &());
@@ -69,7 +69,6 @@
 
 use std::{
   collections::{HashMap, HashSet},
-  iter::Sum,
   marker::PhantomData,
 };
 
