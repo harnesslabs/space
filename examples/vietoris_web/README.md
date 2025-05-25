@@ -1,4 +1,4 @@
-# Vietoris-Rips Complex Demo
+# Vietoris-Rips Complex Web Demo
 
 An interactive web demonstration of Vietoris-Rips complexes using the `cova` library.
 
@@ -6,7 +6,7 @@ An interactive web demonstration of Vietoris-Rips complexes using the `cova` lib
 
 - **Interactive Point Placement**: Click to add points, right-click to remove
 - **Real-time Complex Computation**: Uses `cova` to compute Vietoris-Rips complexes
-- **Visual Simplicial Complex**: See vertices (blue), edges (green), and triangles (red)
+- **Visual Simplicial Complex**: See vertices, epsilon bubbles, edges, and triangles
 - **Adjustable Epsilon**: Slider to control the distance threshold
 
 ## Project Structure
@@ -34,13 +34,6 @@ vietoris_web/
 
 3. **Open browser**: Navigate to http://localhost:3030
 
-## Development
-
-### Building Components Separately
-
-- **Server only**: `cargo run --bin server`
-- **WASM only**: `wasm-pack build --target web --features wasm`
-
 ### Dependencies
 
 The project uses target-specific dependencies:
@@ -48,11 +41,6 @@ The project uses target-specific dependencies:
 - **Core**: `cova` - The unified mathematical library
 - **Server** (native only): `tokio`, `warp` - Async web server
 - **WASM** (wasm32 only): `wasm-bindgen`, `web-sys` - WebAssembly bindings
-
-### Features
-
-- `wasm`: Enables WASM-specific dependencies (wasm-bindgen, web-sys, etc.)
-- `console_error_panic_hook`: Better error messages in debug mode
 
 ## Usage
 

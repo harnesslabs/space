@@ -54,11 +54,11 @@ impl ComplexStats {
 /// Main demo structure that manages the interactive Vietoris-Rips visualization
 #[wasm_bindgen]
 pub struct VietorisRipsDemo {
-  cloud:         Cloud<2, f64>,
+  cloud:         Cloud<2>,
   epsilon:       f64,
   canvas_width:  f64,
   canvas_height: f64,
-  vr_builder:    VietorisRips<2, f64, SimplicialComplex>,
+  vr_builder:    VietorisRips<2, SimplicialComplex>,
 }
 
 #[wasm_bindgen]

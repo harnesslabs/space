@@ -59,32 +59,32 @@ use crate::{
 /// A `Cloud` is essentially a set of vectors, providing basic [`Collection`] operations
 /// as well as metric and normed space functionalities.
 #[derive(Debug, Clone)]
-pub struct Cloud<const N: usize, F: Field> {
-  points: Vec<FixedVector<N, F>>,
+pub struct Cloud<const N: usize> {
+  points: Vec<FixedVector<N, f64>>,
 }
 
-impl<F: Field, const N: usize> Cloud<N, F> {
+impl<const N: usize> Cloud<N> {
   /// Creates a new `Cloud` from a given set of points.
   ///
   /// # Arguments
   ///
   /// * `points`: A `HashSet` of `Vector<N, F>` representing the points in the cloud.
-  pub const fn new(points: Vec<FixedVector<N, F>>) -> Self { Self { points } }
+  pub const fn new(points: Vec<FixedVector<N, f64>>) -> Self { Self { points } }
 
   /// Returns a reference to the points in the cloud.
-  pub const fn points_ref(&self) -> &Vec<FixedVector<N, F>> { &self.points }
+  pub const fn points_ref(&self) -> &Vec<FixedVector<N, f64>> { &self.points }
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F>> Collection for Cloud<N, F> {
-  type Item = FixedVector<N, F>;
+impl<const N: usize> Collection for Cloud<N> {
+  type Item = FixedVector<N, f64>;
 
   fn contains(&self, point: &Self::Item) -> bool { self.points.contains(point) }
 
   fn is_empty(&self) -> bool { self.points.is_empty() }
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F>> MetricSpace for Cloud<N, F> {
-  type Distance = F;
+impl<const N: usize> MetricSpace for Cloud<N> {
+  type Distance = f64;
 
   /// Calculates the distance between two points in the cloud.
   ///
@@ -94,13 +94,13 @@ impl<const N: usize, F: Field + Copy + Sum<F>> MetricSpace for Cloud<N, F> {
   }
 }
 
-impl<const N: usize, F: Field + Copy + Sum<F>> NormedSpace for Cloud<N, F> {
-  type Norm = F;
+impl<const N: usize> NormedSpace for Cloud<N> {
+  type Norm = f64;
 
   /// Calculates the norm of a point.
   ///
   /// The norm is defined as the sum of the squares of its components (Euclidean norm).
-  fn norm(point: Self::Item) -> Self::Norm { point.0.iter().map(|p| *p * *p).sum() }
+  fn norm(point: Self::Item) -> Self::Norm { point.0.iter().map(|p| *p * *p).sum::<f64>().sqrt() }
 }
 
 #[cfg(test)]
@@ -143,11 +143,11 @@ mod tests {
   fn test_norm() {
     let v1 = create_test_vector1(); // [1.0, 2.0]
                                     // 1.0*1.0 + 2.0*2.0 = 1.0 + 4.0 = 5.0
-    assert_eq!(Cloud::<2, f64>::norm(v1), 5.0);
+    assert_eq!(Cloud::<2>::norm(v1), 5.0_f64.sqrt());
 
     let v2 = create_test_vector2(); // [3.0, 4.0]
                                     // 3.0*3.0 + 4.0*4.0 = 9.0 + 16.0 = 25.0
-    assert_eq!(Cloud::<2, f64>::norm(v2), 25.0);
+    assert_eq!(Cloud::<2>::norm(v2), 25.0_f64.sqrt());
   }
 
   #[test]
@@ -156,6 +156,6 @@ mod tests {
     let v2 = create_test_vector2(); // [3.0, 4.0]
                                     // v1 - v2 = [-2.0, -2.0]
                                     // norm([-2.0, -2.0]) = (-2.0)*(-2.0) + (-2.0)*(-2.0) = 4.0 + 4.0 = 8.0
-    assert_eq!(Cloud::<2, f64>::distance(v1, v2), 8.0);
+    assert_eq!(Cloud::<2>::distance(v1, v2), 8.0_f64.sqrt());
   }
 }
