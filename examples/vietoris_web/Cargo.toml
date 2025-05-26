@@ -5,6 +5,9 @@ edition     = "2021"
 name        = "vietoris-web-demo"
 version     = "0.1.0"
 
+[package.metadata.wasm-pack.profile.release]
+wasm-opt = false
+
 [workspace]
 
 # Server binary
@@ -39,3 +42,10 @@ warp  = { version = "0.3" }
 
 [lib]
 crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+codegen-units = 1
+lto           = true
+opt-level     = 3
+panic         = "abort"
+strip         = true
