@@ -17,11 +17,11 @@ use cova::{
   space::{
     cloud::Cloud,
     complexes::SimplicialComplex,
-    filtration::{vietoris_rips::VietorisRips, Filtration},
+    filtration::{Filtration, vietoris_rips::VietorisRips},
   },
 };
 use wasm_bindgen::prelude::*;
-use web_sys::{console, CanvasRenderingContext2d};
+use web_sys::{CanvasRenderingContext2d, console};
 
 // Enable better error messages in debug mode
 extern crate console_error_panic_hook;
@@ -156,7 +156,7 @@ impl VietorisRipsDemo {
   #[wasm_bindgen]
   pub fn render(&self, context: &CanvasRenderingContext2d) {
     // Clear canvas with white background
-    context.set_fill_style(&"#ffffff".into());
+    context.set_fill_style(&JsValue::from_str("#ffffff"));
     context.fill_rect(0.0, 0.0, self.canvas_width, self.canvas_height);
 
     if self.cloud.is_empty() {
@@ -175,9 +175,9 @@ impl VietorisRipsDemo {
 
   /// Render epsilon distance bubbles around each point
   fn render_epsilon_bubbles(&self, context: &CanvasRenderingContext2d) {
-    context.set_stroke_style(&"#e5e7eb".into()); // Light gray
+    context.set_stroke_style(&JsValue::from_str("#e5e7eb")); // Light gray
     context.set_line_width(1.0);
-    context.set_fill_style(&"rgba(0, 0, 0, 0.02)".into()); // Very subtle fill
+    context.set_fill_style(&JsValue::from_str("rgba(0, 0, 0, 0.02)")); // Very subtle fill
 
     for point in self.cloud.points_ref() {
       context.begin_path();
@@ -189,8 +189,8 @@ impl VietorisRipsDemo {
 
   /// Render vertices as sharp black circles
   fn render_vertices(&self, context: &CanvasRenderingContext2d) {
-    context.set_fill_style(&"#000000".into()); // Pure black
-    context.set_stroke_style(&"#ffffff".into()); // White border
+    context.set_fill_style(&JsValue::from_str("#000000")); // Pure black
+    context.set_stroke_style(&JsValue::from_str("#ffffff")); // White border
     context.set_line_width(2.0);
 
     for point in self.cloud.points_ref() {
@@ -203,7 +203,7 @@ impl VietorisRipsDemo {
 
   /// Render edges as clean geometric lines
   fn render_edges(&self, context: &CanvasRenderingContext2d, complex: &SimplicialComplex) {
-    context.set_stroke_style(&"#3b82f6".into()); // Clean blue
+    context.set_stroke_style(&JsValue::from_str("#3b82f6")); // Clean blue
     context.set_line_width(2.0);
 
     let points = self.cloud.points_ref();
@@ -224,8 +224,8 @@ impl VietorisRipsDemo {
 
   /// Render triangles as subtle geometric shapes
   fn render_triangles(&self, context: &CanvasRenderingContext2d, complex: &SimplicialComplex) {
-    context.set_fill_style(&"rgba(59, 130, 246, 0.1)".into()); // Very subtle blue
-    context.set_stroke_style(&"rgba(59, 130, 246, 0.3)".into()); // Light blue border
+    context.set_fill_style(&JsValue::from_str("rgba(59, 130, 246, 0.1)")); // Very subtle blue
+    context.set_stroke_style(&JsValue::from_str("rgba(59, 130, 246, 0.3)")); // Light blue border
     context.set_line_width(1.0);
 
     let points = self.cloud.points_ref();

@@ -1,6 +1,6 @@
-# Contributing to Harness
+# Contributing to Cova
 
-Thank you for your interest in contributing to Harness! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to Cova! This document provides guidelines and instructions for contributing to the project.
 
 ## Table of Contents
 - [Code of Conduct](#code-of-conduct)
@@ -21,8 +21,8 @@ By participating in this project, you agree to abide by our Code of Conduct. Ple
 1. Fork the repository
 2. Clone your fork:
    ```bash
-   git clone https://github.com/yourusername/harness.git
-   cd harness
+   git clone https://github.com/yourusername/cova.git
+   cd cova
    ```
 3. Set up the development environment:
    ```bash
