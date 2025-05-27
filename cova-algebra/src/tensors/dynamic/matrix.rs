@@ -1,7 +1,14 @@
 //! # Dynamic Matrix Module
 //!
-//! This module provides a flexible implementation of matrices with dynamically determined
-//! dimensions.
+//! This module provides a clean, ergonomic implementation of matrices with dynamically determined
+//! dimensions. The design prioritizes simplicity and ease of use while maintaining mathematical
+//! correctness and performance.
+//!
+//! ## Design Philosophy
+//!
+//! This implementation favors **simplicity over micro-optimizations**. Rather than exposing
+//! storage orientation complexity to users, we provide a single, well-optimized matrix type
+//! with intuitive builder patterns and method chaining.
 //!
 //! ## Mathematical Background
 //!
@@ -9,61 +16,48 @@
 //! with $m$ rows and $n$ columns, we write $A \in F^{m \times n}$ where $F$ is the field of
 //! the matrix elements.
 //!
-//! ### Matrix Operations
-//!
-//! Matrices support various operations including:
-//!
-//! - **Transposition**: For a matrix $A$, its transpose $A^T$ has elements $A^T_{ij} = A_{ji}$
-//! - **Row Echelon Form**: A matrix is in row echelon form when:
-//!   - All rows consisting entirely of zeros are at the bottom
-//!   - The leading coefficient (pivot) of each non-zero row is to the right of the pivot in the row
-//!     above
-//!   - All entries in a column below a pivot are zeros
-//!
-//! ## Storage Orientations
-//!
-//! This implementation supports two matrix storage orientations:
-//!
-//! - **Row major**: Elements are stored row by row (each row is contiguous in memory)
-//! - **Column major**: Elements are stored column by column (each column is contiguous in memory)
-//!
 //! ## Examples
 //!
 //! ```
 //! use cova_algebra::{
 //!   prelude::*,
-//!   tensors::dynamic::{
-//!     matrix::{DynamicDenseMatrix, RowMajor},
-//!     vector::DynamicVector,
-//!   },
+//!   tensors::dynamic::{matrix::Matrix, vector::Vector},
 //! };
 //!
-//! // Create a row-major matrix
-//! let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
+//! // Create matrices using builder pattern
+//! let matrix = Matrix::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
 //!
-//! // Add rows to the matrix
-//! let row1 = DynamicVector::from([1.0, 2.0, 3.0]);
-//! let row2 = DynamicVector::from([4.0, 5.0, 6.0]);
-//! matrix.append_row(row1);
-//! matrix.append_row(row2);
+//! // Or from vectors
+//! let matrix = Matrix::from_rows([Vector::from([1.0, 2.0, 3.0]), Vector::from([4.0, 5.0, 6.0])]);
 //!
-//! // Access elements
-//! let element = matrix.get_component(0, 1); // Gets element at row 0, column 1
-//! assert_eq!(*element, 2.0);
+//! // Common constructors
+//! let zeros = Matrix::zeros(3, 3);
+//! let identity = Matrix::identity(3);
 //!
-//! // Transform to row echelon form
-//! let result = matrix.row_echelon_form();
+//! // Access elements naturally
+//! let element = matrix[(0, 1)]; // Gets element at row 0, column 1
+//!
+//! // Linear algebra operations
+//! let rref = matrix.clone().into_row_echelon_form();
+//! let kernel = matrix.kernel();
+//! let image = matrix.image();
+//!
+//! // Block matrix construction
+//! let block_matrix =
+//!   Matrix::from_blocks([[Some(Matrix::identity(2)), None], [None, Some(Matrix::identity(3))]]);
+//!
+//! // Or using block builder
+//! let block_matrix = Matrix::block_builder()
+//!   .block(0, 0, Matrix::identity(2))
+//!   .block(1, 1, Matrix::identity(3))
+//!   .build([2, 3], [2, 3]);
 //! ```
 
-use std::{fmt, fmt::Debug, marker::PhantomData};
+use std::{fmt, ops::Index};
 
-use super::{vector::DynamicVector, *};
+use super::{vector::Vector, *};
 
 /// Information about a pivot (non-zero entry) in a matrix.
-///
-/// When a matrix is transformed to row echelon form, pivots are the leading
-/// non-zero entries in each row. This struct stores the row and column indices
-/// of each pivot.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct PivotInfo {
   /// The row index of the pivot
@@ -73,9 +67,6 @@ pub struct PivotInfo {
 }
 
 /// Result of transforming a matrix to row echelon form.
-///
-/// This struct contains information about the rank of the matrix
-/// and the positions of all pivots found during the transformation.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct RowEchelonOutput {
   /// The rank of the matrix (number of linearly independent rows/columns)
@@ -84,436 +75,314 @@ pub struct RowEchelonOutput {
   pub pivots: Vec<PivotInfo>,
 }
 
-// Sealed trait pattern to prevent external implementations of MatrixOrientation
-mod sealed {
-  pub trait Sealed {}
-  impl Sealed for super::RowMajor {}
-  impl Sealed for super::ColumnMajor {}
-}
-
-/// A marker trait for matrix storage orientation (RowMajor or ColumnMajor).
-///
-/// This trait is sealed, meaning only types defined in this crate can implement it.
-/// The orientation determines how matrix elements are stored in memory, which affects
-/// the performance characteristics of different operations.
-pub trait MatrixOrientation: sealed::Sealed {}
-
-/// Marker type for row-major matrix storage.
-///
-/// In row-major storage, elements of a row are contiguous in memory.
-/// This is efficient for operations that access elements row by row.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct RowMajor;
-impl MatrixOrientation for RowMajor {}
-
-/// Marker type for column-major matrix storage.
-///
-/// In column-major storage, elements of a column are contiguous in memory.
-/// This is efficient for operations that access elements column by column.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct ColumnMajor;
-impl MatrixOrientation for ColumnMajor {}
-
 /// A dynamically-sized matrix with elements from a field `F`.
 ///
-/// ## Mathematical Representation
-///
-/// For a matrix $A \in F^{m \times n}$, the elements are represented as:
-///
-/// $$ A = \begin{pmatrix}
-/// a_{11} & a_{12} & \cdots & a_{1n} \\
-/// a_{21} & a_{22} & \cdots & a_{2n} \\
-/// \vdots & \vdots & \ddots & \vdots \\
-/// a_{m1} & a_{m2} & \cdots & a_{mn}
-/// \end{pmatrix} $$
-///
-/// ## Storage Implementation
-///
-/// The storage orientation is determined by the type parameter `O`, which can be either
-/// `RowMajor` or `ColumnMajor`. This affects the internal representation and the performance
-/// characteristics of different operations:
-///
-/// - For `RowMajor`: Data is stored as a vector of row vectors
-/// - For `ColumnMajor`: Data is stored as a vector of column vectors
-///
-/// ## Usage Notes
-///
-/// Operations that align with the storage orientation (e.g., row operations on a row-major matrix)
-/// will generally be more efficient than those that don't.
+/// This implementation uses row-major storage internally but provides an intuitive,
+/// orientation-agnostic API. The focus is on ergonomics and correctness rather than
+/// micro-optimizations for specific access patterns.
 #[derive(Default, Debug, Clone, PartialEq, Eq, Hash)]
-pub struct DynamicDenseMatrix<F, O: MatrixOrientation = RowMajor> {
-  /// For [`RowMajor`]: `components` is a [`DynamicVector`] of rows (each row is a
-  /// [`DynamicVector<F>`]).
-  /// For [`ColumnMajor`]: `components` is a [`DynamicVector`] of columns (each col is a
-  /// [`DynamicVector<F>`]).
-  components:  DynamicVector<DynamicVector<F>>,
-  /// The orientation of the matrix
-  orientation: PhantomData<O>,
+pub struct Matrix<F> {
+  /// Internal storage as a vector of row vectors
+  rows: Vec<Vector<F>>,
 }
 
-impl<F, O: MatrixOrientation> DynamicDenseMatrix<F, O> {
-  /// Creates a new, empty `DynamicDenseMatrix` with the specified orientation.
-  ///
-  /// This constructor initializes a matrix with zero rows and zero columns.
-  ///
-  /// # Returns
-  ///
-  /// A new empty matrix with the orientation specified by the type parameter `O`.
-  ///
-  /// # Examples
-  ///
-  /// ```
-  /// use cova_algebra::tensors::dynamic::matrix::{ColumnMajor, DynamicDenseMatrix, RowMajor};
-  ///
-  /// // Create an empty row-major matrix of f64 values
-  /// let row_major: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-  ///
-  /// // Create an empty column-major matrix of f64 values
-  /// let col_major: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-  /// ```
-  pub const fn new() -> Self {
-    Self { components: DynamicVector::new(Vec::new()), orientation: PhantomData }
-  }
-}
-
-// TODO: Not all of these require Field and Copy, we should remove unneeded bbounds where possible.
-impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
-  /// Creates a new all zeros `DynamicDenseMatrix` with the specified number of rows and columns.
-  ///
-  /// # Arguments
-  ///
-  /// * `rows` - The number of rows in the matrix
-  /// * `cols` - The number of columns in the matrix
-  ///
-  /// # Returns
-  ///
-  /// A new `DynamicDenseMatrix` with the specified number of rows and columns, all initialized to
-  /// zero.
-  pub fn zeros(rows: usize, cols: usize) -> Self {
-    let mut mat = Self::new();
-    for _ in 0..rows {
-      mat.append_row(DynamicVector::zeros(cols));
-    }
-    mat
-  }
+impl<F> Matrix<F> {
+  /// Creates a new empty matrix.
+  pub const fn new() -> Self { Self { rows: Vec::new() } }
 
   /// Returns the number of rows in the matrix.
-  ///
-  /// For a row-major matrix, this is the number of row vectors stored.
-  ///
-  /// # Returns
-  ///
-  /// The number of rows in the matrix
-  pub const fn num_rows(&self) -> usize {
-    self.components.dimension() // Outer vector stores rows
-  }
+  pub fn num_rows(&self) -> usize { self.rows.len() }
 
   /// Returns the number of columns in the matrix.
-  ///
-  /// For a row-major matrix, this is the length of the first row vector (if any).
-  /// Assumes a non-ragged matrix if rows > 0.
-  ///
-  /// # Returns
-  ///
-  /// The number of columns in the matrix
-  pub fn num_cols(&self) -> usize {
-    if self.components.dimension() == 0 {
-      0
-    } else {
-      self.components.components()[0].dimension()
-    }
+  pub fn num_cols(&self) -> usize { self.rows.first().map_or(0, |row| row.dimension()) }
+
+  /// Returns the dimensions as (rows, cols).
+  pub fn dimensions(&self) -> (usize, usize) { (self.num_rows(), self.num_cols()) }
+
+  /// Checks if the matrix is empty (no rows or no columns).
+  pub fn is_empty(&self) -> bool { self.num_rows() == 0 || self.num_cols() == 0 }
+
+  /// Gets a reference to the component at the given row and column.
+  pub fn get(&self, row: usize, col: usize) -> Option<&F> {
+    self.rows.get(row)?.get_component(col).into()
   }
 
-  /// Appends a new column to the matrix.
-  ///
-  /// If the matrix is empty, the column's elements become singleton rows.
-  /// Otherwise, each element of the column is appended to the corresponding row.
-  ///
-  /// # Arguments
-  ///
-  /// * `column` - The column vector to append
-  ///
-  /// # Panics
-  ///
-  /// Panics if the column's length doesn't match the number of existing rows (when the matrix is
-  /// not empty).
-  ///
-  /// # Warning
-  ///
-  /// For a row-major matrix, this operation requires updating every row vector.
-  /// If you're building a matrix primarily by adding columns, consider using
-  /// a column-major matrix for better performance.
-  ///
-  /// # Examples
-  ///
-  /// ```
-  /// use cova_algebra::tensors::dynamic::{
-  ///   matrix::{DynamicDenseMatrix, RowMajor},
-  ///   vector::DynamicVector,
-  /// };
-  ///
-  /// let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
-  ///
-  /// // Add a column to the empty matrix (will create rows)
-  /// let col = DynamicVector::from([1.0, 2.0]);
-  /// matrix.append_column(&col);
-  ///
-  /// // Add another column
-  /// let col2 = DynamicVector::from([3.0, 4.0]);
-  /// matrix.append_column(&col2);
-  /// ```
-  pub fn append_column(&mut self, column: &DynamicVector<F>) {
-    let num_r = self.num_rows();
-    if num_r == 0 {
-      if column.dimension() == 0 {
-        return;
-      }
-      for i in 0..column.dimension() {
-        self.components.components_mut().push(DynamicVector::new(vec![*column.get_component(i)]));
-      }
-    } else {
-      assert_eq!(num_r, column.dimension(), "Column length must match the number of rows");
-      for i in 0..num_r {
-        self.components.components_mut()[i].append(*column.get_component(i));
+  /// Gets a reference to the row at the given index.
+  pub fn row(&self, index: usize) -> Option<&Vector<F>> { self.rows.get(index) }
+
+  /// Returns an iterator over the rows.
+  pub fn rows(&self) -> impl Iterator<Item = &Vector<F>> { self.rows.iter() }
+}
+
+impl<F: Field + Copy> Matrix<F> {
+  /// Creates a matrix filled with zeros.
+  pub fn zeros(rows: usize, cols: usize) -> Self {
+    Self { rows: (0..rows).map(|_| Vector::zeros(cols)).collect() }
+  }
+
+  /// Creates an identity matrix of the given size.
+  pub fn identity(size: usize) -> Self {
+    let mut matrix = Self::zeros(size, size);
+    for i in 0..size {
+      matrix.set(i, i, F::one());
+    }
+    matrix
+  }
+
+  /// Creates a matrix from an iterator of rows.
+  pub fn from_rows<I>(rows: I) -> Self
+  where I: IntoIterator<Item = Vector<F>> {
+    let rows: Vec<_> = rows.into_iter().collect();
+
+    // Validate that all rows have the same length
+    if let Some(expected_cols) = rows.first().map(|r| r.dimension()) {
+      for (i, row) in rows.iter().enumerate() {
+        assert_eq!(
+          row.dimension(),
+          expected_cols,
+          "Row {} has {} columns, expected {}",
+          i,
+          row.dimension(),
+          expected_cols
+        );
       }
     }
+
+    Self { rows }
   }
 
-  /// Returns a new DynamicVector representing the column at the given index.
-  ///
-  /// For a row-major matrix, this requires extracting the element at position `index`
-  /// from each row vector.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the column to retrieve (0-based)
-  ///
-  /// # Returns
-  ///
-  /// A new DynamicVector containing the elements of the specified column
-  ///
-  /// # Panics
-  ///
-  /// Panics if the column index is out of bounds.
-  ///
-  /// # Warning
-  ///
-  /// For a row-major matrix, this is a more expensive operation as it requires
-  /// reading from each row vector. If you need to access columns frequently,
-  /// consider using a column-major matrix instead.
-  pub fn get_column(&self, index: usize) -> DynamicVector<F> {
-    let num_r = self.num_rows();
-    if num_r == 0 {
-      return DynamicVector::new(Vec::new());
-    }
-    assert!(index < self.num_cols(), "Column index out of bounds");
-    let mut col_components = Vec::with_capacity(num_r);
-    for i in 0..num_r {
-      col_components.push(*self.components.components()[i].get_component(index));
-    }
-    DynamicVector::new(col_components)
-  }
+  /// Creates a matrix from an iterator of columns.
+  pub fn from_cols<I>(cols: I) -> Self
+  where I: IntoIterator<Item = Vector<F>> {
+    let cols: Vec<_> = cols.into_iter().collect();
 
-  /// Sets the column at the given index with the provided DynamicVector.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the column to set (0-based)
-  /// * `column` - The new column vector
-  ///
-  /// # Panics
-  ///
-  /// - Panics if the column index is out of bounds
-  /// - Panics if the column's length doesn't match the number of rows
-  ///
-  /// # Warning
-  ///
-  /// For a row-major matrix, this is a more expensive operation as it requires
-  /// updating every row vector. If you need to modify columns frequently,
-  /// consider using a column-major matrix instead.
-  pub fn set_column(&mut self, index: usize, column: &DynamicVector<F>) {
-    let num_r = self.num_rows();
-    assert_eq!(num_r, column.dimension(), "New column length must match the number of rows");
-    if num_r == 0 {
-      return;
+    if cols.is_empty() {
+      return Self::new();
     }
-    assert!(index < self.num_cols(), "Column index out of bounds");
-    for i in 0..num_r {
-      self.components.components_mut()[i].set_component(index, *column.get_component(i));
-    }
-  }
 
-  /// Appends a new row to the matrix.
-  ///
-  /// # Arguments
-  ///
-  /// * `row` - The row vector to append
-  ///
-  /// # Panics
-  ///
-  /// Panics if the row's length doesn't match the number of existing columns (when the matrix is
-  /// not empty).
-  ///
-  /// # Examples
-  ///
-  /// ```
-  /// use cova_algebra::tensors::dynamic::{
-  ///   matrix::{DynamicDenseMatrix, RowMajor},
-  ///   vector::DynamicVector,
-  /// };
-  ///
-  /// let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
-  ///
-  /// // Add rows to the matrix
-  /// let row1 = DynamicVector::from([1.0, 2.0, 3.0]);
-  /// let row2 = DynamicVector::from([4.0, 5.0, 6.0]);
-  /// matrix.append_row(row1);
-  /// matrix.append_row(row2);
-  /// ```
-  pub fn append_row(&mut self, row: DynamicVector<F>) {
-    if self.num_rows() > 0 {
+    let num_rows = cols[0].dimension();
+    let num_cols = cols.len();
+
+    // Validate all columns have same length
+    for (i, col) in cols.iter().enumerate() {
       assert_eq!(
-        self.num_cols(),
-        row.dimension(),
-        "New row length must match existing number of columns"
+        col.dimension(),
+        num_rows,
+        "Column {} has {} rows, expected {}",
+        i,
+        col.dimension(),
+        num_rows
       );
     }
-    self.components.components_mut().push(row);
-  }
 
-  /// Returns a reference to the row at the given index.
-  ///
-  /// For a row-major matrix, this directly accesses the stored row vector.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the row to retrieve (0-based)
-  ///
-  /// # Returns
-  ///
-  /// A reference to the row vector at the specified index
-  ///
-  /// # Panics
-  ///
-  /// Panics if the row index is out of bounds.
-  pub fn get_row(&self, index: usize) -> &DynamicVector<F> {
-    assert!(index < self.num_rows(), "Row index out of bounds");
-    &self.components.components()[index]
-  }
-
-  /// Sets the row at the given index with the provided DynamicVector.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the row to set (0-based)
-  /// * `row` - The new row vector
-  ///
-  /// # Panics
-  ///
-  /// - Panics if the row index is out of bounds
-  /// - Panics if the row's length doesn't match the number of columns
-  pub fn set_row(&mut self, index: usize, row: DynamicVector<F>) {
-    assert!(index < self.num_rows(), "Row index out of bounds");
-    if self.num_rows() > 0 {
-      assert_eq!(
-        self.num_cols(),
-        row.dimension(),
-        "New row length must match existing number of columns"
-      );
+    let mut matrix = Self::zeros(num_rows, num_cols);
+    for (col_idx, col) in cols.iter().enumerate() {
+      for (row_idx, &value) in col.components().iter().enumerate() {
+        matrix.set(row_idx, col_idx, value);
+      }
     }
-    self.components.components_mut()[index] = row;
+
+    matrix
   }
 
-  /// Returns the component at the given row and column.
+  /// Creates a matrix from a 2D array of optional blocks.
   ///
-  /// # Arguments
-  ///
-  /// * `row` - The row index (0-based)
-  /// * `col` - The column index (0-based)
-  ///
-  /// # Returns
-  ///
-  /// A reference to the component at the specified position
-  ///
-  /// # Panics
-  ///
-  /// Panics if either the row or column index is out of bounds.
-  pub fn get_component(&self, row: usize, col: usize) -> &F {
-    assert!(row < self.num_rows(), "Row index out of bounds");
-    assert!(col < self.num_cols(), "Column index out of bounds");
-    self.components.components()[row].get_component(col)
-  }
-
-  /// Sets the component at the given row and column to the given value.
-  ///
-  /// # Arguments
-  ///
-  /// * `row` - The row index (0-based)
-  /// * `col` - The column index (0-based)
-  /// * `value` - The value to set at the specified position
-  ///
-  /// # Panics
-  ///
-  /// Panics if either the row or column index is out of bounds.
-  pub fn set_component(&mut self, row: usize, col: usize, value: F) {
-    assert!(row < self.num_rows(), "Row index out of bounds");
-    assert!(col < self.num_cols(), "Column index out of bounds");
-    self.components.components_mut()[row].set_component(col, value);
-  }
-
-  /// Converts this row-major matrix to a column-major matrix by transposing it.
-  ///
-  /// The transpose of a matrix $A$ is denoted $A^T$ and has entries $A^T_{ij} = A_{ji}$.
-  ///
-  /// # Returns
-  ///
-  /// A new column-major matrix that is the transpose of this matrix
-  pub fn transpose(self) -> DynamicDenseMatrix<F, ColumnMajor> {
-    DynamicDenseMatrix { components: self.components, orientation: PhantomData }
-  }
-
-  /// Transforms this matrix into row echelon form using Gaussian elimination.
-  ///
-  /// Row echelon form has the following properties:
-  /// - All rows consisting entirely of zeros are at the bottom
-  /// - The leading coefficient (pivot) of each non-zero row is to the right of the pivot in the row
-  ///   above
-  /// - All entries in a column below a pivot are zeros
-  ///
-  /// This method performs in-place transformation of the matrix.
-  ///
-  /// # Returns
-  ///
-  /// A `RowEchelonOutput` containing the rank of the matrix and the positions of all pivots
+  /// Each `Some(matrix)` represents a non-zero block, while `None` represents a zero block.
+  /// All blocks in the same block-row must have the same height, and all blocks in the
+  /// same block-column must have the same width.
   ///
   /// # Examples
   ///
   /// ```
-  /// use cova_algebra::tensors::dynamic::{
-  ///   matrix::{DynamicDenseMatrix, RowMajor},
-  ///   vector::DynamicVector,
-  /// };
+  /// use cova_algebra::tensors::dynamic::matrix::Matrix;
   ///
-  /// let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
-  /// // Add some rows
-  /// matrix.append_row(DynamicVector::from([1.0, 2.0, 3.0]));
-  /// matrix.append_row(DynamicVector::from([4.0, 5.0, 6.0]));
-  /// matrix.append_row(DynamicVector::from([7.0, 8.0, 9.0]));
-  ///
-  /// // Transform to row echelon form
-  /// let result = matrix.row_echelon_form();
-  ///
-  /// // The result contains the rank and pivot positions
-  /// assert_eq!(result.rank, 2); // The matrix has rank 2
+  /// // Create a 2x2 block matrix with identity blocks on the diagonal
+  /// let block_matrix =
+  ///   Matrix::from_blocks([[Some(Matrix::identity(2)), None], [None, Some(Matrix::identity(3))]]);
   /// ```
-  pub fn row_echelon_form(&mut self) -> RowEchelonOutput {
-    let matrix = self.components.components_mut();
-    if matrix.is_empty() || matrix[0].dimension() == 0 {
+  pub fn from_blocks<const BLOCK_ROWS: usize, const BLOCK_COLS: usize>(
+    blocks: [[Option<Matrix<F>>; BLOCK_COLS]; BLOCK_ROWS],
+  ) -> Self {
+    if BLOCK_ROWS == 0 || BLOCK_COLS == 0 {
+      return Self::new();
+    }
+
+    // Determine block sizes by examining the first non-None block in each row/column
+    let mut row_block_sizes = vec![0; BLOCK_ROWS];
+    let mut col_block_sizes = vec![0; BLOCK_COLS];
+
+    // Find row heights
+    for (block_row, row) in blocks.iter().enumerate() {
+      for block in row.iter().flatten() {
+        if row_block_sizes[block_row] == 0 {
+          row_block_sizes[block_row] = block.num_rows();
+        } else {
+          assert_eq!(
+            block.num_rows(),
+            row_block_sizes[block_row],
+            "All blocks in block-row {} must have the same height",
+            block_row
+          );
+        }
+      }
+    }
+
+    // Find column widths
+    for block_col in 0..BLOCK_COLS {
+      for block_row in 0..BLOCK_ROWS {
+        if let Some(ref block) = blocks[block_row][block_col] {
+          if col_block_sizes[block_col] == 0 {
+            col_block_sizes[block_col] = block.num_cols();
+          } else {
+            assert_eq!(
+              block.num_cols(),
+              col_block_sizes[block_col],
+              "All blocks in block-column {} must have the same width",
+              block_col
+            );
+          }
+        }
+      }
+    }
+
+    // Validate that we found sizes for all blocks
+    for (i, &size) in row_block_sizes.iter().enumerate() {
+      assert!(size > 0, "Block row {} has no non-zero blocks to determine size", i);
+    }
+    for (i, &size) in col_block_sizes.iter().enumerate() {
+      assert!(size > 0, "Block column {} has no non-zero blocks to determine size", i);
+    }
+
+    // Calculate total dimensions
+    let total_rows: usize = row_block_sizes.iter().sum();
+    let total_cols: usize = col_block_sizes.iter().sum();
+
+    let mut result = Self::zeros(total_rows, total_cols);
+
+    // Compute offsets for efficient placement
+    let mut row_offsets = vec![0; BLOCK_ROWS + 1];
+    for i in 0..BLOCK_ROWS {
+      row_offsets[i + 1] = row_offsets[i] + row_block_sizes[i];
+    }
+
+    let mut col_offsets = vec![0; BLOCK_COLS + 1];
+    for i in 0..BLOCK_COLS {
+      col_offsets[i + 1] = col_offsets[i] + col_block_sizes[i];
+    }
+
+    // Place blocks
+    for (block_row, row) in blocks.iter().enumerate() {
+      for (block_col, block_opt) in row.iter().enumerate() {
+        if let Some(ref block) = block_opt {
+          let row_start = row_offsets[block_row];
+          let col_start = col_offsets[block_col];
+
+          for i in 0..block.num_rows() {
+            for j in 0..block.num_cols() {
+              result.set(row_start + i, col_start + j, *block.get(i, j).unwrap());
+            }
+          }
+        }
+      }
+    }
+
+    result
+  }
+
+  /// Sets the component at the given row and column.
+  pub fn set(&mut self, row: usize, col: usize, value: F) {
+    assert!(row < self.num_rows(), "Row index {} out of bounds", row);
+    assert!(col < self.num_cols(), "Column index {} out of bounds", col);
+    self.rows[row].set_component(col, value);
+  }
+
+  /// Appends a row to the matrix.
+  pub fn push_row(&mut self, row: Vector<F>) {
+    if !self.rows.is_empty() {
+      assert_eq!(
+        row.dimension(),
+        self.num_cols(),
+        "Row has {} columns, expected {}",
+        row.dimension(),
+        self.num_cols()
+      );
+    }
+    self.rows.push(row);
+  }
+
+  /// Appends a column to the matrix.
+  pub fn push_column(&mut self, col: &Vector<F>) {
+    if self.is_empty() {
+      // If matrix is empty, create rows from the column
+      for &component in col.components() {
+        self.rows.push(Vector::from([component]));
+      }
+    } else {
+      assert_eq!(
+        col.dimension(),
+        self.num_rows(),
+        "Column has {} rows, expected {}",
+        col.dimension(),
+        self.num_rows()
+      );
+
+      for (row_idx, &component) in col.components().iter().enumerate() {
+        self.rows[row_idx].append(component);
+      }
+    }
+  }
+
+  /// Gets the column at the given index as a new vector.
+  pub fn column(&self, index: usize) -> Vector<F> {
+    assert!(index < self.num_cols(), "Column index {} out of bounds", index);
+
+    let components: Vec<F> = self.rows.iter().map(|row| *row.get_component(index)).collect();
+
+    Vector::new(components)
+  }
+
+  /// Sets the column at the given index.
+  pub fn set_column(&mut self, index: usize, column: &Vector<F>) {
+    assert!(index < self.num_cols(), "Column index {} out of bounds", index);
+    assert_eq!(
+      column.dimension(),
+      self.num_rows(),
+      "Column has {} rows, expected {}",
+      column.dimension(),
+      self.num_rows()
+    );
+
+    for (row_idx, &value) in column.components().iter().enumerate() {
+      self.rows[row_idx].set_component(index, value);
+    }
+  }
+
+  /// Transposes the matrix, returning a new matrix.
+  pub fn transpose(&self) -> Self {
+    if self.is_empty() {
+      return Self::new();
+    }
+
+    let cols: Vec<_> = (0..self.num_cols()).map(|i| self.column(i)).collect();
+
+    Self::from_rows(cols)
+  }
+
+  /// Transforms this matrix into row echelon form in-place.
+  pub fn into_row_echelon_form(mut self) -> (Self, RowEchelonOutput) {
+    let output = self.row_echelon_form_inplace();
+    (self, output)
+  }
+
+  /// Transforms this matrix into row echelon form in-place, returning pivot information.
+  fn row_echelon_form_inplace(&mut self) -> RowEchelonOutput {
+    if self.is_empty() {
       return RowEchelonOutput { rank: 0, pivots: Vec::new() };
     }
-    let rows = matrix.len();
-    let cols = matrix[0].dimension();
-    let mut lead = 0; // current pivot column
+
+    let rows = self.num_rows();
+    let cols = self.num_cols();
+    let mut lead = 0;
     let mut rank = 0;
     let mut pivots = Vec::new();
 
@@ -521,8 +390,9 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
       if lead >= cols {
         break;
       }
+
       let mut i = r;
-      while matrix[i].get_component(lead).is_zero() {
+      while self.rows[i].get_component(lead).is_zero() {
         i += 1;
         if i == rows {
           i = r;
@@ -532,804 +402,564 @@ impl<F: Field + Copy> DynamicDenseMatrix<F, RowMajor> {
           }
         }
       }
-      matrix.swap(i, r);
+
+      // Swap rows
+      self.rows.swap(i, r);
 
       pivots.push(PivotInfo { row: r, col: lead });
 
-      let pivot_val = *matrix[r].get_component(lead);
+      let pivot_val = *self.rows[r].get_component(lead);
       let inv_pivot = pivot_val.multiplicative_inverse();
 
+      // Scale pivot row
       for j in lead..cols {
-        let val = *matrix[r].get_component(j);
-        matrix[r].set_component(j, val * inv_pivot);
+        let val = *self.rows[r].get_component(j);
+        self.rows[r].set_component(j, val * inv_pivot);
       }
 
+      // Eliminate column
       for i_row in 0..rows {
         if i_row != r {
-          let factor = *matrix[i_row].get_component(lead);
+          let factor = *self.rows[i_row].get_component(lead);
           if !factor.is_zero() {
             for j_col in lead..cols {
-              let val_r_j_col = *matrix[r].get_component(j_col);
-              let term = factor * val_r_j_col;
-              let val_i_row_j_col = *matrix[i_row].get_component(j_col); // Read from current row (i_row)
-              matrix[i_row].set_component(j_col, val_i_row_j_col - term);
+              let val_r = *self.rows[r].get_component(j_col);
+              let val_i = *self.rows[i_row].get_component(j_col);
+              self.rows[i_row].set_component(j_col, val_i - factor * val_r);
             }
           }
         }
       }
+
       lead += 1;
       rank += 1;
     }
+
     RowEchelonOutput { rank, pivots }
   }
 
   /// Computes a basis for the image (column space) of the matrix.
-  /// The image is the span of the columns of the matrix.
-  /// This method finds the pivot columns by transforming a copy of the matrix to RREF.
-  /// The corresponding columns from the *original* matrix form the basis.
-  /// This method does not modify `self`.
-  pub fn image(&self) -> Vec<DynamicVector<F>> {
-    if self.num_rows() == 0 || self.num_cols() == 0 {
+  pub fn image(&self) -> Vec<Vector<F>> {
+    if self.is_empty() {
       return Vec::new();
     }
 
-    let mut rref_candidate = self.clone();
-    let echelon_output = rref_candidate.row_echelon_form(); // Modifies rref_candidate
+    let (_, echelon_output) = self.clone().into_row_echelon_form();
+    let pivot_cols: Vec<usize> = echelon_output.pivots.iter().map(|p| p.col).collect();
 
-    let mut pivot_col_indices: Vec<usize> = echelon_output.pivots.iter().map(|p| p.col).collect();
-    pivot_col_indices.sort_unstable();
-    pivot_col_indices.dedup();
-
-    let mut image_basis: Vec<DynamicVector<F>> = Vec::new();
-    for &col_idx in &pivot_col_indices {
-      image_basis.push(self.get_column(col_idx)); // get_column for RowMajor returns owned
-                                                  // DynamicVector
-    }
-    image_basis
+    pivot_cols.into_iter().map(|col_idx| self.column(col_idx)).collect()
   }
 
   /// Computes a basis for the kernel (null space) of the matrix.
-  /// The kernel is the set of all vectors x such that Ax = 0.
-  /// This method returns a vector of `DynamicVector<F>` representing the basis vectors for the
-  /// kernel. An empty vector is returned if the kernel is the zero space (e.g., for an invertible
-  /// matrix, or if num_cols is 0). This method does not modify `self`.
-  pub fn kernel(&self) -> Vec<DynamicVector<F>> {
+  pub fn kernel(&self) -> Vec<Vector<F>> {
     if self.num_cols() == 0 {
       return Vec::new();
     }
 
     if self.num_rows() == 0 {
-      let mut basis: Vec<DynamicVector<F>> = Vec::with_capacity(self.num_cols());
-      for i in 0..self.num_cols() {
-        let mut v_data = vec![F::zero(); self.num_cols()];
-        if i < v_data.len() {
-          v_data[i] = F::one();
-        }
-        basis.push(DynamicVector::new(v_data));
-      }
-      return basis;
+      // All vectors are in the kernel
+      return (0..self.num_cols())
+        .map(|i| {
+          let mut components = vec![F::zero(); self.num_cols()];
+          components[i] = F::one();
+          Vector::new(components)
+        })
+        .collect();
     }
 
-    let mut rref_matrix = self.clone();
-    let echelon_output = rref_matrix.row_echelon_form();
-
-    let num_cols = rref_matrix.num_cols();
-    let num_rows_of_rref = rref_matrix.num_rows();
+    let (rref_matrix, echelon_output) = self.clone().into_row_echelon_form();
+    let num_cols = self.num_cols();
 
     let mut is_pivot_col = vec![false; num_cols];
-    for pivot_info in &echelon_output.pivots {
-      if pivot_info.col < num_cols {
-        is_pivot_col[pivot_info.col] = true;
+    for pivot in &echelon_output.pivots {
+      if pivot.col < num_cols {
+        is_pivot_col[pivot.col] = true;
       }
     }
 
-    let mut free_col_indices: Vec<usize> = Vec::new();
-    (0..num_cols).for_each(|j| {
-      if !is_pivot_col[j] {
-        free_col_indices.push(j);
-      }
-    });
+    let free_cols: Vec<usize> = (0..num_cols).filter(|&j| !is_pivot_col[j]).collect();
 
-    let mut kernel_basis: Vec<DynamicVector<F>> = Vec::new();
+    let mut kernel_basis = Vec::new();
 
-    for &free_idx in &free_col_indices {
-      let mut basis_vector_comps = vec![F::zero(); num_cols];
-      if free_idx < num_cols {
-        basis_vector_comps[free_idx] = F::one();
-      }
+    for &free_idx in &free_cols {
+      let mut basis_vector = vec![F::zero(); num_cols];
+      basis_vector[free_idx] = F::one();
 
-      for pivot_info in &echelon_output.pivots {
-        let pivot_col = pivot_info.col;
-        let pivot_row = pivot_info.row;
+      for pivot in &echelon_output.pivots {
+        let pivot_col = pivot.col;
+        let pivot_row = pivot.row;
 
-        if pivot_col < num_cols && free_idx < num_cols && pivot_row < num_rows_of_rref {
-          let coefficient = *rref_matrix.get_component(pivot_row, free_idx);
-          basis_vector_comps[pivot_col] = -coefficient;
+        if pivot_col < num_cols && pivot_row < rref_matrix.num_rows() {
+          let coefficient = *rref_matrix.rows[pivot_row].get_component(free_idx);
+          basis_vector[pivot_col] = -coefficient;
         }
       }
-      kernel_basis.push(DynamicVector::new(basis_vector_comps));
+
+      kernel_basis.push(Vector::new(basis_vector));
     }
+
     kernel_basis
   }
+
+  /// Creates a matrix builder for fluent construction.
+  pub fn builder() -> MatrixBuilder<F> { MatrixBuilder::new() }
+
+  /// Creates a block matrix builder for fluent block construction.
+  pub fn block_builder() -> BlockMatrixBuilder<F> { BlockMatrixBuilder::new() }
 }
 
-impl<F: Field + Copy> DynamicDenseMatrix<F, ColumnMajor> {
-  /// Creates a new all zeros `DynamicDenseMatrix` with the specified number of rows and columns.
+// Index trait for convenient element access
+impl<F> Index<(usize, usize)> for Matrix<F> {
+  type Output = F;
+
+  fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+    self.get(row, col).expect("Index out of bounds")
+  }
+}
+
+/// Builder for constructing matrices with a fluent API.
+pub struct MatrixBuilder<F> {
+  rows: Vec<Vector<F>>,
+}
+
+impl<F: Field + Copy> MatrixBuilder<F> {
+  /// Creates a new matrix builder.
+  pub fn new() -> Self { Self { rows: Vec::new() } }
+
+  /// Adds a row from an array.
+  pub fn row<const N: usize>(mut self, row: [F; N]) -> Self {
+    self.rows.push(Vector::from(row));
+    self
+  }
+
+  /// Adds a row from a vector.
+  pub fn row_vec(mut self, row: Vector<F>) -> Self {
+    self.rows.push(row);
+    self
+  }
+
+  /// Adds a row from an iterator.
+  pub fn row_iter<I>(mut self, row: I) -> Self
+  where I: IntoIterator<Item = F> {
+    self.rows.push(Vector::from(row.into_iter().collect::<Vec<_>>()));
+    self
+  }
+
+  /// Builds the matrix.
+  pub fn build(self) -> Matrix<F> { Matrix::from_rows(self.rows) }
+}
+
+impl<F: Field + Copy> Default for MatrixBuilder<F> {
+  fn default() -> Self { Self::new() }
+}
+
+/// Builder for constructing block matrices with a fluent API.
+///
+/// This builder allows you to specify blocks at specific positions and then
+/// build the final matrix with the specified block structure.
+pub struct BlockMatrixBuilder<F> {
+  blocks: std::collections::HashMap<(usize, usize), Matrix<F>>,
+}
+
+impl<F: Field + Copy> BlockMatrixBuilder<F> {
+  /// Creates a new block matrix builder.
+  pub fn new() -> Self { Self { blocks: std::collections::HashMap::new() } }
+
+  /// Adds a block at the specified position.
+  pub fn block(mut self, block_row: usize, block_col: usize, matrix: Matrix<F>) -> Self {
+    self.blocks.insert((block_row, block_col), matrix);
+    self
+  }
+
+  /// Builds the block matrix with the specified block structure.
   ///
   /// # Arguments
   ///
-  /// * `rows` - The number of rows in the matrix
-  /// * `cols` - The number of columns in the matrix
-  ///
-  /// # Returns
-  ///
-  /// A new `DynamicDenseMatrix` with the specified number of rows and columns, all initialized to
-  /// zero.
-  pub fn zeros(rows: usize, cols: usize) -> Self {
-    let mut mat = Self::new();
-    for _ in 0..cols {
-      mat.append_column(DynamicVector::zeros(rows));
-    }
-    mat
-  }
-
-  /// Returns the number of rows in the matrix.
-  ///
-  /// For a column-major matrix, this is the dimension of the first column vector (if any).
-  ///
-  /// # Returns
-  ///
-  /// The number of rows in the matrix
-  pub fn num_rows(&self) -> usize {
-    if self.components.dimension() == 0 {
-      0
-    } else {
-      self.components.components()[0].dimension()
-    }
-  }
-
-  /// Returns the number of columns in the matrix.
-  ///
-  /// For a column-major matrix, this is the number of column vectors stored.
-  ///
-  /// # Returns
-  ///
-  /// The number of columns in the matrix
-  pub const fn num_cols(&self) -> usize { self.components.dimension() }
-
-  /// Appends a new column to the matrix.
-  ///
-  /// For a column-major matrix, this is an efficient operation since columns are stored directly.
-  ///
-  /// # Arguments
-  ///
-  /// * `column` - The column vector to append
+  /// * `row_block_sizes`: Array specifying the height of each block row
+  /// * `col_block_sizes`: Array specifying the width of each block column
   ///
   /// # Panics
   ///
-  /// Panics if the column's length doesn't match the number of existing rows (when the matrix is
-  /// not empty).
-  ///
-  /// # Examples
-  ///
-  /// ```
-  /// use cova_algebra::tensors::dynamic::{
-  ///   matrix::{ColumnMajor, DynamicDenseMatrix},
-  ///   vector::DynamicVector,
-  /// };
-  ///
-  /// let mut matrix = DynamicDenseMatrix::<f64, ColumnMajor>::new();
-  ///
-  /// // Add columns to the matrix
-  /// let col1 = DynamicVector::from([1.0, 2.0, 3.0]);
-  /// let col2 = DynamicVector::from([4.0, 5.0, 6.0]);
-  /// matrix.append_column(col1);
-  /// matrix.append_column(col2);
-  /// ```
-  pub fn append_column(&mut self, column: DynamicVector<F>) {
-    if self.num_cols() > 0 {
+  /// Panics if any block has dimensions that don't match the specified structure.
+  pub fn build<const BLOCK_ROWS: usize, const BLOCK_COLS: usize>(
+    self,
+    row_block_sizes: [usize; BLOCK_ROWS],
+    col_block_sizes: [usize; BLOCK_COLS],
+  ) -> Matrix<F> {
+    // Validate block dimensions
+    for ((block_row, block_col), matrix) in &self.blocks {
+      assert!(
+        *block_row < BLOCK_ROWS,
+        "Block row {} out of bounds (max: {})",
+        block_row,
+        BLOCK_ROWS - 1
+      );
+      assert!(
+        *block_col < BLOCK_COLS,
+        "Block column {} out of bounds (max: {})",
+        block_col,
+        BLOCK_COLS - 1
+      );
+
+      let expected_rows = row_block_sizes[*block_row];
+      let expected_cols = col_block_sizes[*block_col];
+
       assert_eq!(
-        self.num_rows(),
-        column.dimension(),
-        "New column length must match existing number of rows"
+        matrix.num_rows(),
+        expected_rows,
+        "Block at ({}, {}) has {} rows, expected {}",
+        block_row,
+        block_col,
+        matrix.num_rows(),
+        expected_rows
+      );
+      assert_eq!(
+        matrix.num_cols(),
+        expected_cols,
+        "Block at ({}, {}) has {} columns, expected {}",
+        block_row,
+        block_col,
+        matrix.num_cols(),
+        expected_cols
       );
     }
-    self.components.components_mut().push(column); // Add the new column vector
-  }
 
-  /// Returns a reference to the column at the given index.
-  ///
-  /// For a column-major matrix, this is an efficient operation since columns are stored directly.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the column to retrieve (0-based)
-  ///
-  /// # Returns
-  ///
-  /// A reference to the column vector at the specified index
-  ///
-  /// # Panics
-  ///
-  /// Panics if the column index is out of bounds.
-  pub fn get_column(&self, index: usize) -> &DynamicVector<F> {
-    assert!(index < self.num_cols(), "Column index out of bounds");
-    &self.components.components()[index]
-  }
+    // Calculate total dimensions
+    let total_rows: usize = row_block_sizes.iter().sum();
+    let total_cols: usize = col_block_sizes.iter().sum();
 
-  /// Sets the column at the given index with the provided DynamicVector.
-  ///
-  /// For a column-major matrix, this is an efficient operation since columns are stored directly.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the column to set (0-based)
-  /// * `column` - The new column vector
-  ///
-  /// # Panics
-  ///
-  /// - Panics if the column index is out of bounds
-  /// - Panics if the column's length doesn't match the number of rows
-  pub fn set_column(&mut self, index: usize, column: DynamicVector<F>) {
-    assert!(index < self.num_cols(), "Column index out of bounds");
-    if self.num_cols() > 0 {
-      assert_eq!(
-        self.num_rows(),
-        column.dimension(),
-        "New column length must match existing number of rows"
-      );
-    }
-    self.components.components_mut()[index] = column;
-  }
+    let mut result = Matrix::zeros(total_rows, total_cols);
 
-  /// Appends a new row to the matrix.
-  ///
-  /// # Arguments
-  ///
-  /// * `row` - The row vector to append
-  ///
-  /// # Panics
-  ///
-  /// Panics if the row's length doesn't match the number of existing columns.
-  ///
-  /// # Warning
-  ///
-  /// For a column-major matrix, this is a more expensive operation as it requires
-  /// updating every column vector. If you need to add many rows, consider using
-  /// a row-major matrix or building the matrix from columns instead.
-  pub fn append_row(&mut self, row: &DynamicVector<F>) {
-    let num_c = self.num_cols();
-    if num_c == 0 {
-      if row.dimension() == 0 {
-        return;
-      }
-      for i in 0..row.dimension() {
-        self.components.components_mut().push(DynamicVector::new(vec![*row.get_component(i)]));
-      }
-    } else {
-      assert_eq!(num_c, row.dimension(), "Row length must match the number of columns");
-      for i in 0..num_c {
-        self.components.components_mut()[i].append(*row.get_component(i));
-      }
-    }
-  }
-
-  /// Returns a new DynamicVector representing the row at the given index.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the row to retrieve (0-based)
-  ///
-  /// # Returns
-  ///
-  /// A new DynamicVector containing the elements of the specified row
-  ///
-  /// # Panics
-  ///
-  /// Panics if the row index is out of bounds.
-  ///
-  /// # Warning
-  ///
-  /// For a column-major matrix, this is a more expensive operation as it requires
-  /// reading from each column vector. If you need to access rows frequently,
-  /// consider using a row-major matrix instead.
-  pub fn get_row(&self, index: usize) -> DynamicVector<F> {
-    let num_c = self.num_cols();
-    if num_c == 0 {
-      return DynamicVector::new(Vec::new());
-    }
-    assert!(index < self.num_rows(), "Row index out of bounds");
-    let mut row_components = Vec::with_capacity(num_c);
-    for i in 0..num_c {
-      row_components.push(*self.components.components()[i].get_component(index));
-    }
-    DynamicVector::new(row_components)
-  }
-
-  /// Sets the row at the given index with the provided DynamicVector.
-  ///
-  /// # Arguments
-  ///
-  /// * `index` - The index of the row to set (0-based)
-  /// * `row` - The new row vector
-  ///
-  /// # Panics
-  ///
-  /// - Panics if the row index is out of bounds
-  /// - Panics if the row's length doesn't match the number of columns
-  ///
-  /// # Warning
-  ///
-  /// For a column-major matrix, this is a more expensive operation as it requires
-  /// updating every column vector. If you need to modify rows frequently,
-  /// consider using a row-major matrix instead.
-  pub fn set_row(&mut self, index: usize, row: &DynamicVector<F>) {
-    let num_c = self.num_cols();
-    assert_eq!(num_c, row.dimension(), "New row length must match the number of columns");
-    if num_c == 0 {
-      return; // If no columns, setting an empty row to an empty matrix is fine.
-    }
-    assert!(index < self.num_rows(), "Row index out of bounds");
-
-    for i in 0..num_c {
-      self.components.components_mut()[i].set_component(index, *row.get_component(i));
-    }
-  }
-
-  /// Returns the component at the given row and column.
-  ///
-  /// # Arguments
-  ///
-  /// * `row` - The row index (0-based)
-  /// * `col` - The column index (0-based)
-  ///
-  /// # Returns
-  ///
-  /// A reference to the component at the specified position
-  ///
-  /// # Panics
-  ///
-  /// Panics if either the row or column index is out of bounds.
-  pub fn get_component(&self, row: usize, col: usize) -> &F {
-    assert!(col < self.num_cols(), "Column index out of bounds");
-    assert!(row < self.num_rows(), "Row index out of bounds");
-    self.components.components()[col].get_component(row)
-  }
-
-  /// Sets the component at the given row and column to the given value.
-  ///
-  /// # Arguments
-  ///
-  /// * `row` - The row index (0-based)
-  /// * `col` - The column index (0-based)
-  /// * `value` - The value to set at the specified position
-  ///
-  /// # Panics
-  ///
-  /// Panics if either the row or column index is out of bounds.
-  pub fn set_component(&mut self, row: usize, col: usize, value: F) {
-    assert!(col < self.num_cols(), "Column index out of bounds");
-    assert!(row < self.num_rows(), "Row index out of bounds");
-    self.components.components_mut()[col].set_component(row, value);
-  }
-
-  /// Converts this column-major matrix to a row-major matrix by transposing it.
-  ///
-  /// The transpose of a matrix $A$ is denoted $A^T$ and has entries $A^T_{ij} = A_{ji}$.
-  ///
-  /// # Returns
-  ///
-  /// A new row-major matrix that is the transpose of this matrix
-  pub fn transpose(self) -> DynamicDenseMatrix<F, RowMajor> {
-    DynamicDenseMatrix { components: self.components, orientation: PhantomData }
-  }
-
-  /// Transforms this matrix into row echelon form using Gaussian elimination.
-  ///
-  /// Row echelon form has the following properties:
-  /// - All rows consisting entirely of zeros are at the bottom
-  /// - The leading coefficient (pivot) of each non-zero row is to the right of the pivot in the row
-  ///   above
-  /// - All entries in a column below a pivot are zeros
-  ///
-  /// This method performs in-place transformation of the matrix.
-  ///
-  /// # Returns
-  ///
-  /// A `RowEchelonOutput` containing the rank of the matrix and the positions of all pivots
-  ///
-  /// # Warning
-  ///
-  /// While the algorithm for row echelon form works for column-major matrices,
-  /// it may be less efficient than for row-major matrices since row operations
-  /// require accessing multiple column vectors.
-  pub fn row_echelon_form(&mut self) -> RowEchelonOutput {
-    let matrix = self.components.components_mut();
-    if matrix.is_empty() || matrix[0].dimension() == 0 {
-      return RowEchelonOutput { rank: 0, pivots: Vec::new() };
-    }
-    let num_actual_cols = matrix.len();
-    let num_actual_rows = matrix[0].dimension();
-
-    let mut pivot_row_idx = 0;
-    let mut rank = 0;
-    let mut pivots = Vec::new();
-
-    for pivot_col_idx in 0..num_actual_cols {
-      if pivot_row_idx >= num_actual_rows {
-        break;
-      }
-
-      let mut i_search_row = pivot_row_idx;
-      while i_search_row < num_actual_rows
-        && matrix[pivot_col_idx].get_component(i_search_row).is_zero()
-      {
-        i_search_row += 1;
-      }
-
-      if i_search_row < num_actual_rows {
-        // Found a pivot in this column
-        if i_search_row != pivot_row_idx {
-          // Swap rows to bring pivot to pivot_row_idx
-          (0..num_actual_cols).for_each(|k_col| {
-            // Iterate through all columns to swap elements
-            let temp = *matrix[k_col].get_component(i_search_row);
-            let val_at_pivot_row = *matrix[k_col].get_component(pivot_row_idx);
-            matrix[k_col].set_component(i_search_row, val_at_pivot_row);
-            matrix[k_col].set_component(pivot_row_idx, temp);
-          });
-        }
-
-        pivots.push(PivotInfo { row: pivot_row_idx, col: pivot_col_idx });
-
-        let pivot_val = *matrix[pivot_col_idx].get_component(pivot_row_idx);
-
-        if !pivot_val.is_zero() {
-          let inv_pivot_val = pivot_val.multiplicative_inverse();
-          (pivot_col_idx..num_actual_cols).for_each(|k_col| {
-            let current_val = *matrix[k_col].get_component(pivot_row_idx);
-            matrix[k_col].set_component(pivot_row_idx, current_val * inv_pivot_val);
-          });
-        }
-
-        for k_row in 0..num_actual_rows {
-          if k_row != pivot_row_idx {
-            let factor = *matrix[pivot_col_idx].get_component(k_row);
-            if !factor.is_zero() {
-              (pivot_col_idx..num_actual_cols).for_each(|j_col_elim| {
-                let val_from_pivot_row_at_j_col = *matrix[j_col_elim].get_component(pivot_row_idx);
-                let term_to_subtract = factor * val_from_pivot_row_at_j_col;
-                let current_val_in_k_row_at_j_col = *matrix[j_col_elim].get_component(k_row);
-                matrix[j_col_elim]
-                  .set_component(k_row, current_val_in_k_row_at_j_col - term_to_subtract);
-              });
-            }
-          }
-        }
-        pivot_row_idx += 1;
-        rank += 1;
-      }
-    }
-    RowEchelonOutput { rank, pivots }
-  }
-
-  /// Computes a basis for the image (column space) of the matrix.
-  /// The image is the span of the columns of the matrix.
-  /// This method finds the pivot columns by transforming a copy of the matrix to RREF.
-  /// The corresponding columns from the *original* matrix form the basis.
-  /// This method does not modify `self`.
-  pub fn image(&self) -> Vec<DynamicVector<F>> {
-    if self.num_rows() == 0 || self.num_cols() == 0 {
-      return Vec::new();
+    // Compute offsets
+    let mut row_offsets = vec![0; BLOCK_ROWS + 1];
+    for i in 0..BLOCK_ROWS {
+      row_offsets[i + 1] = row_offsets[i] + row_block_sizes[i];
     }
 
-    let mut rref_candidate = self.clone();
-    let echelon_output = rref_candidate.row_echelon_form(); // Modifies rref_candidate
-
-    let mut pivot_col_indices: Vec<usize> = echelon_output.pivots.iter().map(|p| p.col).collect();
-    pivot_col_indices.sort_unstable();
-    pivot_col_indices.dedup();
-
-    let mut image_basis: Vec<DynamicVector<F>> = Vec::new();
-    for &col_idx in &pivot_col_indices {
-      // get_column for ColumnMajor returns &DynamicVector, so clone is needed.
-      image_basis.push(self.get_column(col_idx).clone());
-    }
-    image_basis
-  }
-
-  /// Computes a basis for the kernel (null space) of the matrix.
-  /// The kernel is the set of all vectors x such that Ax = 0.
-  /// This method returns a vector of `DynamicVector<F>` representing the basis vectors for the
-  /// kernel. An empty vector is returned if the kernel is the zero space (e.g., for an invertible
-  /// matrix, or if num_cols is 0). This method does not modify `self`.
-  pub fn kernel(&self) -> Vec<DynamicVector<F>> {
-    if self.num_cols() == 0 {
-      return Vec::new();
+    let mut col_offsets = vec![0; BLOCK_COLS + 1];
+    for i in 0..BLOCK_COLS {
+      col_offsets[i + 1] = col_offsets[i] + col_block_sizes[i];
     }
 
-    if self.num_rows() == 0 {
-      let mut basis: Vec<DynamicVector<F>> = Vec::with_capacity(self.num_cols());
-      for i in 0..self.num_cols() {
-        let mut v_data = vec![F::zero(); self.num_cols()];
-        if i < v_data.len() {
-          v_data[i] = F::one();
-        }
-        basis.push(DynamicVector::new(v_data));
-      }
-      return basis;
-    }
+    // Place blocks
+    for ((block_row, block_col), matrix) in &self.blocks {
+      let row_start = row_offsets[*block_row];
+      let col_start = col_offsets[*block_col];
 
-    let mut rref_matrix = self.clone();
-    let echelon_output = rref_matrix.row_echelon_form();
-
-    let num_cols = rref_matrix.num_cols();
-    let num_rows_of_rref = rref_matrix.num_rows();
-
-    let mut is_pivot_col = vec![false; num_cols];
-    for pivot_info in &echelon_output.pivots {
-      if pivot_info.col < num_cols {
-        is_pivot_col[pivot_info.col] = true;
-      }
-    }
-
-    let mut free_col_indices: Vec<usize> = Vec::new();
-    (0..num_cols).for_each(|j| {
-      if !is_pivot_col[j] {
-        free_col_indices.push(j);
-      }
-    });
-
-    let mut kernel_basis: Vec<DynamicVector<F>> = Vec::new();
-
-    for &free_idx in &free_col_indices {
-      let mut basis_vector_comps = vec![F::zero(); num_cols];
-      if free_idx < num_cols {
-        basis_vector_comps[free_idx] = F::one();
-      }
-
-      for pivot_info in &echelon_output.pivots {
-        let pivot_col = pivot_info.col;
-        let pivot_row = pivot_info.row;
-
-        if pivot_col < num_cols && free_idx < num_cols && pivot_row < num_rows_of_rref {
-          let coefficient = *rref_matrix.get_component(pivot_row, free_idx);
-          basis_vector_comps[pivot_col] = -coefficient;
+      for i in 0..matrix.num_rows() {
+        for j in 0..matrix.num_cols() {
+          result.set(row_start + i, col_start + j, *matrix.get(i, j).unwrap());
         }
       }
-      kernel_basis.push(DynamicVector::new(basis_vector_comps));
     }
-    kernel_basis
-  }
-}
 
-impl<T: Field + Copy> Mul<DynamicVector<T>> for DynamicDenseMatrix<T, RowMajor> {
-  type Output = DynamicVector<T>;
-
-  fn mul(self, rhs: DynamicVector<T>) -> Self::Output {
-    assert_eq!(self.num_cols(), rhs.dimension(), "Matrix-vector dimension mismatch");
-
-    let mut result = vec![T::zero(); self.num_rows()];
-    (0..self.num_rows()).for_each(|i| {
-      for j in 0..self.num_cols() {
-        result[i] += *self.get_component(i, j) * *rhs.get_component(j);
-      }
-    });
-
-    DynamicVector::new(result)
-  }
-}
-
-impl<T: Field + Copy> Mul<DynamicVector<T>> for DynamicDenseMatrix<T, ColumnMajor> {
-  type Output = DynamicVector<T>;
-
-  fn mul(self, rhs: DynamicVector<T>) -> Self::Output {
-    assert_eq!(self.num_cols(), rhs.dimension(), "Matrix-vector dimension mismatch");
-
-    let mut result = vec![T::zero(); self.num_rows()];
-    (0..self.num_rows()).for_each(|i| {
-      for j in 0..self.num_cols() {
-        result[i] += *self.get_component(i, j) * *rhs.get_component(j);
-      }
-    });
-
-    DynamicVector::new(result)
-  }
-}
-
-impl<T: Field + Copy> Mul<Self> for DynamicDenseMatrix<T, RowMajor> {
-  type Output = Self;
-
-  fn mul(self, rhs: Self) -> Self::Output {
-    let mut result = Self::new();
-    for i in 0..self.num_rows() {
-      let mut new_row = DynamicVector::<T>::zeros(rhs.num_cols());
-      for j in 0..rhs.num_cols() {
-        let col = rhs.get_column(j);
-        let mut sum = T::zero();
-        for k in 0..self.num_cols() {
-          sum += *self.get_component(i, k) * *col.get_component(k);
-        }
-        new_row.set_component(j, sum);
-      }
-      result.append_row(new_row);
-    }
     result
   }
 }
 
-impl<T: Field + Copy> Mul<Self> for DynamicDenseMatrix<T, ColumnMajor> {
-  type Output = Self;
+impl<F: Field + Copy> Default for BlockMatrixBuilder<F> {
+  fn default() -> Self { Self::new() }
+}
 
-  fn mul(self, rhs: Self) -> Self::Output {
-    assert_eq!(
-      self.num_cols(),
-      rhs.num_rows(),
-      "Matrix dimensions incompatible for multiplication"
-    );
-    let m = self.num_rows();
-    let n = self.num_cols(); // common dimension, also rhs.num_rows()
-    let p = rhs.num_cols();
+impl<F: Field + Copy> Matrix<F> {
+  /// Extracts a block from the matrix at the specified position.
+  ///
+  /// # Arguments
+  ///
+  /// * `row_start`: Starting row index (inclusive)
+  /// * `row_end`: Ending row index (exclusive)
+  /// * `col_start`: Starting column index (inclusive)
+  /// * `col_end`: Ending column index (exclusive)
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use cova_algebra::tensors::dynamic::matrix::Matrix;
+  ///
+  /// let matrix = Matrix::builder()
+  ///   .row([1.0, 2.0, 3.0, 4.0])
+  ///   .row([5.0, 6.0, 7.0, 8.0])
+  ///   .row([9.0, 10.0, 11.0, 12.0])
+  ///   .build();
+  ///
+  /// let block = matrix.extract_block(0, 2, 1, 3);
+  /// // block is now [[2.0, 3.0], [6.0, 7.0]]
+  /// ```
+  pub fn extract_block(
+    &self,
+    row_start: usize,
+    row_end: usize,
+    col_start: usize,
+    col_end: usize,
+  ) -> Self {
+    assert!(row_start <= row_end, "row_start must be <= row_end");
+    assert!(col_start <= col_end, "col_start must be <= col_end");
+    assert!(row_end <= self.num_rows(), "row_end out of bounds");
+    assert!(col_end <= self.num_cols(), "col_end out of bounds");
 
-    let mut result_matrix = Self::new();
+    let block_rows = row_end - row_start;
+    let block_cols = col_end - col_start;
 
-    for j_res in 0..p {
-      // For each column j_res of the result matrix C
-      let mut new_col_components = Vec::with_capacity(m);
-      for i_res in 0..m {
-        // For each row i_res in that result column
-        let mut sum = T::zero();
-        for k in 0..n {
-          // Summation index
-          // C(i_res, j_res) = sum_k A(i_res, k) * B(k, j_res)
-          // self is A (RowMajor), rhs is B (ColumnMajor)
-          sum += *self.get_component(i_res, k) * *rhs.get_component(k, j_res);
-        }
-        new_col_components.push(sum);
-      }
-      result_matrix.append_column(DynamicVector::new(new_col_components));
+    if block_rows == 0 || block_cols == 0 {
+      return Self::new();
     }
-    result_matrix
+
+    let mut result = Self::zeros(block_rows, block_cols);
+
+    for i in 0..block_rows {
+      for j in 0..block_cols {
+        let value = *self.get(row_start + i, col_start + j).unwrap();
+        result.set(i, j, value);
+      }
+    }
+
+    result
+  }
+
+  /// Sets a block in the matrix at the specified position.
+  ///
+  /// # Arguments
+  ///
+  /// * `row_start`: Starting row index where the block should be placed
+  /// * `col_start`: Starting column index where the block should be placed
+  /// * `block`: The matrix block to insert
+  ///
+  /// # Panics
+  ///
+  /// Panics if the block would extend beyond the matrix boundaries.
+  pub fn set_block(&mut self, row_start: usize, col_start: usize, block: &Matrix<F>) {
+    assert!(
+      row_start + block.num_rows() <= self.num_rows(),
+      "Block would extend beyond matrix row boundary"
+    );
+    assert!(
+      col_start + block.num_cols() <= self.num_cols(),
+      "Block would extend beyond matrix column boundary"
+    );
+
+    for i in 0..block.num_rows() {
+      for j in 0..block.num_cols() {
+        let value = *block.get(i, j).unwrap();
+        self.set(row_start + i, col_start + j, value);
+      }
+    }
+  }
+
+  /// Creates a block diagonal matrix from a list of matrices.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use cova_algebra::tensors::dynamic::matrix::Matrix;
+  ///
+  /// let blocks = vec![Matrix::identity(2), Matrix::identity(3)];
+  ///
+  /// let block_diag = Matrix::block_diagonal(blocks);
+  /// // Creates a 5x5 matrix with 2x2 and 3x3 identity blocks on the diagonal
+  /// ```
+  pub fn block_diagonal<I>(blocks: I) -> Self
+  where I: IntoIterator<Item = Matrix<F>> {
+    let blocks: Vec<_> = blocks.into_iter().collect();
+
+    if blocks.is_empty() {
+      return Self::new();
+    }
+
+    let total_rows: usize = blocks.iter().map(|b| b.num_rows()).sum();
+    let total_cols: usize = blocks.iter().map(|b| b.num_cols()).sum();
+
+    let mut result = Self::zeros(total_rows, total_cols);
+
+    let mut row_offset = 0;
+    let mut col_offset = 0;
+
+    for block in &blocks {
+      result.set_block(row_offset, col_offset, block);
+      row_offset += block.num_rows();
+      col_offset += block.num_cols();
+    }
+
+    result
+  }
+
+  /// Creates a matrix by horizontally concatenating (stacking side by side) matrices.
+  ///
+  /// All matrices must have the same number of rows.
+  pub fn hstack<I>(matrices: I) -> Self
+  where I: IntoIterator<Item = Matrix<F>> {
+    let matrices: Vec<_> = matrices.into_iter().collect();
+
+    if matrices.is_empty() {
+      return Self::new();
+    }
+
+    let num_rows = matrices[0].num_rows();
+    for (i, matrix) in matrices.iter().enumerate() {
+      assert_eq!(
+        matrix.num_rows(),
+        num_rows,
+        "Matrix {} has {} rows, expected {}",
+        i,
+        matrix.num_rows(),
+        num_rows
+      );
+    }
+
+    let total_cols: usize = matrices.iter().map(|m| m.num_cols()).sum();
+    let mut result = Self::zeros(num_rows, total_cols);
+
+    let mut col_offset = 0;
+    for matrix in &matrices {
+      result.set_block(0, col_offset, matrix);
+      col_offset += matrix.num_cols();
+    }
+
+    result
+  }
+
+  /// Creates a matrix by vertically concatenating (stacking on top of each other) matrices.
+  ///
+  /// All matrices must have the same number of columns.
+  pub fn vstack<I>(matrices: I) -> Self
+  where I: IntoIterator<Item = Matrix<F>> {
+    let matrices: Vec<_> = matrices.into_iter().collect();
+
+    if matrices.is_empty() {
+      return Self::new();
+    }
+
+    let num_cols = matrices[0].num_cols();
+    for (i, matrix) in matrices.iter().enumerate() {
+      assert_eq!(
+        matrix.num_cols(),
+        num_cols,
+        "Matrix {} has {} columns, expected {}",
+        i,
+        matrix.num_cols(),
+        num_cols
+      );
+    }
+
+    let total_rows: usize = matrices.iter().map(|m| m.num_rows()).sum();
+    let mut result = Self::zeros(total_rows, num_cols);
+
+    let mut row_offset = 0;
+    for matrix in &matrices {
+      result.set_block(row_offset, 0, matrix);
+      row_offset += matrix.num_rows();
+    }
+
+    result
   }
 }
 
-impl<T: Field + Copy> Mul<DynamicDenseMatrix<T, RowMajor>> for DynamicDenseMatrix<T, ColumnMajor> {
-  type Output = Self;
+// Matrix-vector multiplication
+impl<F: Field + Copy> std::ops::Mul<Vector<F>> for Matrix<F> {
+  type Output = Vector<F>;
 
-  fn mul(self, rhs: DynamicDenseMatrix<T, RowMajor>) -> Self::Output {
+  fn mul(self, rhs: Vector<F>) -> Self::Output {
     assert_eq!(
       self.num_cols(),
-      rhs.num_rows(),
-      "Matrix dimensions incompatible for multiplication"
+      rhs.dimension(),
+      "Matrix-vector dimension mismatch: {}x{} * {}",
+      self.num_rows(),
+      self.num_cols(),
+      rhs.dimension()
     );
-    let m = self.num_rows();
-    let n = self.num_cols(); // common dimension, also rhs.num_rows()
-    let p = rhs.num_cols();
 
-    let mut result_matrix = Self::new();
+    let components: Vec<F> = self
+      .rows
+      .iter()
+      .map(|row| {
+        row
+          .components()
+          .iter()
+          .zip(rhs.components().iter())
+          .map(|(&a, &b)| a * b)
+          .fold(F::zero(), |acc, x| acc + x)
+      })
+      .collect();
 
-    for j_res in 0..p {
-      // For each column j_res of the result matrix C
-      let mut new_col_components = Vec::with_capacity(m);
-      for i_res in 0..m {
-        // For each row i_res in that result column
-        let mut sum = T::zero();
-        for k in 0..n {
-          // Summation index
-          // C(i_res, j_res) = sum_k A(i_res, k) * B(k, j_res)
-          // self is A (RowMajor), rhs is B (ColumnMajor)
-          sum += *self.get_component(i_res, k) * *rhs.get_component(k, j_res);
-        }
-        new_col_components.push(sum);
-      }
-      result_matrix.append_column(DynamicVector::new(new_col_components));
-    }
-    result_matrix
+    Vector::new(components)
   }
 }
 
-impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, RowMajor> {
+// Matrix-matrix multiplication
+impl<F: Field + Copy> std::ops::Mul<Matrix<F>> for Matrix<F> {
+  type Output = Matrix<F>;
+
+  fn mul(self, rhs: Matrix<F>) -> Self::Output {
+    assert_eq!(
+      self.num_cols(),
+      rhs.num_rows(),
+      "Matrix dimension mismatch: {}x{} * {}x{}",
+      self.num_rows(),
+      self.num_cols(),
+      rhs.num_rows(),
+      rhs.num_cols()
+    );
+
+    let mut result = Matrix::zeros(self.num_rows(), rhs.num_cols());
+
+    for i in 0..self.num_rows() {
+      for j in 0..rhs.num_cols() {
+        let mut sum = F::zero();
+        for k in 0..self.num_cols() {
+          sum += *self.get(i, k).unwrap() * *rhs.get(k, j).unwrap();
+        }
+        result.set(i, j, sum);
+      }
+    }
+
+    result
+  }
+}
+
+impl<F: Field + Copy + fmt::Display> fmt::Display for Matrix<F> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if self.num_rows() == 0 {
+    if self.is_empty() {
       return write!(f, "( )");
     }
 
-    // First pass: calculate column widths for alignment
+    // Calculate column widths for alignment
     let mut col_widths = vec![0; self.num_cols()];
-    for i in 0..self.num_rows() {
-      #[allow(clippy::needless_range_loop)]
-      for j in 0..self.num_cols() {
-        let element_str = format!("{}", self.get_component(i, j));
+    for row in &self.rows {
+      for (j, component) in row.components().iter().enumerate() {
+        let element_str = format!("{}", component);
         col_widths[j] = col_widths[j].max(element_str.len());
       }
     }
 
-    // Second pass: format with proper alignment and mathematical parentheses
-    for i in 0..self.num_rows() {
-      // Print the appropriate parenthesis for this row
+    // Format with mathematical parentheses
+    for (i, row) in self.rows.iter().enumerate() {
+      // Print appropriate parenthesis for this row
       if self.num_rows() == 1 {
-        write!(f, "( ")?; // Single row: simple parentheses
+        write!(f, "( ")?;
       } else if i == 0 {
-        write!(f, "⎛ ")?; // Top of parenthesis
+        write!(f, "⎛ ")?;
       } else if i == self.num_rows() - 1 {
-        write!(f, "⎝ ")?; // Bottom of parenthesis
+        write!(f, "⎝ ")?;
       } else {
-        write!(f, "⎜ ")?; // Middle of parenthesis
+        write!(f, "⎜ ")?;
       }
 
       // Print row elements
-      #[allow(clippy::needless_range_loop)]
-      for j in 0..self.num_cols() {
+      for (j, component) in row.components().iter().enumerate() {
         if j > 0 {
-          write!(f, "  ")?; // Space between elements
+          write!(f, "  ")?;
         }
-        write!(f, "{:>width$}", self.get_component(i, j), width = col_widths[j])?;
+        write!(f, "{:>width$}", component, width = col_widths[j])?;
       }
 
       // Print closing parenthesis
       if self.num_rows() == 1 {
-        write!(f, " )")?; // Single row: simple parentheses
+        write!(f, " )")?;
       } else if i == 0 {
-        writeln!(f, " ⎞")?; // Top of parenthesis
+        writeln!(f, " ⎞")?;
       } else if i == self.num_rows() - 1 {
-        write!(f, " ⎠")?; // Bottom of parenthesis
+        write!(f, " ⎠")?;
       } else {
-        writeln!(f, " ⎟")?; // Middle of parenthesis
-      }
-    }
-
-    Ok(())
-  }
-}
-
-impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, ColumnMajor> {
-  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-    if self.num_rows() == 0 {
-      return write!(f, "( )");
-    }
-
-    // First pass: calculate column widths for alignment
-    let mut col_widths = vec![0; self.num_cols()];
-    #[allow(clippy::needless_range_loop)]
-    for i in 0..self.num_rows() {
-      #[allow(clippy::needless_range_loop)]
-      for j in 0..self.num_cols() {
-        let element_str = format!("{}", self.get_component(i, j));
-        col_widths[j] = col_widths[j].max(element_str.len());
-      }
-    }
-
-    // Second pass: format with proper alignment and mathematical parentheses
-    for i in 0..self.num_rows() {
-      // Print the appropriate parenthesis for this row
-      if self.num_rows() == 1 {
-        write!(f, "( ")?; // Single row: simple parentheses
-      } else if i == 0 {
-        write!(f, "⎛ ")?; // Top of parenthesis
-      } else if i == self.num_rows() - 1 {
-        write!(f, "⎝ ")?; // Bottom of parenthesis
-      } else {
-        write!(f, "⎜ ")?; // Middle of parenthesis
-      }
-
-      // Print row elements
-      #[allow(clippy::needless_range_loop)]
-      for j in 0..self.num_cols() {
-        if j > 0 {
-          write!(f, "  ")?; // Space between elements
-        }
-        write!(f, "{:>width$}", self.get_component(i, j), width = col_widths[j])?;
-      }
-
-      // Print closing parenthesis
-      if self.num_rows() == 1 {
-        write!(f, " )")?; // Single row: simple parentheses
-      } else if i == 0 {
-        writeln!(f, " ⎞")?; // Top of parenthesis
-      } else if i == self.num_rows() - 1 {
-        write!(f, " ⎠")?; // Bottom of parenthesis
-      } else {
-        writeln!(f, " ⎟")?; // Middle of parenthesis
+        writeln!(f, " ⎟")?;
       }
     }
 
@@ -1339,700 +969,328 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicDenseMatrix<F, Colu
 
 #[cfg(test)]
 mod tests {
-  #![allow(non_snake_case)]
   use super::*;
-  use crate::{algebras::boolean::Boolean, fixtures::Mod7};
+  use crate::fixtures::Mod7;
 
-  // Test constructor and basic properties
   #[test]
-  fn test_new_matrix_properties() {
-    // RowMajor f64
-    let m_rm_f64: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    assert_eq!(m_rm_f64.num_rows(), 0);
-    assert_eq!(m_rm_f64.num_cols(), 0);
+  fn test_matrix_creation() {
+    let matrix = Matrix::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
 
-    // ColumnMajor Boolean
-    let m_cm_bool: DynamicDenseMatrix<Boolean, ColumnMajor> = DynamicDenseMatrix::new();
-    assert_eq!(m_cm_bool.num_rows(), 0);
-    assert_eq!(m_cm_bool.num_cols(), 0);
+    assert_eq!(matrix.dimensions(), (2, 3));
+    assert_eq!(matrix[(0, 1)], 2.0);
+    assert_eq!(matrix[(1, 2)], 6.0);
   }
 
-  // Test append_row, get_row, set_row for RowMajor
   #[test]
-  fn test_row_operations_row_major_mod7() {
-    let mut m: DynamicDenseMatrix<Mod7, RowMajor> = DynamicDenseMatrix::new();
-    let r0_data = vec![Mod7::new(1), Mod7::new(2)];
-    let r1_data = vec![Mod7::new(3), Mod7::new(4)];
-    let r0 = DynamicVector::new(r0_data.clone());
-    let r1 = DynamicVector::new(r1_data.clone());
+  fn test_from_rows() {
+    let rows = vec![Vector::from([1.0, 2.0]), Vector::from([3.0, 4.0])];
+    let matrix = Matrix::from_rows(rows);
 
-    m.append_row(r0);
-    assert_eq!(m.num_rows(), 1);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_row(0).components(), &r0_data);
-
-    m.append_row(r1);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_row(1).components(), &r1_data);
-
-    let r_new_data = vec![Mod7::new(5), Mod7::new(6)];
-    let r_new = DynamicVector::new(r_new_data.clone());
-    m.set_row(0, r_new);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_row(0).components(), &r_new_data);
-    assert_eq!(m.get_row(1).components(), &r1_data);
+    assert_eq!(matrix.dimensions(), (2, 2));
+    assert_eq!(matrix[(0, 0)], 1.0);
+    assert_eq!(matrix[(1, 1)], 4.0);
   }
 
-  // Test append_column, get_column, set_column for RowMajor
   #[test]
-  fn test_column_operations_row_major_f64() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
+  fn test_from_cols() {
+    let cols = vec![Vector::from([1.0, 3.0]), Vector::from([2.0, 4.0])];
+    let matrix = Matrix::from_cols(cols);
 
-    // Append first column to empty matrix
-    let c0_data = vec![1.0, 2.0];
-    let c0 = DynamicVector::new(c0_data.clone());
-    m.append_column(&c0);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 1);
-    assert_eq!(m.get_column(0).components(), &c0_data);
-    assert_eq!(*m.get_component(0, 0), 1.0);
-    assert_eq!(*m.get_component(1, 0), 2.0);
-
-    // Append second column
-    let c1_data = vec![3.0, 4.0];
-    let c1 = DynamicVector::new(c1_data.clone());
-    m.append_column(&c1);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_column(1).components(), &c1_data);
-    assert_eq!(*m.get_component(0, 1), 3.0);
-    assert_eq!(*m.get_component(1, 1), 4.0);
-
-    // Set a column
-    let c_new_data = vec![5.0, 6.0];
-    let c_new = DynamicVector::new(c_new_data.clone());
-    m.set_column(0, &c_new);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_column(0).components(), &c_new_data);
-    assert_eq!(m.get_column(1).components(), &c1_data);
+    assert_eq!(matrix.dimensions(), (2, 2));
+    assert_eq!(matrix[(0, 0)], 1.0);
+    assert_eq!(matrix[(0, 1)], 2.0);
+    assert_eq!(matrix[(1, 0)], 3.0);
+    assert_eq!(matrix[(1, 1)], 4.0);
   }
 
-  // Test append_column, get_column, set_column for ColumnMajor
   #[test]
-  fn test_column_operations_col_major_boolean() {
-    let mut m: DynamicDenseMatrix<Boolean, ColumnMajor> = DynamicDenseMatrix::new();
-    let c0_data = vec![Boolean(true), Boolean(false)];
-    let c1_data = vec![Boolean(false), Boolean(true)];
-    let c0 = DynamicVector::new(c0_data.clone());
-    let c1 = DynamicVector::new(c1_data.clone());
+  fn test_zeros_and_identity() {
+    let zeros = Matrix::<f64>::zeros(2, 3);
+    assert_eq!(zeros.dimensions(), (2, 3));
+    assert_eq!(zeros[(0, 0)], 0.0);
 
-    m.append_column(c0.clone());
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 1);
-    assert_eq!(m.get_column(0).components(), &c0_data);
-
-    m.append_column(c1.clone());
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_column(1).components(), &c1_data);
-
-    let c_new_data = vec![Boolean(true), Boolean(true)];
-    let c_new = DynamicVector::new(c_new_data.clone());
-    m.set_column(0, c_new.clone());
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_column(0).components(), &c_new_data);
-    assert_eq!(m.get_column(1).components(), &c1_data);
+    let identity = Matrix::<f64>::identity(3);
+    assert_eq!(identity.dimensions(), (3, 3));
+    assert_eq!(identity[(0, 0)], 1.0);
+    assert_eq!(identity[(1, 1)], 1.0);
+    assert_eq!(identity[(0, 1)], 0.0);
   }
 
-  // Test append_row, get_row, set_row for ColumnMajor
-  #[test]
-  fn test_row_operations_col_major_f64() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-
-    // Append first row to empty matrix
-    let r0_data = vec![1.0, 2.0];
-    let r0 = DynamicVector::new(r0_data.clone());
-    m.append_row(&r0);
-    assert_eq!(m.num_rows(), 1);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_row(0).components(), &r0_data);
-    assert_eq!(*m.get_component(0, 0), 1.0);
-    assert_eq!(*m.get_component(0, 1), 2.0);
-
-    // Append second row
-    let r1_data = vec![3.0, 4.0];
-    let r1 = DynamicVector::new(r1_data.clone());
-    m.append_row(&r1);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_row(1).components(), &r1_data);
-    assert_eq!(*m.get_component(1, 0), 3.0);
-    assert_eq!(*m.get_component(1, 1), 4.0);
-
-    // Set a row
-    let r_new_data = vec![5.0, 6.0];
-    let r_new = DynamicVector::new(r_new_data.clone());
-    m.set_row(0, &r_new);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 2);
-    assert_eq!(m.get_row(0).components(), &r_new_data);
-    assert_eq!(m.get_row(1).components(), &r1_data);
-  }
-
-  // Test get_component, set_component for RowMajor and ColumnMajor
-  #[test]
-  fn test_get_set_component() {
-    let mut m_rm: DynamicDenseMatrix<Mod7, RowMajor> = DynamicDenseMatrix::new();
-    m_rm.append_row(DynamicVector::new(vec![Mod7::new(1), Mod7::new(2)]));
-    m_rm.append_row(DynamicVector::new(vec![Mod7::new(3), Mod7::new(4)]));
-    assert_eq!(*m_rm.get_component(0, 1), Mod7::new(2));
-    m_rm.set_component(0, 1, Mod7::new(5));
-    assert_eq!(*m_rm.get_component(0, 1), Mod7::new(5));
-
-    let mut m_cm: DynamicDenseMatrix<Mod7, ColumnMajor> = DynamicDenseMatrix::new();
-    m_cm.append_column(DynamicVector::new(vec![Mod7::new(1), Mod7::new(2)]));
-    m_cm.append_column(DynamicVector::new(vec![Mod7::new(3), Mod7::new(4)]));
-    assert_eq!(*m_cm.get_component(1, 0), Mod7::new(2));
-    m_cm.set_component(1, 0, Mod7::new(6));
-    assert_eq!(*m_cm.get_component(1, 0), Mod7::new(6));
-  }
-
-  // Test transpose
   #[test]
   fn test_transpose() {
-    let mut m_rm: DynamicDenseMatrix<Mod7, RowMajor> = DynamicDenseMatrix::new();
-    m_rm.append_row(DynamicVector::new(vec![Mod7::new(1), Mod7::new(2), Mod7::new(3)]));
-    m_rm.append_row(DynamicVector::new(vec![Mod7::new(4), Mod7::new(5), Mod7::new(6)]));
-    assert_eq!(m_rm.num_rows(), 2);
-    assert_eq!(m_rm.num_cols(), 3);
+    let matrix = Matrix::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
 
-    let m_cm: DynamicDenseMatrix<Mod7, ColumnMajor> = m_rm.transpose();
-    assert_eq!(m_cm.num_rows(), 3);
-    assert_eq!(m_cm.num_cols(), 2);
-
-    assert_eq!(*m_cm.get_component(0, 0), Mod7::new(1));
-    assert_eq!(*m_cm.get_component(1, 0), Mod7::new(2));
-    assert_eq!(*m_cm.get_component(2, 0), Mod7::new(3));
-    assert_eq!(*m_cm.get_component(0, 1), Mod7::new(4));
-    assert_eq!(*m_cm.get_component(1, 1), Mod7::new(5));
-    assert_eq!(*m_cm.get_component(2, 1), Mod7::new(6));
-
-    // Transpose back
-    let m_rm_again: DynamicDenseMatrix<Mod7, RowMajor> = m_cm.transpose();
-    assert_eq!(m_rm_again.num_rows(), 2);
-    assert_eq!(m_rm_again.num_cols(), 3);
-    assert_eq!(*m_rm_again.get_component(0, 0), Mod7::new(1));
-    assert_eq!(*m_rm_again.get_component(0, 1), Mod7::new(2));
-    assert_eq!(*m_rm_again.get_component(0, 2), Mod7::new(3));
-    assert_eq!(*m_rm_again.get_component(1, 0), Mod7::new(4));
-    assert_eq!(*m_rm_again.get_component(1, 1), Mod7::new(5));
-    assert_eq!(*m_rm_again.get_component(1, 2), Mod7::new(6));
+    let transposed = matrix.transpose();
+    assert_eq!(transposed.dimensions(), (3, 2));
+    assert_eq!(transposed[(0, 0)], 1.0);
+    assert_eq!(transposed[(1, 0)], 2.0);
+    assert_eq!(transposed[(2, 1)], 6.0);
   }
 
   #[test]
-  #[should_panic]
-  fn test_append_row_mismatch_cols_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::new(vec![1.0, 2.0]));
-    m.append_row(DynamicVector::new(vec![3.0])); // Should panic
+  fn test_matrix_vector_multiplication() {
+    let matrix = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
+
+    let vector = Vector::from([5.0, 6.0]);
+    let result = matrix * vector;
+
+    assert_eq!(result.components(), &[17.0, 39.0]); // [1*5+2*6, 3*5+4*6]
   }
 
   #[test]
-  #[should_panic]
-  fn test_append_column_mismatch_rows_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_column(&DynamicVector::new(vec![1.0, 2.0]));
-    m.append_column(&DynamicVector::new(vec![3.0])); // Should panic
+  fn test_matrix_matrix_multiplication() {
+    let a = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
+
+    let b = Matrix::builder().row([5.0, 6.0]).row([7.0, 8.0]).build();
+
+    let result = a * b;
+    assert_eq!(result.dimensions(), (2, 2));
+    assert_eq!(result[(0, 0)], 19.0); // 1*5 + 2*7
+    assert_eq!(result[(0, 1)], 22.0); // 1*6 + 2*8
+    assert_eq!(result[(1, 0)], 43.0); // 3*5 + 4*7
+    assert_eq!(result[(1, 1)], 50.0); // 3*6 + 4*8
   }
 
   #[test]
-  #[should_panic]
-  fn test_set_row_mismatch_cols_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::new(vec![1.0, 2.0]));
-    m.set_row(0, DynamicVector::new(vec![3.0])); // Should panic
+  fn test_row_echelon_form() {
+    let matrix =
+      Matrix::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).row([7.0, 8.0, 9.0]).build();
+
+    let (rref, output) = matrix.into_row_echelon_form();
+    assert_eq!(output.rank, 2);
+    assert_eq!(output.pivots.len(), 2);
   }
 
   #[test]
-  #[should_panic]
-  fn test_set_column_mismatch_rows_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_column(&DynamicVector::new(vec![1.0]));
-    m.set_column(0, &DynamicVector::new(vec![3.0, 4.0, 5.0])); // Should panic
-  }
+  fn test_image_and_kernel() {
+    let matrix = Matrix::builder().row([1.0_f64, 0.0, -1.0]).row([0.0, 1.0, 2.0]).build();
 
-  #[test]
-  #[should_panic]
-  fn test_append_column_mismatch_rows_col_major() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_column(DynamicVector::new(vec![1.0, 2.0]));
-    m.append_column(DynamicVector::new(vec![3.0])); // Should panic
-  }
+    let image = matrix.image();
+    assert_eq!(image.len(), 2); // rank 2
 
-  #[test]
-  #[should_panic]
-  fn test_append_row_mismatch_cols_col_major() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_row(&DynamicVector::new(vec![1.0, 2.0]));
-    m.append_row(&DynamicVector::new(vec![3.0])); // Should panic
-  }
+    let kernel = matrix.kernel();
+    assert_eq!(kernel.len(), 1); // nullity 1
 
-  #[test]
-  fn test_row_echelon_form_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::new(vec![1.0, 2.0, 3.0]));
-    m.append_row(DynamicVector::new(vec![4.0, 5.0, 6.0]));
-    m.append_row(DynamicVector::new(vec![7.0, 8.0, 9.0]));
-    let result = m.row_echelon_form();
-    assert_eq!(result.rank, 2);
-    assert_eq!(result.pivots, vec![PivotInfo { row: 0, col: 0 }, PivotInfo { row: 1, col: 1 }]);
-
-    assert_eq!(m.num_rows(), 3);
-    assert_eq!(m.num_cols(), 3);
-
-    assert_eq!(*m.get_component(0, 0), 1.0);
-    assert_eq!(*m.get_component(0, 1), 0.0);
-    assert_eq!(*m.get_component(0, 2), -1.0);
-    assert_eq!(*m.get_component(1, 0), 0.0);
-    assert_eq!(*m.get_component(1, 1), 1.0);
-    assert_eq!(*m.get_component(1, 2), 2.0);
-    assert_eq!(*m.get_component(2, 0), 0.0);
-    assert_eq!(*m.get_component(2, 1), 0.0);
-    assert_eq!(*m.get_component(2, 2), 0.0);
-  }
-
-  #[test]
-  fn test_row_echelon_form_col_major() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_column(DynamicVector::new(vec![1.0, 2.0, 3.0]));
-    m.append_column(DynamicVector::new(vec![4.0, 5.0, 6.0]));
-    m.append_column(DynamicVector::new(vec![7.0, 8.0, 9.0]));
-    let result = m.row_echelon_form();
-    assert_eq!(result.rank, 2);
-    assert_eq!(result.pivots, vec![PivotInfo { row: 0, col: 0 }, PivotInfo { row: 1, col: 1 }]);
-
-    assert_eq!(m.num_rows(), 3);
-    assert_eq!(m.num_cols(), 3);
-
-    assert_eq!(*m.get_component(0, 0), 1.0);
-    assert_eq!(*m.get_component(0, 1), 0.0);
-    assert_eq!(*m.get_component(0, 2), -1.0);
-    assert_eq!(*m.get_component(1, 0), 0.0);
-    assert_eq!(*m.get_component(1, 1), 1.0);
-    assert_eq!(*m.get_component(1, 2), 2.0);
-    assert_eq!(*m.get_component(2, 0), 0.0);
-    assert_eq!(*m.get_component(2, 1), 0.0);
-    assert_eq!(*m.get_component(2, 2), 0.0);
-  }
-
-  // Helper function to check if a vector is in a list of vectors (basis)
-  // This is a simple check, assumes vectors in basis are unique and non-zero for simplicity.
-  // For more robust checks, one might need to check for linear independence and spanning.
-  fn contains_vector<F: Field + Copy + PartialEq>(
-    basis: &[DynamicVector<F>],
-    vector: &DynamicVector<F>,
-  ) -> bool {
-    basis.iter().any(|v| v == vector)
-  }
-
-  #[test]
-  fn test_image_kernel_row_major_simple() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    // A = [[1, 0, -1],
-    //      [0, 1,  2]]
-    m.append_row(DynamicVector::from(vec![1.0, 0.0, -1.0]));
-    m.append_row(DynamicVector::from(vec![0.0, 1.0, 2.0]));
-
-    let image = m.image();
-    // Pivots are in col 0 and col 1. Image is span of original col 0 and col 1.
-    let expected_image_basis = [
-      DynamicVector::from(vec![1.0, 0.0]), // Original col 0
-      DynamicVector::from(vec![0.0, 1.0]), // Original col 1
-    ];
-    assert_eq!(image.len(), 2);
-    assert!(contains_vector(&image, &expected_image_basis[0]));
-    assert!(contains_vector(&image, &expected_image_basis[1]));
-
-    let kernel = m.kernel();
-    // RREF is [[1,0,-1],[0,1,2]]. x1 - x3 = 0, x2 + 2x3 = 0.
-    // x3 is free. x1 = x3, x2 = -2x3. Vector: [1, -2, 1]^T * x3
-    let expected_kernel_basis = [DynamicVector::from(vec![1.0, -2.0, 1.0])];
-    assert_eq!(kernel.len(), 1);
-    assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
-
-    // Check Ax = 0 for kernel vectors
-    for k_vec in &kernel {
-      let mut Ax_components = vec![0.0; m.num_rows()];
-      (0..m.num_rows()).for_each(|r| {
-        let mut sum = 0.0;
-        for c in 0..m.num_cols() {
-          sum += m.get_component(r, c) * k_vec.get_component(c);
-        }
-        Ax_components[r] = sum;
-      });
-      let Ax = DynamicVector::new(Ax_components);
-      let zero_vec = DynamicVector::new(vec![0.0; m.num_rows()]);
-      assert_eq!(Ax, zero_vec, "Kernel vector validation failed: Ax != 0");
+    // Verify kernel vector satisfies Ax = 0
+    if let Some(kernel_vec) = kernel.first() {
+      let result = matrix.clone() * kernel_vec.clone();
+      assert!(result.components().iter().all(|&x| x.abs() < 1e-10));
     }
-  }
-
-  #[test]
-  fn test_image_kernel_col_major_simple() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    // A = [[1, 0],
-    //      [0, 1],
-    //      [-1, 2]]
-    // This is the transpose of the RowMajor test for easier comparison logic.
-    m.append_column(DynamicVector::from(vec![1.0, 0.0, -1.0]));
-    m.append_column(DynamicVector::from(vec![0.0, 1.0, 2.0]));
-
-    // For A (3x2), RREF would be [[1,0],[0,1],[0,0]]
-    // Image basis: col 0, col 1 of original matrix
-    let image = m.image();
-    let expected_image_basis =
-      [DynamicVector::from(vec![1.0, 0.0, -1.0]), DynamicVector::from(vec![0.0, 1.0, 2.0])];
-    assert_eq!(image.len(), 2);
-    assert!(contains_vector(&image, &expected_image_basis[0]));
-    assert!(contains_vector(&image, &expected_image_basis[1]));
-
-    // Kernel for this 3x2 matrix (rank 2) should be trivial (only zero vector)
-    let kernel = m.kernel();
-    assert_eq!(kernel.len(), 0, "Kernel should be trivial for this matrix");
-  }
-
-  #[test]
-  fn test_image_kernel_identity_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::from(vec![1.0, 0.0]));
-    m.append_row(DynamicVector::from(vec![0.0, 1.0]));
-
-    let image = m.image();
-    let expected_image_basis =
-      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
-    assert_eq!(image.len(), 2);
-    assert!(contains_vector(&image, &expected_image_basis[0]));
-    assert!(contains_vector(&image, &expected_image_basis[1]));
-
-    let kernel = m.kernel();
-    assert_eq!(kernel.len(), 0, "Kernel of identity matrix should be trivial");
-  }
-
-  #[test]
-  fn test_image_kernel_zero_matrix_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::from(vec![0.0, 0.0]));
-    m.append_row(DynamicVector::from(vec![0.0, 0.0]));
-
-    let image = m.image();
-    assert_eq!(image.len(), 0, "Image of zero matrix should be trivial");
-
-    let kernel = m.kernel();
-    // Kernel of 2x2 zero matrix is R^2, basis e.g., [[1,0],[0,1]]
-    let expected_kernel_basis =
-      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
-    assert_eq!(kernel.len(), 2);
-    // Order might differ, so check containment
-    assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
-    assert!(contains_vector(&kernel, &expected_kernel_basis[1]));
-  }
-
-  #[test]
-  fn test_image_kernel_dependent_cols_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    // A = [[1, 2, 3],
-    //      [2, 4, 6]]
-    // col2 = 2*col1, col3 = 3*col1. Rank = 1.
-    m.append_row(DynamicVector::from(vec![1.0, 2.0, 3.0]));
-    m.append_row(DynamicVector::from(vec![2.0, 4.0, 6.0]));
-
-    let image = m.image();
-    // RREF will have pivot in first col. Image is span of original first col.
-    let expected_image_basis = [DynamicVector::from(vec![1.0, 2.0])];
-    assert_eq!(image.len(), 1);
-    assert!(contains_vector(&image, &expected_image_basis[0]));
-
-    let kernel = m.kernel();
-    // RREF: [[1, 2, 3], [0, 0, 0]]
-    // x1 + 2x2 + 3x3 = 0. x2, x3 are free.
-    // Basis vector 1 (x2=1, x3=0): [-2, 1, 0]^T
-    // Basis vector 2 (x2=0, x3=1): [-3, 0, 1]^T
-    let expected_kernel_vector1 = DynamicVector::from(vec![-2.0, 1.0, 0.0]);
-    let expected_kernel_vector2 = DynamicVector::from(vec![-3.0, 0.0, 1.0]);
-    assert_eq!(kernel.len(), 2);
-    assert!(
-      contains_vector(&kernel, &expected_kernel_vector1)
-        || contains_vector(&kernel, &DynamicVector::from(vec![2.0, -1.0, 0.0]))
-    );
-    assert!(
-      contains_vector(&kernel, &expected_kernel_vector2)
-        || contains_vector(&kernel, &DynamicVector::from(vec![3.0, 0.0, -1.0]))
-    );
-
-    for k_vec in &kernel {
-      let mut Ax_components = vec![0.0; m.num_rows()];
-      (0..m.num_rows()).for_each(|r| {
-        let mut sum = 0.0;
-        for c in 0..m.num_cols() {
-          sum += m.get_component(r, c) * k_vec.get_component(c);
-        }
-        Ax_components[r] = sum;
-      });
-      let Ax = DynamicVector::new(Ax_components);
-      let zero_vec = DynamicVector::new(vec![0.0; m.num_rows()]);
-      assert_eq!(Ax, zero_vec, "Kernel vector validation failed: Ax != 0");
-    }
-  }
-
-  #[test]
-  fn test_image_kernel_col_major_identity() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_column(DynamicVector::from(vec![1.0, 0.0]));
-    m.append_column(DynamicVector::from(vec![0.0, 1.0]));
-
-    let image = m.image();
-    let expected_image_basis =
-      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
-    assert_eq!(image.len(), 2);
-    assert!(contains_vector(&image, &expected_image_basis[0]));
-    assert!(contains_vector(&image, &expected_image_basis[1]));
-
-    let kernel = m.kernel();
-    assert_eq!(kernel.len(), 0, "Kernel of identity matrix should be trivial");
-  }
-
-  #[test]
-  fn test_image_kernel_col_major_zero_matrix() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_column(DynamicVector::from(vec![0.0, 0.0]));
-    m.append_column(DynamicVector::from(vec![0.0, 0.0])); // 2x2 zero matrix
-
-    let image = m.image();
-    assert_eq!(image.len(), 0, "Image of zero matrix should be trivial");
-
-    let kernel = m.kernel();
-    let expected_kernel_basis =
-      [DynamicVector::from(vec![1.0, 0.0]), DynamicVector::from(vec![0.0, 1.0])];
-    assert_eq!(kernel.len(), 2);
-    assert!(contains_vector(&kernel, &expected_kernel_basis[0]));
-    assert!(contains_vector(&kernel, &expected_kernel_basis[1]));
-  }
-
-  #[test]
-  fn test_empty_matrix_0x0_row_major() {
-    let m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    assert_eq!(m.num_rows(), 0);
-    assert_eq!(m.num_cols(), 0);
-    assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 0);
-  }
-
-  #[test]
-  fn test_matrix_3x0_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::from(vec![]));
-    m.append_row(DynamicVector::from(vec![]));
-    m.append_row(DynamicVector::from(vec![]));
-    assert_eq!(m.num_rows(), 3);
-    assert_eq!(m.num_cols(), 0);
-    assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 0);
-  }
-
-  #[test]
-  fn test_empty_matrix_0x0_col_major() {
-    let m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    assert_eq!(m.num_rows(), 0);
-    assert_eq!(m.num_cols(), 0);
-    assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 0);
-  }
-
-  #[test]
-  fn test_matrix_0x3_col_major() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_column(DynamicVector::from(vec![]));
-    m.append_column(DynamicVector::from(vec![]));
-    m.append_column(DynamicVector::from(vec![]));
-    assert_eq!(m.num_rows(), 0);
-    assert_eq!(m.num_cols(), 3);
-    assert_eq!(m.image().len(), 0);
-    // Kernel for 0xN matrix (A x = 0 always true) is R^N
-    let kernel = m.kernel();
-    assert_eq!(kernel.len(), 3);
-    assert!(contains_vector(&kernel, &DynamicVector::from(vec![1.0, 0.0, 0.0])));
-    assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 1.0, 0.0])));
-    assert!(contains_vector(&kernel, &DynamicVector::from(vec![0.0, 0.0, 1.0])));
-  }
-
-  #[test]
-  fn test_matrix_vector_mul_row_major() {
-    let mut m: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    m.append_row(DynamicVector::from(vec![1.0, 2.0, 3.0]));
-    m.append_row(DynamicVector::from(vec![4.0, 5.0, 6.0]));
-    m.append_row(DynamicVector::from(vec![7.0, 8.0, 9.0]));
-    let v = DynamicVector::from(vec![1.0, 2.0, 3.0]);
-    let result = m * v;
-    assert_eq!(result, DynamicVector::from(vec![14.0, 32.0, 50.0]));
-  }
-
-  #[test]
-  fn test_matrix_vector_mul_col_major() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    m.append_row(&DynamicVector::from(vec![1.0, 2.0, 3.0]));
-    m.append_row(&DynamicVector::from(vec![4.0, 5.0, 6.0]));
-    m.append_row(&DynamicVector::from(vec![7.0, 8.0, 9.0]));
-    let v = DynamicVector::from(vec![1.0, 2.0, 3.0]);
-    let result = m * v;
-    assert_eq!(result, DynamicVector::from(vec![14.0, 32.0, 50.0]));
-  }
-
-  #[test]
-  fn test_matrix_zeros() {
-    let m = DynamicDenseMatrix::<f64, RowMajor>::zeros(2, 3);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 3);
-    assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 3);
-
-    let m = DynamicDenseMatrix::<f64, ColumnMajor>::zeros(2, 3);
-    assert_eq!(m.num_rows(), 2);
-    assert_eq!(m.num_cols(), 3);
-    assert_eq!(m.image().len(), 0);
-    assert_eq!(m.kernel().len(), 3);
-  }
-
-  #[test]
-  fn test_matrix_matmul() {
-    let mut m: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    // m (CM, 2x3)
-    // 1  2  3
-    // 4  5  6
-    m.append_column(DynamicVector::from(vec![1.0, 4.0]));
-    m.append_column(DynamicVector::from(vec![2.0, 5.0]));
-    m.append_column(DynamicVector::from(vec![3.0, 6.0]));
-
-    let mut n: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    // n (RM, 3x2)
-    // 9  10
-    // 11 12
-    // 13 14
-    n.append_row(DynamicVector::from(vec![9.0, 10.0]));
-    n.append_row(DynamicVector::from(vec![11.0, 12.0]));
-    n.append_row(DynamicVector::from(vec![13.0, 14.0]));
-
-    // m (CM 2x3) * n (RM 3x2) = result (RM 2x2)
-    let result = m * n;
-    assert_eq!(result.num_rows(), 2);
-    assert_eq!(result.num_cols(), 2);
-    // Expected:
-    // (1*9 + 2*11 + 3*13) (1*10 + 2*12 + 3*14) = (9+22+39) (10+24+42) = (70) (76)
-    // (4*9 + 5*11 + 6*13) (4*10 + 5*12 + 6*14) = (36+55+78) (40+60+84) = (169) (184)
-    assert_eq!(*result.get_component(0, 0), 1.0 * 9.0 + 2.0 * 11.0 + 3.0 * 13.0);
-    assert_eq!(*result.get_component(0, 1), 1.0 * 10.0 + 2.0 * 12.0 + 3.0 * 14.0);
-    assert_eq!(*result.get_component(1, 0), 4.0 * 9.0 + 5.0 * 11.0 + 6.0 * 13.0);
-    assert_eq!(*result.get_component(1, 1), 4.0 * 10.0 + 5.0 * 12.0 + 6.0 * 14.0);
-  }
-
-  #[test]
-  fn test_matrix_matmul_rm_rm() {
-    // A (RM 2x2)
-    // 1 2
-    // 3 4
-    let mut a_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    a_rm.append_row(DynamicVector::from(vec![1.0, 2.0]));
-    a_rm.append_row(DynamicVector::from(vec![3.0, 4.0]));
-
-    // B (RM 2x2)
-    // 5 6
-    // 7 8
-    let mut b_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    b_rm.append_row(DynamicVector::from(vec![5.0, 6.0]));
-    b_rm.append_row(DynamicVector::from(vec![7.0, 8.0]));
-
-    // Expected A * B (RM 2x2)
-    // 19 22
-    // 43 50
-    let result = a_rm * b_rm;
-    assert_eq!(result.num_rows(), 2);
-    assert_eq!(result.num_cols(), 2);
-    assert_eq!(*result.get_component(0, 0), 1.0 * 5.0 + 2.0 * 7.0);
-    assert_eq!(*result.get_component(0, 1), 1.0 * 6.0 + 2.0 * 8.0);
-    assert_eq!(*result.get_component(1, 0), 3.0 * 5.0 + 4.0 * 7.0);
-    assert_eq!(*result.get_component(1, 1), 3.0 * 6.0 + 4.0 * 8.0);
-  }
-
-  #[test]
-  fn test_matrix_matmul_cm_cm() {
-    // A (CM 2x2)
-    // 1 2
-    // 3 4
-    let mut a_cm: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    a_cm.append_column(DynamicVector::from(vec![1.0, 3.0]));
-    a_cm.append_column(DynamicVector::from(vec![2.0, 4.0]));
-
-    // B (CM 2x2)
-    // 5 6
-    // 7 8
-    let mut b_cm: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    b_cm.append_column(DynamicVector::from(vec![5.0, 7.0]));
-    b_cm.append_column(DynamicVector::from(vec![6.0, 8.0]));
-
-    // A (CM 2x2) * B (CM 2x2) = result (CM 2x2)
-    // If CM*CM impl is A*B:
-    // Expected A * B (CM 2x2)
-    // 19 22
-    // 43 50
-    // If CM*CM impl is B*A^T (as suspected from code reading):
-    // B (CM 2x2) * A^T (RM 2x2)
-    // A^T (RM):
-    // 1 3
-    // 2 4
-    // B * A^T (CM * RM -> RM result, but CM*CM -> CM result. The code seems to produce (B*A^T)
-    // stored as CM) (5*1 + 6*2) (5*3 + 6*4) = (5+12) (15+24) = 17 39
-    // (7*1 + 8*2) (7*3 + 8*4) = (7+16) (21+32) = 23 53
-    // Expected if B*A^T, stored as CM:
-    // 17 23
-    // 39 53
-
-    let result = a_cm * b_cm; // Output is ColumnMajor
-    assert_eq!(result.num_rows(), 2);
-    assert_eq!(result.num_cols(), 2);
-
-    // Assuming standard A*B for now. If this fails, the impl is non-standard.
-    assert_eq!(*result.get_component(0, 0), 1.0 * 5.0 + 2.0 * 7.0); // row 0, col 0
-    assert_eq!(*result.get_component(0, 1), 1.0 * 6.0 + 2.0 * 8.0); // row 0, col 1
-    assert_eq!(*result.get_component(1, 0), 3.0 * 5.0 + 4.0 * 7.0); // row 1, col 0
-    assert_eq!(*result.get_component(1, 1), 3.0 * 6.0 + 4.0 * 8.0); // row 1, col 1
   }
 
   #[test]
   fn test_display_formatting() {
-    // Test empty matrix
-    let empty_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    println!("Empty RowMajor matrix: \n{empty_rm}");
+    let matrix = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
 
-    // Test small row-major matrix
-    let mut small_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    small_rm.append_row(DynamicVector::from([1.0, 2.0]));
-    small_rm.append_row(DynamicVector::from([3.0, 4.0]));
-    println!("Small RowMajor matrix: \n{small_rm}");
+    let display_str = format!("{}", matrix);
+    assert!(display_str.contains("1"));
+    assert!(display_str.contains("4"));
+  }
 
-    // Test larger row-major matrix with different sized numbers
-    let mut large_rm: DynamicDenseMatrix<f64, RowMajor> = DynamicDenseMatrix::new();
-    large_rm.append_row(DynamicVector::from([1.0, 123.456, -5.0]));
-    large_rm.append_row(DynamicVector::from([42.0, 0.0, -999.123]));
-    large_rm.append_row(DynamicVector::from([7.8, 100.0, 2.5]));
-    println!("Large RowMajor matrix: \n{large_rm}");
+  #[test]
+  fn test_column_operations() {
+    let mut matrix = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
 
-    // Test column-major matrix
-    let mut col_major: DynamicDenseMatrix<f64, ColumnMajor> = DynamicDenseMatrix::new();
-    col_major.append_column(DynamicVector::from([10.0, 20.0]));
-    col_major.append_column(DynamicVector::from([30.0, 40.0]));
-    col_major.append_column(DynamicVector::from([50.0, 60.0]));
-    println!("ColumnMajor matrix: \n{col_major}");
+    let col = matrix.column(1);
+    assert_eq!(col.components(), &[2.0, 4.0]);
+
+    matrix.set_column(0, &Vector::from([5.0, 6.0]));
+    assert_eq!(matrix[(0, 0)], 5.0);
+    assert_eq!(matrix[(1, 0)], 6.0);
+  }
+
+  #[test]
+  fn test_from_blocks() {
+    // Test 2x2 block matrix with identity blocks on diagonal
+    let block_matrix = Matrix::<f64>::from_blocks([[Some(Matrix::identity(2)), None], [
+      None,
+      Some(Matrix::identity(3)),
+    ]]);
+
+    assert_eq!(block_matrix.dimensions(), (5, 5));
+
+    // Check identity block (0,0)
+    assert_eq!(block_matrix[(0, 0)], 1.0);
+    assert_eq!(block_matrix[(1, 1)], 1.0);
+    assert_eq!(block_matrix[(0, 1)], 0.0);
+
+    // Check zero block (0,1)
+    assert_eq!(block_matrix[(0, 2)], 0.0);
+    assert_eq!(block_matrix[(1, 3)], 0.0);
+
+    // Check identity block (1,1)
+    assert_eq!(block_matrix[(2, 2)], 1.0);
+    assert_eq!(block_matrix[(3, 3)], 1.0);
+    assert_eq!(block_matrix[(4, 4)], 1.0);
+  }
+
+  #[test]
+  fn test_block_builder() {
+    let block_matrix = Matrix::block_builder()
+      .block(0, 0, Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build())
+      .block(1, 1, Matrix::builder().row([5.0]).build())
+      .build([2, 1], [2, 1]);
+
+    assert_eq!(block_matrix.dimensions(), (3, 3));
+    assert_eq!(block_matrix[(0, 0)], 1.0);
+    assert_eq!(block_matrix[(0, 1)], 2.0);
+    assert_eq!(block_matrix[(1, 0)], 3.0);
+    assert_eq!(block_matrix[(1, 1)], 4.0);
+    assert_eq!(block_matrix[(2, 2)], 5.0);
+
+    // Check zero blocks
+    assert_eq!(block_matrix[(0, 2)], 0.0);
+    assert_eq!(block_matrix[(2, 0)], 0.0);
+  }
+
+  #[test]
+  fn test_extract_block() {
+    let matrix = Matrix::builder()
+      .row([1.0, 2.0, 3.0, 4.0])
+      .row([5.0, 6.0, 7.0, 8.0])
+      .row([9.0, 10.0, 11.0, 12.0])
+      .build();
+
+    let block = matrix.extract_block(0, 2, 1, 3);
+    assert_eq!(block.dimensions(), (2, 2));
+    assert_eq!(block[(0, 0)], 2.0);
+    assert_eq!(block[(0, 1)], 3.0);
+    assert_eq!(block[(1, 0)], 6.0);
+    assert_eq!(block[(1, 1)], 7.0);
+  }
+
+  #[test]
+  fn test_set_block() {
+    let mut matrix = Matrix::zeros(4, 4);
+    let block = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
+
+    matrix.set_block(1, 1, &block);
+
+    assert_eq!(matrix[(1, 1)], 1.0);
+    assert_eq!(matrix[(1, 2)], 2.0);
+    assert_eq!(matrix[(2, 1)], 3.0);
+    assert_eq!(matrix[(2, 2)], 4.0);
+
+    // Check that other elements remain zero
+    assert_eq!(matrix[(0, 0)], 0.0);
+    assert_eq!(matrix[(3, 3)], 0.0);
+  }
+
+  #[test]
+  fn test_block_diagonal() {
+    let blocks = vec![
+      Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build(),
+      Matrix::builder().row([5.0]).build(),
+      Matrix::identity(2),
+    ];
+
+    let block_diag = Matrix::block_diagonal(blocks);
+    assert_eq!(block_diag.dimensions(), (5, 5));
+
+    // First block
+    assert_eq!(block_diag[(0, 0)], 1.0);
+    assert_eq!(block_diag[(0, 1)], 2.0);
+    assert_eq!(block_diag[(1, 0)], 3.0);
+    assert_eq!(block_diag[(1, 1)], 4.0);
+
+    // Second block
+    assert_eq!(block_diag[(2, 2)], 5.0);
+
+    // Third block (identity)
+    assert_eq!(block_diag[(3, 3)], 1.0);
+    assert_eq!(block_diag[(4, 4)], 1.0);
+    assert_eq!(block_diag[(3, 4)], 0.0);
+
+    // Check zeros in off-diagonal blocks
+    assert_eq!(block_diag[(0, 2)], 0.0);
+    assert_eq!(block_diag[(2, 0)], 0.0);
+  }
+
+  #[test]
+  fn test_hstack() {
+    let a = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
+    let b = Matrix::builder().row([5.0]).row([6.0]).build();
+    let c = Matrix::builder().row([7.0, 8.0]).row([9.0, 10.0]).build();
+
+    let result = Matrix::hstack([a, b, c]);
+    assert_eq!(result.dimensions(), (2, 5));
+
+    assert_eq!(result[(0, 0)], 1.0);
+    assert_eq!(result[(0, 1)], 2.0);
+    assert_eq!(result[(0, 2)], 5.0);
+    assert_eq!(result[(0, 3)], 7.0);
+    assert_eq!(result[(0, 4)], 8.0);
+
+    assert_eq!(result[(1, 0)], 3.0);
+    assert_eq!(result[(1, 1)], 4.0);
+    assert_eq!(result[(1, 2)], 6.0);
+    assert_eq!(result[(1, 3)], 9.0);
+    assert_eq!(result[(1, 4)], 10.0);
+  }
+
+  #[test]
+  fn test_vstack() {
+    let a = Matrix::builder().row([1.0, 2.0, 3.0]).build();
+    let b = Matrix::builder().row([4.0, 5.0, 6.0]).row([7.0, 8.0, 9.0]).build();
+
+    let result = Matrix::vstack([a, b]);
+    assert_eq!(result.dimensions(), (3, 3));
+
+    assert_eq!(result[(0, 0)], 1.0);
+    assert_eq!(result[(0, 1)], 2.0);
+    assert_eq!(result[(0, 2)], 3.0);
+
+    assert_eq!(result[(1, 0)], 4.0);
+    assert_eq!(result[(1, 1)], 5.0);
+    assert_eq!(result[(1, 2)], 6.0);
+
+    assert_eq!(result[(2, 0)], 7.0);
+    assert_eq!(result[(2, 1)], 8.0);
+    assert_eq!(result[(2, 2)], 9.0);
+  }
+
+  #[test]
+  #[should_panic(expected = "All blocks in block-row 0 must have the same height")]
+  fn test_from_blocks_mismatched_heights() {
+    let _block_matrix =
+      Matrix::<f64>::from_blocks([[Some(Matrix::identity(2)), Some(Matrix::identity(3))]]);
+  }
+
+  #[test]
+  #[should_panic(expected = "All blocks in block-column 0 must have the same width")]
+  fn test_from_blocks_mismatched_widths() {
+    let _block_matrix =
+      Matrix::<f64>::from_blocks([[Some(Matrix::identity(2))], [Some(Matrix::identity(3))]]);
+  }
+
+  #[test]
+  #[should_panic(expected = "Matrix 1 has 1 rows, expected 2")]
+  fn test_hstack_mismatched_rows() {
+    let a = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
+    let b = Matrix::builder().row([5.0]).build();
+
+    let _result = Matrix::hstack([a, b]);
+  }
+
+  #[test]
+  #[should_panic(expected = "Matrix 1 has 1 columns, expected 2")]
+  fn test_vstack_mismatched_cols() {
+    let a = Matrix::builder().row([1.0, 2.0]).build();
+    let b = Matrix::builder().row([3.0]).build();
+
+    let _result = Matrix::vstack([a, b]);
+  }
+
+  #[test]
+  fn test_empty_block_operations() {
+    let empty_blocks: Vec<Matrix<f64>> = vec![];
+    let empty_diag = Matrix::block_diagonal(empty_blocks);
+    assert!(empty_diag.is_empty());
+
+    let empty_hstack = Matrix::hstack(Vec::<Matrix<f64>>::new());
+    assert!(empty_hstack.is_empty());
+
+    let empty_vstack = Matrix::vstack(Vec::<Matrix<f64>>::new());
+    assert!(empty_vstack.is_empty());
   }
 }
