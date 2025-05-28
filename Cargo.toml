@@ -10,6 +10,7 @@ cova-space   = { path = "cova-space", version = "=0.2.0" }
 
 # External dependencies
 itertools  = { version = "0.14", default-features = false }
+nalgebra   = { version = "0.33", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 rayon      = { version = "1.10", default-features = false }
 thiserror  = { version = "2.0", default-features = false }

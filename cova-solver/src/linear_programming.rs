@@ -7,8 +7,9 @@
 //! subject to  Ax <= b
 //!             x >= 0
 
-use super::*;
-use crate::traits::Solution;
+use cova_algebra::tensors::{DMatrix, DVector};
+
+use crate::{traits::Solution, Solver, SolverError, SolverResult};
 
 /// Simplex method solver for linear programming
 #[derive(Debug)]
@@ -29,34 +30,34 @@ impl SimplexSolver {
   /// Convert the problem to standard form and solve using simplex tableau
   fn solve_standard_form(
     &self,
-    c: &Vector<f64>,
-    a: &Matrix<f64>,
-    b: &Vector<f64>,
+    c: &DVector<f64>,
+    a: &DMatrix<f64>,
+    b: &DVector<f64>,
   ) -> SolverResult<Solution> {
-    let m = a.num_rows();
-    let n = a.num_cols();
+    let m = a.nrows();
+    let n = a.ncols();
 
     // Check dimensions
-    if b.num_rows() != m {
+    if b.len() != m {
       return Err(SolverError::DimensionMismatch {
         expected: format!("b vector length {}", m),
-        actual:   format!("{}", b.num_rows()),
+        actual:   format!("{}", b.len()),
       });
     }
-    if c.num_rows() != n {
+    if c.len() != n {
       return Err(SolverError::DimensionMismatch {
         expected: format!("c vector length {}", n),
-        actual:   format!("{}", c.num_rows()),
+        actual:   format!("{}", c.len()),
       });
     }
 
     // Check for negative b values (infeasible basic solution)
-    if b.iter().any(|x| x < 0.0) {
+    if b.iter().any(|&x| x < 0.0) {
       return Err(SolverError::Infeasible);
     }
 
     // Create tableau: [A I b; c^T 0 0]
-    let mut tableau = Matrix::zeros(m + 1, n + m + 1);
+    let mut tableau = DMatrix::zeros(m + 1, n + m + 1);
 
     // Fill constraint matrix A
     tableau.view_mut((0, 0), (m, n)).copy_from(a);
@@ -187,8 +188,6 @@ impl Solver for SimplexSolver {
 
 #[cfg(test)]
 mod tests {
-  use nalgebra::{dmatrix, dvector};
-
   use super::*;
 
   #[test]
@@ -198,9 +197,9 @@ mod tests {
     //           2*x1 + x2 <= 4
     //           x1, x2 >= 0
 
-    let c = dvector![-1.0, -2.0];
-    let a = dmatrix![1.0, 1.0; 2.0, 1.0];
-    let b = dvector![3.0, 4.0];
+    let c = DVector::from_vec(vec![-1.0, -2.0]);
+    let a = DMatrix::from_row_slice(2, 2, &[1.0, 1.0, 2.0, 1.0]);
+    let b = DVector::from_vec(vec![3.0, 4.0]);
 
     let mut solver = SimplexSolver::new();
     let result = solver.solve(&c, &a, &b).unwrap();

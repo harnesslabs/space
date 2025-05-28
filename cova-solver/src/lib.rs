@@ -7,16 +7,13 @@
 //! ## Example
 //!
 //! ```rust
-//! use cova_algebra::{
-//!   prelude::*,
-//!   tensors::dynamic::{Matrix, Vector},
-//! };
+//! use cova_algebra::tensors::{DMatrix, DVector};
 //! use cova_solver::linear_programming::SimplexSolver;
 //!
 //! // Minimize c^T x subject to Ax <= b, x >= 0
-//! let c = Vector::from_vec(vec![-1.0, -2.0]); // coefficients to minimize
-//! let a = Matrix::builder().row([1.0, 1.0]).row([2.0, 1.0]).build();
-//! let b = Vector::from_vec(vec![3.0, 4.0]);
+//! let c = DVector::from_vec(vec![-1.0, -2.0]); // coefficients to minimize
+//! let a = DMatrix::from_row_slice(2, 2, &[1.0, 1.0, 2.0, 1.0]);
+//! let b = DVector::from_vec(vec![3.0, 4.0]);
 //!
 //! let mut solver = SimplexSolver::new();
 //! let result = solver.solve(&c, &a, &b);
@@ -27,7 +24,7 @@ pub mod error;
 pub mod linear_programming;
 pub mod traits;
 
-use cova_algebra::tensors::dynamic::{Matrix, Vector};
+use cova_algebra::tensors::DMatrix;
 use error::{SolverError, SolverResult};
 pub use traits::Solver;
 

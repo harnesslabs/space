@@ -39,12 +39,12 @@
 //! let dynamic = Vector::<f64>::from([4.0, 5.0, 6.0]);
 //! ```
 
+pub use nalgebra::*;
+
 use super::*;
 use crate::{
   groups::{AbelianGroup, Group},
   modules::{LeftModule, RightModule, TwoSidedModule, VectorSpace},
   rings::Field,
 };
-
-pub mod dynamic;
 pub mod fixed;

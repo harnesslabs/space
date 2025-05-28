@@ -8,8 +8,9 @@
 //! The algorithm splits this into subproblems and uses augmented Lagrangian method.
 use std::collections::HashMap;
 
-use super::*;
-use crate::{traits::Solution, Solver, SolverResult};
+use cova_algebra::tensors::{DMatrix, DVector};
+
+use crate::{traits::Solution, Solver, SolverError, SolverResult};
 
 /// Parameters for ADMM optimization
 #[derive(Debug, Clone)]
@@ -58,10 +59,10 @@ impl AdmmSolver {
   ///             x >= 0
   pub fn solve_qp(
     &mut self,
-    p: &Matrix<f64>,
-    q: &Vector<f64>,
-    a: &Matrix<f64>,
-    b: &Vector<f64>,
+    p: &DMatrix<f64>,
+    q: &DVector<f64>,
+    a: &DMatrix<f64>,
+    b: &DVector<f64>,
   ) -> SolverResult<Solution> {
     let n = q.num_rows();
     let m = b.num_rows();
@@ -81,9 +82,9 @@ impl AdmmSolver {
     }
 
     // Initialize variables
-    let mut x = Vector::zeros(n);
-    let mut z = Vector::zeros(n);
-    let mut u = Vector::zeros(n); // Scaled dual variable
+    let mut x = DVector::zeros(n);
+    let mut z = DVector::zeros(n);
+    let mut u = DVector::zeros(n); // Scaled dual variable
 
     // Precompute factorization for x-update: (P + rho*I)
     let mut lhs_matrix = p.clone();
@@ -159,8 +160,8 @@ impl AdmmSolver {
   /// subject to  Ax = b
   pub fn solve_basis_pursuit(
     &mut self,
-    a: &Matrix<f64>,
-    b: &Vector<f64>,
+    a: &DMatrix<f64>,
+    b: &DVector<f64>,
   ) -> SolverResult<Solution> {
     let n = a.ncols();
     let m = a.nrows();
@@ -173,9 +174,9 @@ impl AdmmSolver {
     }
 
     // Initialize variables
-    let mut x = Vector::zeros(n);
-    let mut z = Vector::zeros(n);
-    let mut u = Vector::zeros(n);
+    let mut x = DVector::zeros(n);
+    let mut z = DVector::zeros(n);
+    let mut u = DVector::zeros(n);
 
     // Precompute (A^T A + rho*I)^{-1} A^T
     let ata = a.transpose() * a;
@@ -253,11 +254,16 @@ impl Default for AdmmSolver {
 
 // Basic Solver trait implementation for QP problems
 impl Solver for AdmmSolver {
-  fn solve(&mut self, c: &Vector<f64>, a: &Matrix<f64>, b: &Vector<f64>) -> SolverResult<Solution> {
+  fn solve(
+    &mut self,
+    c: &DVector<f64>,
+    a: &DMatrix<f64>,
+    b: &DVector<f64>,
+  ) -> SolverResult<Solution> {
     // Convert LP to QP format: minimize c^T x subject to Ax <= b, x >= 0
     // This is a simplified version - for full LP support, slack variables would be needed
     let n = c.len();
-    let p = Matrix::zeros(n, n); // No quadratic term
+    let p = DMatrix::zeros(n, n); // No quadratic term
 
     self.solve_qp(&p, c, a, b)
   }
