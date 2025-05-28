@@ -12,6 +12,7 @@ version     = "0.1.3"
 
 [dependencies]
 cova-algebra = { workspace = true }
+cova-solvers = { workspace = true }
 cova-space   = { workspace = true }
 
 [dev-dependencies]

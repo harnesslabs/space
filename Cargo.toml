@@ -1,10 +1,11 @@
 [workspace]
-members  = ["cova", "cova-space", "cova-algebra"]
+members  = ["cova", "cova-space", "cova-algebra", "cova-solvers"]
 resolver = "2"
 
 [workspace.dependencies]
 # Local dependencies
 cova-algebra = { path = "cova-algebra", version = "=0.1.2" }
+cova-solvers = { path = "cova-solvers", version = "=0.1.0" }
 cova-space   = { path = "cova-space", version = "=0.2.0" }
 
 # External dependencies
