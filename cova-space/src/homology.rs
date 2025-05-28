@@ -172,7 +172,7 @@ impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
   ///
   /// # Returns
   ///
-  /// A [`DynamicVector<R>`] representing the coefficients of this chain in the specified basis.
+  /// A [`Vector<R>`] representing the coefficients of this chain in the specified basis.
   pub fn to_coeff_vector(
     &self,
     basis_map: &HashMap<&T::Item, usize>,
