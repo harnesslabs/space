@@ -7,10 +7,8 @@
 //!
 //! The dynamic tensors module includes:
 //!
-//! - `DynamicVector`: A flexible vector implementation with arbitrary dimension
-//! - `DynamicDenseMatrix`: A matrix implementation with two storage orientation options:
-//!   - Row-major: Efficient for row operations
-//!   - Column-major: Efficient for column operations
+//! - `Vector`: A flexible vector implementation with arbitrary dimension
+//! - `Matrix`: A clean, ergonomic matrix implementation with block construction support
 //!
 //! ## Mathematical Foundation
 //!
@@ -18,44 +16,39 @@
 //! The implementations in this module adhere to the algebraic properties of vector spaces
 //! and linear transformations over arbitrary fields.
 //!
-//! ## Performance Considerations
-//!
-//! - Choose storage orientation based on the dominant operation pattern:
-//!   - Use row-major matrices when mostly operating on rows
-//!   - Use column-major matrices when mostly operating on columns
-//! - Matrix-vector operations automatically use the most efficient implementation based on the
-//!   storage orientation
-//!
 //! ## Examples
 //!
 //! ```
 //! use cova_algebra::{
 //!   prelude::*,
-//!   tensors::dynamic::{
-//!     matrix::{DynamicDenseMatrix, RowMajor},
-//!     vector::DynamicVector,
-//!   },
+//!   tensors::dynamic::{matrix::Matrix, vector::Vector},
 //! };
 //!
 //! // Create vectors
-//! let v1 = DynamicVector::from([1.0, 2.0, 3.0]);
-//! let v2 = DynamicVector::from([4.0, 5.0, 6.0]);
+//! let v1 = Vector::from([1.0, 2.0, 3.0]);
+//! let v2 = Vector::from([4.0, 5.0, 6.0]);
 //!
 //! // Create a matrix from rows
-//! let mut matrix = DynamicDenseMatrix::<f64, RowMajor>::new();
-//! matrix.append_row(v1);
-//! matrix.append_row(v2);
+//! let matrix = Matrix::from_rows([v1, v2]);
+//!
+//! // Or using builder pattern
+//! let matrix = Matrix::<f64>::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
+//!
+//! // Block matrix construction
+//! let block_matrix = Matrix::<f64>::from_blocks(vec![
+//!   vec![Matrix::identity(2), Matrix::zeros(2, 3)],
+//!   vec![Matrix::zeros(3, 2), Matrix::identity(3)],
+//! ]);
 //!
 //! // Perform Gaussian elimination to row echelon form
-//! let result = matrix.row_echelon_form();
+//! let (rref, output) = matrix.into_row_echelon_form();
 //! ```
 
-use matrix::{DynamicDenseMatrix, RowMajor};
-use vector::DynamicVector;
+pub use matrix::Matrix;
+pub use vector::Vector;
 
 use super::*;
 
-pub mod block;
 pub mod matrix;
 pub mod vector;
 
@@ -66,9 +59,9 @@ pub mod vector;
 /// this method returns a basis for the quotient space V/U.
 /// The input vectors are treated as column vectors.
 pub fn compute_quotient_basis<F: Field + Copy>(
-  subspace_vectors: &[DynamicVector<F>],
-  space_vectors: &[DynamicVector<F>],
-) -> Vec<DynamicVector<F>> {
+  subspace_vectors: &[Vector<F>],
+  space_vectors: &[Vector<F>],
+) -> Vec<Vector<F>> {
   if space_vectors.is_empty() {
     return Vec::new();
   }
@@ -98,19 +91,15 @@ pub fn compute_quotient_basis<F: Field + Copy>(
     );
   }
 
-  let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
+  // Create matrix from columns
+  let mut all_columns = Vec::new();
+  all_columns.extend_from_slice(subspace_vectors);
+  all_columns.extend_from_slice(space_vectors);
 
-  for vec in subspace_vectors {
-    matrix.append_column(vec);
-  }
+  let matrix = Matrix::from_cols(all_columns);
+  let (_, echelon_output) = matrix.into_row_echelon_form();
 
-  for vec in space_vectors {
-    matrix.append_column(vec);
-  }
-
-  let echelon_output = matrix.row_echelon_form();
-
-  let mut quotient_basis: Vec<DynamicVector<F>> = Vec::new();
+  let mut quotient_basis: Vec<Vector<F>> = Vec::new();
   let num_subspace_cols = subspace_vectors.len();
 
   let pivot_cols_set: std::collections::HashSet<usize> =
@@ -129,15 +118,15 @@ pub fn compute_quotient_basis<F: Field + Copy>(
 #[cfg(test)]
 mod tests {
   use super::compute_quotient_basis;
-  use crate::{fixtures::Mod7, tensors::dynamic::vector::DynamicVector};
+  use crate::{fixtures::Mod7, tensors::dynamic::vector::Vector};
 
   #[test]
   fn test_quotient_simple_span() {
     // V = span{[1,0,0], [0,1,0]}, U = span{[1,0,0]}
     // V/U should be span{[0,1,0]}
-    let u1 = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
-    let v_in_u = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
-    let v_new = DynamicVector::from(vec![Mod7::new(0), Mod7::new(1), Mod7::new(0)]);
+    let u1 = Vector::from(vec![Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
+    let v_in_u = Vector::from(vec![Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
+    let v_new = Vector::from(vec![Mod7::new(0), Mod7::new(1), Mod7::new(0)]);
 
     let subspace_vectors = vec![u1];
     // Order of space_vectors: putting v_in_u first
@@ -157,8 +146,8 @@ mod tests {
   fn test_quotient_subspace_equals_space() {
     // V = span{[1,0], [0,1]}, U = span{[1,0], [0,1]}
     // V/U should be empty
-    let u1 = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0)]);
-    let u2 = DynamicVector::from(vec![Mod7::new(0), Mod7::new(1)]);
+    let u1 = Vector::from(vec![Mod7::new(1), Mod7::new(0)]);
+    let u2 = Vector::from(vec![Mod7::new(0), Mod7::new(1)]);
     // space_vectors are the same as subspace_vectors
     let space_vectors = vec![u1.clone(), u2.clone()];
     let subspace_vectors = vec![u1.clone(), u2.clone()];
@@ -175,10 +164,10 @@ mod tests {
   fn test_quotient_trivial_subspace() {
     // V = span{[1,0], [0,1]}, U = {} (trivial subspace)
     // V/U should be span{[1,0], [0,1]}
-    let v1 = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0)]);
-    let v2 = DynamicVector::from(vec![Mod7::new(0), Mod7::new(1)]);
+    let v1 = Vector::from(vec![Mod7::new(1), Mod7::new(0)]);
+    let v2 = Vector::from(vec![Mod7::new(0), Mod7::new(1)]);
 
-    let subspace_vectors: Vec<DynamicVector<Mod7>> = vec![];
+    let subspace_vectors: Vec<Vector<Mod7>> = vec![];
     let space_vectors = vec![v1.clone(), v2.clone()];
 
     let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
@@ -192,10 +181,10 @@ mod tests {
     // V = span{[1,0], [2,0], [0,1]}, U = span{[1,0]}
     // [2,0] is dependent on [1,0].
     // V/U should be span{[0,1]}
-    let u1 = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0)]);
-    let v_in_u = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0)]); // Effectively in U
-    let v_dependent_on_u = DynamicVector::from(vec![Mod7::new(2), Mod7::new(0)]); // 2*u1
-    let v_new_independent = DynamicVector::from(vec![Mod7::new(0), Mod7::new(1)]);
+    let u1 = Vector::from(vec![Mod7::new(1), Mod7::new(0)]);
+    let v_in_u = Vector::from(vec![Mod7::new(1), Mod7::new(0)]); // Effectively in U
+    let v_dependent_on_u = Vector::from(vec![Mod7::new(2), Mod7::new(0)]); // 2*u1
+    let v_new_independent = Vector::from(vec![Mod7::new(0), Mod7::new(1)]);
 
     let subspace_vectors = vec![u1.clone()];
     let space_vectors = vec![v_in_u.clone(), v_dependent_on_u.clone(), v_new_independent.clone()];
@@ -223,11 +212,11 @@ mod tests {
     // Expected quotient basis: a basis for span{[0,1,0], [0,0,1]}, chosen from original space
     // vectors. So, should be [[0,1,0], [0,0,1]] if [0,2,0] is correctly identified as dependent
     // on [0,1,0] in context of quotient.
-    let u1 = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
+    let u1 = Vector::from(vec![Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
 
-    let v1_new = DynamicVector::from(vec![Mod7::new(0), Mod7::new(1), Mod7::new(0)]);
-    let v2_dependent_on_v1 = DynamicVector::from(vec![Mod7::new(0), Mod7::new(2), Mod7::new(0)]);
-    let v3_new = DynamicVector::from(vec![Mod7::new(0), Mod7::new(0), Mod7::new(1)]);
+    let v1_new = Vector::from(vec![Mod7::new(0), Mod7::new(1), Mod7::new(0)]);
+    let v2_dependent_on_v1 = Vector::from(vec![Mod7::new(0), Mod7::new(2), Mod7::new(0)]);
+    let v3_new = Vector::from(vec![Mod7::new(0), Mod7::new(0), Mod7::new(1)]);
 
     let subspace_vectors = vec![u1];
     // Order: v1_new, then its dependent v2_dependent_on_v1, then independent v3_new
@@ -250,9 +239,9 @@ mod tests {
 
   #[test]
   fn test_quotient_empty_space_vectors() {
-    let u1 = DynamicVector::from(vec![Mod7::new(1), Mod7::new(0)]);
+    let u1 = Vector::from(vec![Mod7::new(1), Mod7::new(0)]);
     let subspace_vectors = vec![u1];
-    let space_vectors: Vec<DynamicVector<Mod7>> = vec![];
+    let space_vectors: Vec<Vector<Mod7>> = vec![];
 
     let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
     assert!(quotient_basis.is_empty(), "Quotient basis should be empty if space_vectors is empty");
@@ -260,9 +249,9 @@ mod tests {
 
   #[test]
   fn test_quotient_zero_dimensional_vectors() {
-    let u1_zero_dim = DynamicVector::<Mod7>::new(vec![]);
-    let v1_zero_dim = DynamicVector::<Mod7>::new(vec![]);
-    let v2_zero_dim = DynamicVector::<Mod7>::new(vec![]);
+    let u1_zero_dim = Vector::<Mod7>::new(vec![]);
+    let v1_zero_dim = Vector::<Mod7>::new(vec![]);
+    let v2_zero_dim = Vector::<Mod7>::new(vec![]);
 
     let subspace_vectors = vec![u1_zero_dim];
     let space_vectors = vec![v1_zero_dim, v2_zero_dim];
@@ -274,7 +263,7 @@ mod tests {
     );
 
     // Case: subspace empty, space has 0-dim vectors
-    let subspace_vectors_empty: Vec<DynamicVector<Mod7>> = vec![];
+    let subspace_vectors_empty: Vec<Vector<Mod7>> = vec![];
     let quotient_basis_empty_sub = compute_quotient_basis(&subspace_vectors_empty, &space_vectors);
     assert!(
       quotient_basis_empty_sub.is_empty(),
@@ -286,9 +275,9 @@ mod tests {
   fn test_quotient_all_zero_vectors_of_some_dimension() {
     // V = span{[0,0], [0,0]}, U = span{[0,0]}
     // V/U should be empty
-    let u1_zero_vec = DynamicVector::from(vec![Mod7::new(0), Mod7::new(0)]);
-    let v1_zero_vec = DynamicVector::from(vec![Mod7::new(0), Mod7::new(0)]);
-    let v2_zero_vec = DynamicVector::from(vec![Mod7::new(0), Mod7::new(0)]);
+    let u1_zero_vec = Vector::from(vec![Mod7::new(0), Mod7::new(0)]);
+    let v1_zero_vec = Vector::from(vec![Mod7::new(0), Mod7::new(0)]);
+    let v2_zero_vec = Vector::from(vec![Mod7::new(0), Mod7::new(0)]);
 
     let subspace_vectors = vec![u1_zero_vec.clone()];
     let space_vectors = vec![v1_zero_vec.clone(), v2_zero_vec.clone()];

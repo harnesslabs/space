@@ -256,7 +256,7 @@ impl<const N: usize, R: Field + Copy> Filtration for VietorisRips<N, Homology<R>
     let mut homology_groups = HashMap::new();
     // For each dimension requested in output_param, compute homology.
     for dim in output_param {
-      let homology_group = complex.homology(*dim); // Pass R by type inference
+      let homology_group = complex.homology::<R>(*dim); // Pass R by type inference
       homology_groups.insert(*dim, homology_group);
     }
     homology_groups

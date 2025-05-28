@@ -141,11 +141,7 @@ use std::collections::HashMap;
 
 use cova_algebra::{
   rings::Field,
-  tensors::dynamic::{
-    compute_quotient_basis,
-    matrix::{DynamicDenseMatrix, RowMajor},
-    vector::DynamicVector,
-  },
+  tensors::dynamic::{compute_quotient_basis, Matrix, Vector},
 };
 
 use super::*;
@@ -1065,11 +1061,11 @@ impl<T: ComplexElement> Complex<T> {
     let cycles = if k == 0 {
       // Z₀ = C₀ (kernel of ∂₀: C₀ -> C₋₁ is C₀ itself).
       let num_0_elements = k_elements.len();
-      let mut basis: Vec<DynamicVector<F>> = Vec::with_capacity(num_0_elements);
+      let mut basis: Vec<Vector<F>> = Vec::with_capacity(num_0_elements);
       for i in 0..num_0_elements {
         let mut v_data = vec![F::zero(); num_0_elements];
         v_data[i] = F::one();
-        basis.push(DynamicVector::new(v_data));
+        basis.push(Vector::new(v_data));
       }
       basis
     } else {
@@ -1181,31 +1177,17 @@ impl<T: ComplexElement> Complex<T> {
   /// assert_eq!(boundary_1.num_rows(), 2); // 2 vertices
   /// assert_eq!(boundary_1.num_cols(), 1); // 1 edge
   /// ```
-  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DynamicDenseMatrix<F, RowMajor>
+  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> Matrix<F>
   where T: ComplexElement {
-    let codomain_basis = if k == 0 {
-      Vec::new()
-    } else {
-      let mut elements = self.elements_of_dimension(k - 1);
-      elements.sort_unstable();
-      elements
-    };
+    let domain_basis = self.elements_of_dimension(k);
+    let codomain_basis = self.elements_of_dimension(k.saturating_sub(1));
 
-    let domain_basis = {
-      let mut elements = self.elements_of_dimension(k);
-      elements.sort_unstable();
-      elements
-    };
-
-    let mut matrix = DynamicDenseMatrix::<F, RowMajor>::new();
-
-    if domain_basis.is_empty() {
-      // Create a matrix with appropriate number of rows but no columns
-      for _ in 0..codomain_basis.len() {
-        matrix.append_row(DynamicVector::new(Vec::new()));
-      }
-      return matrix;
+    if domain_basis.is_empty() || codomain_basis.is_empty() {
+      // Return appropriate empty matrix
+      return Matrix::zeros(codomain_basis.len(), domain_basis.len());
     }
+
+    let mut matrix = Matrix::<F>::builder();
 
     // Create a map from elements to their position in the codomain basis
     let basis_map_for_codomain: HashMap<&T, usize> =
@@ -1219,10 +1201,10 @@ impl<T: ComplexElement> Complex<T> {
       // Convert the chain to a coefficient vector
       let col_vector =
         boundary_chain.to_coeff_vector(&basis_map_for_codomain, num_codomain_elements);
-      matrix.append_column(&col_vector);
+      matrix = matrix.column_vec(col_vector);
     }
 
-    matrix
+    matrix.build()
   }
 }
 

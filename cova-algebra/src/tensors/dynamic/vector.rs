@@ -30,16 +30,16 @@
 //! ## Examples
 //!
 //! ```
-//! use cova_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
+//! use cova_algebra::{prelude::*, tensors::dynamic::vector::Vector};
 //!
 //! // Create a vector with components [1, 2, 3]
-//! let vec1 = DynamicVector::<f64>::from([1.0, 2.0, 3.0]);
+//! let vec1 = Vector::<f64>::from([1.0, 2.0, 3.0]);
 //!
 //! // Create the zero vector
-//! let zero = DynamicVector::<f64>::zero();
+//! let zero = Vector::<f64>::zero();
 //!
 //! // Vector addition
-//! let vec2 = DynamicVector::<f64>::from([4.0, 5.0, 6.0]);
+//! let vec2 = Vector::<f64>::from([4.0, 5.0, 6.0]);
 //! let sum = vec1.clone() + vec2;
 //!
 //! // Scalar multiplication
@@ -81,29 +81,30 @@ use crate::category::Category;
 /// ## Examples
 ///
 /// ```
-/// use cova_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
+/// use cova_algebra::{prelude::*, tensors::dynamic::vector::Vector};
 ///
 /// // Create a vector with components [1, 2, 3]
-/// let vec1 = DynamicVector::<f64>::from([1.0, 2.0, 3.0]);
+/// let vec1 = Vector::<f64>::from([1.0, 2.0, 3.0]);
 ///
 /// // Create the zero vector
-/// let zero = DynamicVector::<f64>::zero();
+/// let zero = Vector::<f64>::zero();
 ///
 /// // Vector addition
-/// let vec2 = DynamicVector::<f64>::from([4.0, 5.0, 6.0]);
+/// let vec2 = Vector::<f64>::from([4.0, 5.0, 6.0]);
 /// let sum = vec1.clone() + vec2;
 ///
 /// // Scalar multiplication
 /// let scaled = vec1 * 2.0;
 /// ```
 #[derive(Default, Clone, Debug, PartialEq, Eq, Hash)]
-pub struct DynamicVector<F> {
+pub struct Vector<F> {
   /// The components of the vector.
   pub components: Vec<F>,
 }
 
-impl<F> DynamicVector<F> {
-  /// Creates a new `DynamicVector` from a vector of components.
+impl<F> Vector<F> {
+  /// Creates a new `Vector
+  /// ` from a vector of components.
   ///
   /// # Arguments
   ///
@@ -111,7 +112,8 @@ impl<F> DynamicVector<F> {
   ///
   /// # Returns
   ///
-  /// A new `DynamicVector` instance with the given components
+  /// A new `Vector
+  /// ` instance with the given components
   pub const fn new(components: Vec<F>) -> Self { Self { components } }
 
   /// Returns the dimension (number of components) of the vector.
@@ -177,8 +179,9 @@ impl<F> DynamicVector<F> {
   }
 }
 
-impl<F: Field> From<Vec<F>> for DynamicVector<F> {
-  /// Creates a new `DynamicVector` from a `Vec<F>`.
+impl<F: Field> From<Vec<F>> for Vector<F> {
+  /// Creates a new `Vector
+  /// ` from a `Vec<F>`.
   ///
   /// # Arguments
   ///
@@ -186,8 +189,9 @@ impl<F: Field> From<Vec<F>> for DynamicVector<F> {
   fn from(components: Vec<F>) -> Self { Self { components } }
 }
 
-impl<const M: usize, F: Field + Copy> From<[F; M]> for DynamicVector<F> {
-  /// Creates a new `DynamicVector` from a fixed-size array of components.
+impl<const M: usize, F: Field + Copy> From<[F; M]> for Vector<F> {
+  /// Creates a new `Vector
+  /// ` from a fixed-size array of components.
   ///
   /// # Arguments
   ///
@@ -195,8 +199,9 @@ impl<const M: usize, F: Field + Copy> From<[F; M]> for DynamicVector<F> {
   fn from(components: [F; M]) -> Self { Self { components: components.to_vec() } }
 }
 
-impl<F: Field + Clone> From<&[F]> for DynamicVector<F> {
-  /// Creates a new `DynamicVector` from a slice of components.
+impl<F: Field + Clone> From<&[F]> for Vector<F> {
+  /// Creates a new `Vector
+  /// ` from a slice of components.
   ///
   /// # Arguments
   ///
@@ -204,26 +209,18 @@ impl<F: Field + Clone> From<&[F]> for DynamicVector<F> {
   fn from(components: &[F]) -> Self { Self { components: components.to_vec() } }
 }
 
-impl<F: Field + Copy> Category for DynamicVector<F> {
-  type Morphism = DynamicDenseMatrix<F, RowMajor>;
+impl<F: Field + Copy> Category for Vector<F> {
+  type Morphism = Matrix<F>;
 
   fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism { f * g }
 
-  fn identity(a: Self) -> Self::Morphism {
-    let mut mat = DynamicDenseMatrix::<F, RowMajor>::new();
-    for i in 0..a.dimension() {
-      let mut col = Self::from(vec![F::zero(); a.dimension()]);
-      col.components[i] = F::one();
-      mat.append_column(&col);
-    }
-    mat
-  }
+  fn identity(a: Self) -> Self::Morphism { Matrix::identity(a.dimension()) }
 
   fn apply(f: Self::Morphism, x: Self) -> Self { f * x }
 }
 
 // TODO (autoparallel): This does handle the zero case but this is clunky as fuck and I hate it.
-impl<F: Field + Copy> Add for DynamicVector<F> {
+impl<F: Field + Copy> Add for Vector<F> {
   type Output = Self;
 
   /// Adds two vectors component-wise.
@@ -249,7 +246,7 @@ impl<F: Field + Copy> Add for DynamicVector<F> {
   }
 }
 
-impl<F: Field + Copy> AddAssign for DynamicVector<F> {
+impl<F: Field + Copy> AddAssign for Vector<F> {
   /// Adds another vector to this vector in-place.
   ///
   /// # Arguments
@@ -262,7 +259,7 @@ impl<F: Field + Copy> AddAssign for DynamicVector<F> {
   fn add_assign(&mut self, rhs: Self) { *self = self.clone() + rhs }
 }
 
-impl<F: Field + Copy> Neg for DynamicVector<F> {
+impl<F: Field + Copy> Neg for Vector<F> {
   type Output = Self;
 
   /// Negates this vector, returning a vector with all components negated.
@@ -279,7 +276,7 @@ impl<F: Field + Copy> Neg for DynamicVector<F> {
   }
 }
 
-impl<F: Field + Copy> Mul<F> for DynamicVector<F> {
+impl<F: Field + Copy> Mul<F> for Vector<F> {
   type Output = Self;
 
   /// Multiplies this vector by a scalar.
@@ -300,7 +297,7 @@ impl<F: Field + Copy> Mul<F> for DynamicVector<F> {
   }
 }
 
-impl<F: Field + Copy> Sub for DynamicVector<F> {
+impl<F: Field + Copy> Sub for Vector<F> {
   type Output = Self;
 
   /// Subtracts another vector from this vector.
@@ -319,7 +316,7 @@ impl<F: Field + Copy> Sub for DynamicVector<F> {
   fn sub(self, other: Self) -> Self::Output { self + -other }
 }
 
-impl<F: Field + Copy> SubAssign for DynamicVector<F> {
+impl<F: Field + Copy> SubAssign for Vector<F> {
   /// Subtracts another vector from this vector in-place.
   ///
   /// # Arguments
@@ -332,9 +329,9 @@ impl<F: Field + Copy> SubAssign for DynamicVector<F> {
   fn sub_assign(&mut self, rhs: Self) { *self = self.clone() - rhs }
 }
 
-impl<F: Field + Copy> Additive for DynamicVector<F> {}
+impl<F: Field + Copy> Additive for Vector<F> {}
 
-impl<F: Field + Copy> Group for DynamicVector<F> {
+impl<F: Field + Copy> Group for Vector<F> {
   /// Returns the identity element for vector addition (the zero vector).
   fn identity() -> Self { Self::zero() }
 
@@ -342,7 +339,7 @@ impl<F: Field + Copy> Group for DynamicVector<F> {
   fn inverse(&self) -> Self { -self.clone() }
 }
 
-impl<F: Field + Copy> Zero for DynamicVector<F> {
+impl<F: Field + Copy> Zero for Vector<F> {
   /// Returns the zero vector (empty vector with no components).
   fn zero() -> Self { Self { components: vec![] } }
 
@@ -356,29 +353,29 @@ impl<F: Field + Copy> Zero for DynamicVector<F> {
   }
 }
 
-impl<F: Field + Copy> AbelianGroup for DynamicVector<F> {}
+impl<F: Field + Copy> AbelianGroup for Vector<F> {}
 
-impl<F: Field + Copy + Mul<Self>> LeftModule for DynamicVector<F> {
+impl<F: Field + Copy + Mul<Self>> LeftModule for Vector<F> {
   type Ring = F;
 }
 
-impl<F: Field + Copy + Mul<Self>> RightModule for DynamicVector<F> {
+impl<F: Field + Copy + Mul<Self>> RightModule for Vector<F> {
   type Ring = F;
 }
 
-impl<F: Field + Copy + Mul<Self>> TwoSidedModule for DynamicVector<F> {
+impl<F: Field + Copy + Mul<Self>> TwoSidedModule for Vector<F> {
   type Ring = F;
 }
 
-impl<F: Field + Copy + Mul<Self>> VectorSpace for DynamicVector<F> {}
+impl<F: Field + Copy + Mul<Self>> VectorSpace for Vector<F> {}
 
-impl<F> Iterator for DynamicVector<F> {
+impl<F> Iterator for Vector<F> {
   type Item = F;
 
   fn next(&mut self) -> Option<Self::Item> { self.components.pop() }
 }
 
-impl<F: Field + Copy + fmt::Display> fmt::Display for DynamicVector<F> {
+impl<F: Field + Copy + fmt::Display> fmt::Display for Vector<F> {
   fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
     if self.components.is_empty() {
       return write!(f, "( )");
@@ -419,14 +416,14 @@ mod tests {
 
   #[test]
   fn test_zero_vector() {
-    let zero_vec: DynamicVector<Mod7> = DynamicVector::zero();
+    let zero_vec: Vector<Mod7> = Vector::zero();
     assert!(zero_vec.is_zero());
     assert_eq!(zero_vec.components.len(), 0, "Default zero vector should have 0 components");
 
-    let non_zero_vec = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let non_zero_vec = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
     assert!(!non_zero_vec.is_zero());
 
-    let zero_vec_explicit_empty: DynamicVector<Mod7> = DynamicVector::from([]);
+    let zero_vec_explicit_empty: Vector<Mod7> = Vector::from([]);
     assert!(zero_vec_explicit_empty.is_zero());
     assert_eq!(
       zero_vec_explicit_empty.components.len(),
@@ -437,15 +434,14 @@ mod tests {
 
   #[test]
   fn test_is_zero_for_non_empty_vector_with_all_zeros() {
-    let vec_all_zeros: DynamicVector<Mod7> =
-      DynamicVector::from([Mod7::from(0), Mod7::from(0), Mod7::from(0)]);
+    let vec_all_zeros: Vector<Mod7> = Vector::from([Mod7::from(0), Mod7::from(0), Mod7::from(0)]);
     assert!(vec_all_zeros.is_zero());
   }
 
   #[test]
   fn test_addition_zero_vectors() {
-    let vec1: DynamicVector<Mod7> = DynamicVector::zero();
-    let vec2: DynamicVector<Mod7> = DynamicVector::zero();
+    let vec1: Vector<Mod7> = Vector::zero();
+    let vec2: Vector<Mod7> = Vector::zero();
     let sum = vec1 + vec2;
     assert!(sum.is_zero());
     assert_eq!(
@@ -457,8 +453,8 @@ mod tests {
 
   #[test]
   fn test_addition_same_dimension() {
-    let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
+    let vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
     let sum = vec1 + vec2;
     assert_eq!(sum.components, vec![Mod7::from(2), Mod7::from(1)]);
   }
@@ -466,29 +462,29 @@ mod tests {
   #[test]
   #[should_panic(expected = "assertion `left == right` failed\n  left: 2\n right: 0")]
   fn test_addition_with_zero_vector_implicit_panics() {
-    let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
-    let zero_vec: DynamicVector<Mod7> = DynamicVector::zero();
+    let vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let zero_vec: Vector<Mod7> = Vector::zero();
     let _ = vec1 + zero_vec; // Panics because vec1.len (2) != zero_vec.len (0)
   }
 
   #[test]
   #[should_panic(expected = "assertion `left == right` failed\n  left: 2\n right: 3")]
   fn test_addition_different_dimensions_panic() {
-    let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(1), Mod7::from(1)]);
+    let vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(1), Mod7::from(1)]);
     let _ = vec1 + vec2; // Should panic
   }
 
   #[test]
   fn test_negation() {
-    let vec = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let vec = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
     let neg_vec = -vec;
     assert_eq!(neg_vec.components, vec![Mod7::from(6), Mod7::from(0)]);
   }
 
   #[test]
   fn test_scalar_multiplication() {
-    let vec = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0), Mod7::from(1)]);
+    let vec = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0), Mod7::from(1)]);
     let scalar_one = Mod7::from(1);
     let scalar_zero = Mod7::from(0);
 
@@ -505,8 +501,8 @@ mod tests {
 
   #[test]
   fn test_subtraction_same_dimension() {
-    let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(0), Mod7::from(1)]);
+    let vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(0), Mod7::from(1)]);
     let diff = vec1 + (-vec2);
     assert_eq!(diff.components, vec![Mod7::from(1), Mod7::from(0)]);
   }
@@ -514,15 +510,15 @@ mod tests {
   #[test]
   #[should_panic(expected = "assertion `left == right` failed\n  left: 2\n right: 1")]
   fn test_subtraction_different_dimensions_panic() {
-    let vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1)]);
+    let vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(1)]);
     let _ = vec1 - vec2;
   }
 
   #[test]
   fn test_add_assign_same_dimension() {
-    let mut vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
+    let mut vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
     vec1 += vec2;
     assert_eq!(vec1.components, vec![Mod7::from(2), Mod7::from(1)]);
   }
@@ -530,15 +526,15 @@ mod tests {
   #[test]
   #[should_panic(expected = "assertion `left == right` failed\n  left: 2\n right: 1")]
   fn test_add_assign_different_dimensions_panic() {
-    let mut vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1)]);
+    let mut vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(1)]);
     vec1 += vec2; // Should panic
   }
 
   #[test]
   fn test_sub_assign_same_dimension() {
-    let mut vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(0), Mod7::from(1)]);
+    let mut vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(1)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(0), Mod7::from(1)]);
     vec1 -= vec2;
     assert_eq!(vec1.components, vec![Mod7::from(1), Mod7::from(0)]);
   }
@@ -546,29 +542,29 @@ mod tests {
   #[test]
   #[should_panic(expected = "assertion `left == right` failed\n  left: 2\n right: 1")]
   fn test_sub_assign_different_dimensions_panic() {
-    let mut vec1 = DynamicVector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
-    let vec2 = DynamicVector::<Mod7>::from([Mod7::from(1)]);
+    let mut vec1 = Vector::<Mod7>::from([Mod7::from(1), Mod7::from(0)]);
+    let vec2 = Vector::<Mod7>::from([Mod7::from(1)]);
     vec1 -= vec2; // Should panic
   }
 
   #[test]
   fn test_zeros() {
-    let zero_vec = DynamicVector::<Mod7>::zeros(3);
+    let zero_vec = Vector::<Mod7>::zeros(3);
     assert_eq!(zero_vec.components, vec![Mod7::from(0), Mod7::from(0), Mod7::from(0)]);
   }
 
   #[test]
   fn test_display_formatting() {
     // Test empty vector
-    let empty: DynamicVector<f64> = DynamicVector::new(vec![]);
+    let empty: Vector<f64> = Vector::new(vec![]);
     println!("Empty vector: \n{empty}");
 
     // Test single element
-    let single = DynamicVector::from([42.0]);
+    let single = Vector::from([42.0]);
     println!("Single element: \n{single}");
 
     // Test multiple elements
-    let multi = DynamicVector::from([1.0, 2.5, -3.7, 0.0]);
+    let multi = Vector::from([1.0, 2.5, -3.7, 0.0]);
     println!("Multiple elements: \n{multi}");
   }
 }
