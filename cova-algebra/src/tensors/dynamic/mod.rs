@@ -32,13 +32,13 @@
 //! let matrix = Matrix::from_rows([v1, v2]);
 //!
 //! // Or using builder pattern
-//! let matrix = Matrix::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
+//! let matrix = Matrix::<f64>::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
 //!
 //! // Block matrix construction
-//! let block_matrix = Matrix::from_blocks(vec![vec![Some(Matrix::identity(2)), None], vec![
-//!   None,
-//!   Some(Matrix::identity(3)),
-//! ]]);
+//! let block_matrix = Matrix::<f64>::from_blocks(vec![
+//!   vec![Matrix::identity(2), Matrix::zeros(2, 3)],
+//!   vec![Matrix::zeros(3, 2), Matrix::identity(3)],
+//! ]);
 //!
 //! // Perform Gaussian elimination to row echelon form
 //! let (rref, output) = matrix.into_row_echelon_form();

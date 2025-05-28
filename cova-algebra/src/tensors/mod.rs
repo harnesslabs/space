@@ -30,13 +30,13 @@
 //! ## Example Usage
 //!
 //! ```
-//! use cova_algebra::tensors::{dynamic::vector::DynamicVector, fixed::FixedVector};
+//! use cova_algebra::tensors::{dynamic::Vector, fixed::FixedVector};
 //!
 //! // Fixed-size vector (dimension known at compile time)
 //! let fixed = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
 //!
 //! // Dynamic vector (dimension determined at runtime)
-//! let dynamic = DynamicVector::<f64>::from([4.0, 5.0, 6.0]);
+//! let dynamic = Vector::<f64>::from([4.0, 5.0, 6.0]);
 //! ```
 
 use super::*;

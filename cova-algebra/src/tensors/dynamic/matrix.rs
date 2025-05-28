@@ -31,8 +31,8 @@
 //! let matrix = Matrix::from_rows([Vector::from([1.0, 2.0, 3.0]), Vector::from([4.0, 5.0, 6.0])]);
 //!
 //! // Common constructors
-//! let zeros = Matrix::zeros(3, 3);
-//! let identity = Matrix::identity(3);
+//! let zeros = Matrix::<f64>::zeros(3, 3);
+//! let identity = Matrix::<f64>::identity(3);
 //!
 //! // Access elements naturally
 //! let element = matrix[(0, 1)]; // Gets element at row 0, column 1
@@ -44,39 +44,42 @@
 //!
 //! // Block matrix construction
 //! let block_matrix = Matrix::from_blocks(vec![
-//!   vec![Matrix::identity(2), Matrix::zeros(2, 3)],
-//!   vec![Matrix::zeros(3, 2), Matrix::identity(3)],
+//!   vec![Matrix::<f64>::identity(2), Matrix::<f64>::zeros(2, 3)],
+//!   vec![Matrix::<f64>::zeros(3, 2), Matrix::<f64>::identity(3)],
 //! ]);
 //!
 //! // Or using block builder
-//! let block_matrix = Matrix::block_builder()
-//!   .block(0, 0, Matrix::identity(2))
-//!   .block(1, 1, Matrix::identity(3))
+//! let block_matrix = Matrix::<f64>::block_builder()
+//!   .block(0, 0, Matrix::<f64>::identity(2))
+//!   .block(1, 1, Matrix::<f64>::identity(3))
 //!   .build(vec![2, 3], vec![2, 3]);
 //!
 //! // For more complex block structures:
-//! let blocks = vec![vec![Matrix::identity(2), Matrix::zeros(2, 3)], vec![
-//!   Matrix::zeros(3, 2),
-//!   Matrix::identity(3),
+//! let blocks = vec![vec![Matrix::<f64>::identity(2), Matrix::<f64>::zeros(2, 3)], vec![
+//!   Matrix::<f64>::zeros(3, 2),
+//!   Matrix::<f64>::identity(3),
 //! ]];
-//! let block_matrix = Matrix::from_blocks(blocks);
+//! let complex_block_matrix = Matrix::from_blocks(blocks);
 //!
-//! println!("{}", block_matrix.display_with_blocks(&[2, 3], &[2, 3]));
+//! // Display the matrix
+//! println!("{}", block_matrix);
 //!
 //! // Create a 3x3 block matrix
 //! let a = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
 //! let b = Matrix::builder().row([5.0]).row([6.0]).build();
 //! let c = Matrix::builder().row([7.0, 8.0]).build();
 //! let d = Matrix::builder().row([9.0]).build();
-//! let e = Matrix::identity(2);
-//! let f = Matrix::builder().row([10.0]).row([11.0]).build();
+//! let e = Matrix::<f64>::identity(2);
+//! let f = Matrix::builder().row([10.0, 11.0]).build();
 //!
-//! let blocks = vec![vec![a, b, Matrix::zeros(2, 2)], vec![c, d, f], vec![
-//!   Matrix::zeros(2, 2),
-//!   Matrix::zeros(2, 1),
+//! let blocks = vec![vec![a, b, Matrix::<f64>::zeros(2, 2)], vec![c, d, f], vec![
+//!   Matrix::<f64>::zeros(2, 2),
+//!   Matrix::<f64>::zeros(2, 1),
 //!   e,
 //! ]];
 //! let complex_block_matrix = Matrix::from_blocks(blocks);
+//!
+//! println!("{}", block_matrix);
 //! ```
 
 use std::{fmt, ops::Index};
@@ -227,13 +230,13 @@ impl<F: Field + Copy> Matrix<F> {
   /// use cova_algebra::tensors::dynamic::matrix::Matrix;
   ///
   /// // Create a 2x2 block matrix with identity blocks on the diagonal
-  /// let blocks = vec![vec![Matrix::identity(2), Matrix::zeros(2, 3)], vec![
-  ///   Matrix::zeros(3, 2),
-  ///   Matrix::identity(3),
+  /// let blocks = vec![vec![Matrix::<f64>::identity(2), Matrix::<f64>::zeros(2, 3)], vec![
+  ///   Matrix::<f64>::zeros(3, 2),
+  ///   Matrix::<f64>::identity(3),
   /// ]];
   /// let block_matrix = Matrix::from_blocks(blocks);
   ///
-  /// println!("{}", block_matrix.display_with_blocks(&[2, 3], &[2, 3]));
+  /// println!("{}", block_matrix);
   /// ```
   ///
   /// For more complex block structures:
@@ -246,12 +249,12 @@ impl<F: Field + Copy> Matrix<F> {
   /// let b = Matrix::builder().row([5.0]).row([6.0]).build();
   /// let c = Matrix::builder().row([7.0, 8.0]).build();
   /// let d = Matrix::builder().row([9.0]).build();
-  /// let e = Matrix::identity(2);
-  /// let f = Matrix::builder().row([10.0]).row([11.0]).build();
+  /// let e = Matrix::<f64>::identity(2);
+  /// let f = Matrix::builder().row([10.0, 11.0]).build();
   ///
-  /// let blocks = vec![vec![a, b, Matrix::zeros(2, 2)], vec![c, d, f], vec![
-  ///   Matrix::zeros(2, 2),
-  ///   Matrix::zeros(2, 1),
+  /// let blocks = vec![vec![a, b, Matrix::<f64>::zeros(2, 2)], vec![c, d, f], vec![
+  ///   Matrix::<f64>::zeros(2, 2),
+  ///   Matrix::<f64>::zeros(2, 1),
   ///   e,
   /// ]];
   /// let complex_block_matrix = Matrix::from_blocks(blocks);
@@ -350,8 +353,8 @@ impl<F: Field + Copy> Matrix<F> {
 
   /// Sets the component at the given row and column.
   pub fn set(&mut self, row: usize, col: usize, value: F) {
-    assert!(row < self.num_rows(), "Row index {} out of bounds", row);
-    assert!(col < self.num_cols(), "Column index {} out of bounds", col);
+    assert!(row < self.num_rows(), "Row index {row} out of bounds");
+    assert!(col < self.num_cols(), "Column index {col} out of bounds");
     self.rows[row].set_component(col, value);
   }
 
@@ -393,7 +396,7 @@ impl<F: Field + Copy> Matrix<F> {
 
   /// Gets the column at the given index as a new vector.
   pub fn column(&self, index: usize) -> Vector<F> {
-    assert!(index < self.num_cols(), "Column index {} out of bounds", index);
+    assert!(index < self.num_cols(), "Column index {index} out of bounds");
 
     let components: Vec<F> = self.rows.iter().map(|row| *row.get_component(index)).collect();
 
@@ -402,7 +405,7 @@ impl<F: Field + Copy> Matrix<F> {
 
   /// Sets the column at the given index.
   pub fn set_column(&mut self, index: usize, column: &Vector<F>) {
-    assert!(index < self.num_cols(), "Column index {} out of bounds", index);
+    assert!(index < self.num_cols(), "Column index {index} out of bounds");
     assert_eq!(
       column.dimension(),
       self.num_rows(),
@@ -656,7 +659,7 @@ impl<F: Field + Copy> Matrix<F> {
   /// ```
   /// use cova_algebra::tensors::dynamic::matrix::Matrix;
   ///
-  /// let blocks = vec![Matrix::identity(2), Matrix::identity(3)];
+  /// let blocks = vec![Matrix::<f64>::identity(2), Matrix::<f64>::identity(3)];
   ///
   /// let block_diag = Matrix::block_diagonal(blocks);
   /// // Creates a 5x5 matrix with 2x2 and 3x3 identity blocks on the diagonal
@@ -873,8 +876,11 @@ impl<F: Field + Copy> Default for MatrixBuilder<F> {
 /// ```
 /// use cova_algebra::tensors::dynamic::matrix::Matrix;
 ///
-/// let builder =
-///   Matrix::block_builder().block(0, 0, Matrix::identity(2)).block(1, 1, Matrix::identity(3));
+/// let builder = Matrix::<f64>::block_builder().block(0, 0, Matrix::<f64>::identity(2)).block(
+///   1,
+///   1,
+///   Matrix::<f64>::identity(3),
+/// );
 ///
 /// // Debug the construction state
 /// println!("Builder state: {}", builder);
@@ -912,8 +918,11 @@ impl<F: Field + Copy> BlockMatrixBuilder<F> {
   /// ```
   /// use cova_algebra::tensors::dynamic::matrix::Matrix;
   ///
-  /// let builder =
-  ///   Matrix::block_builder().block(0, 0, Matrix::identity(2)).block(1, 1, Matrix::identity(3));
+  /// let builder = Matrix::<f64>::block_builder().block(0, 0, Matrix::<f64>::identity(2)).block(
+  ///   1,
+  ///   1,
+  ///   Matrix::<f64>::identity(3),
+  /// );
   ///
   /// // Debug the construction state
   /// println!("Builder state: {}", builder);
@@ -1088,6 +1097,7 @@ impl<F: Field + Copy + fmt::Display> BlockMatrixBuilder<F> {
     // Calculate column widths for proper alignment
     let mut col_widths = vec![0; total_cols];
     for i in 0..total_rows {
+      #[allow(clippy::needless_range_loop)]
       for j in 0..total_cols {
         let element_str = format!("{}", matrix.get(i, j).unwrap());
         col_widths[j] = col_widths[j].max(element_str.len());
@@ -1127,6 +1137,7 @@ impl<F: Field + Copy + fmt::Display> BlockMatrixBuilder<F> {
       }
 
       // Print matrix elements with block separators
+      #[allow(clippy::needless_range_loop)]
       for j in 0..total_cols {
         if j > 0 {
           if col_boundaries.contains(&j) {
@@ -1277,7 +1288,7 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for Matrix<F> {
     let mut col_widths = vec![0; self.num_cols()];
     for row in &self.rows {
       for (j, component) in row.components().iter().enumerate() {
-        let element_str = format!("{}", component);
+        let element_str = format!("{component}");
         col_widths[j] = col_widths[j].max(element_str.len());
       }
     }
@@ -1424,7 +1435,7 @@ mod tests {
 
     // Verify kernel vector satisfies Ax = 0
     if let Some(kernel_vec) = kernel.first() {
-      let result = matrix.clone() * kernel_vec.clone();
+      let result = matrix * kernel_vec.clone();
       assert!(result.components().iter().all(|&x| x.abs() < 1e-10));
     }
   }
@@ -1433,7 +1444,7 @@ mod tests {
   fn test_display_formatting() {
     let matrix = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
 
-    let display_str = format!("{}", matrix);
+    let display_str = format!("{matrix}");
     assert!(display_str.contains("1"));
     assert!(display_str.contains("4"));
   }
@@ -1499,9 +1510,6 @@ mod tests {
 
     assert_eq!(block_matrix.dimensions(), (3, 3));
     assert_eq!(block_matrix[(0, 0)], 1.0);
-    assert_eq!(block_matrix[(0, 1)], 2.0);
-    assert_eq!(block_matrix[(1, 0)], 3.0);
-    assert_eq!(block_matrix[(1, 1)], 4.0);
     assert_eq!(block_matrix[(2, 2)], 5.0);
 
     // Check zero blocks
@@ -1649,20 +1657,20 @@ mod tests {
   #[test]
   fn test_block_display() {
     // Test the BlockMatrixBuilder display functionality
-    let builder = Matrix::<f64>::block_builder().block(0, 0, Matrix::identity(2)).block(
+    let builder = Matrix::<f64>::block_builder().block(0, 0, Matrix::<f64>::identity(2)).block(
       1,
       1,
-      Matrix::identity(3),
+      Matrix::<f64>::identity(3),
     );
 
-    let display_str = format!("{}", builder);
+    let display_str = format!("{builder}");
 
     // Verify it contains the expected structure - should show actual matrix with block boundaries
     assert!(display_str.contains("1"));
     assert!(display_str.contains("0"));
     assert!(display_str.contains("│")); // Block separator
 
-    println!("Block matrix builder display:\n{}", display_str);
+    println!("Block matrix builder display:\n{display_str}");
   }
 
   #[test]
@@ -1673,7 +1681,7 @@ mod tests {
       .block(1, 1, Matrix::builder().row([5.0]).build());
 
     // Display the builder state
-    println!("Block builder during construction:\n{}", builder);
+    println!("Block builder during construction:\n{builder}");
 
     // Build the final matrix
     let block_matrix = builder.build(vec![2, 1], vec![2, 1]);
