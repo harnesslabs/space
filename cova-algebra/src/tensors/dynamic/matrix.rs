@@ -43,14 +43,40 @@
 //! let image = matrix.image();
 //!
 //! // Block matrix construction
-//! let block_matrix =
-//!   Matrix::from_blocks([[Some(Matrix::identity(2)), None], [None, Some(Matrix::identity(3))]]);
+//! let block_matrix = Matrix::from_blocks(vec![
+//!   vec![Matrix::identity(2), Matrix::zeros(2, 3)],
+//!   vec![Matrix::zeros(3, 2), Matrix::identity(3)],
+//! ]);
 //!
 //! // Or using block builder
 //! let block_matrix = Matrix::block_builder()
 //!   .block(0, 0, Matrix::identity(2))
 //!   .block(1, 1, Matrix::identity(3))
-//!   .build([2, 3], [2, 3]);
+//!   .build(vec![2, 3], vec![2, 3]);
+//!
+//! // For more complex block structures:
+//! let blocks = vec![vec![Matrix::identity(2), Matrix::zeros(2, 3)], vec![
+//!   Matrix::zeros(3, 2),
+//!   Matrix::identity(3),
+//! ]];
+//! let block_matrix = Matrix::from_blocks(blocks);
+//!
+//! println!("{}", block_matrix.display_with_blocks(&[2, 3], &[2, 3]));
+//!
+//! // Create a 3x3 block matrix
+//! let a = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
+//! let b = Matrix::builder().row([5.0]).row([6.0]).build();
+//! let c = Matrix::builder().row([7.0, 8.0]).build();
+//! let d = Matrix::builder().row([9.0]).build();
+//! let e = Matrix::identity(2);
+//! let f = Matrix::builder().row([10.0]).row([11.0]).build();
+//!
+//! let blocks = vec![vec![a, b, Matrix::zeros(2, 2)], vec![c, d, f], vec![
+//!   Matrix::zeros(2, 2),
+//!   Matrix::zeros(2, 1),
+//!   e,
+//! ]];
+//! let complex_block_matrix = Matrix::from_blocks(blocks);
 //! ```
 
 use std::{fmt, ops::Index};
@@ -185,11 +211,15 @@ impl<F: Field + Copy> Matrix<F> {
     matrix
   }
 
-  /// Creates a matrix from a 2D array of optional blocks.
+  /// Creates a matrix from a 2D vector of blocks.
   ///
-  /// Each `Some(matrix)` represents a non-zero block, while `None` represents a zero block.
   /// All blocks in the same block-row must have the same height, and all blocks in the
-  /// same block-column must have the same width.
+  /// same block-column must have the same width. Use `Matrix::zeros(rows, cols)` for
+  /// zero blocks.
+  ///
+  /// # Arguments
+  ///
+  /// * `blocks`: 2D vector where `blocks[i][j]` is the block at block-row i, block-column j
   ///
   /// # Examples
   ///
@@ -197,60 +227,91 @@ impl<F: Field + Copy> Matrix<F> {
   /// use cova_algebra::tensors::dynamic::matrix::Matrix;
   ///
   /// // Create a 2x2 block matrix with identity blocks on the diagonal
-  /// let block_matrix =
-  ///   Matrix::from_blocks([[Some(Matrix::identity(2)), None], [None, Some(Matrix::identity(3))]]);
+  /// let blocks = vec![vec![Matrix::identity(2), Matrix::zeros(2, 3)], vec![
+  ///   Matrix::zeros(3, 2),
+  ///   Matrix::identity(3),
+  /// ]];
+  /// let block_matrix = Matrix::from_blocks(blocks);
+  ///
+  /// println!("{}", block_matrix.display_with_blocks(&[2, 3], &[2, 3]));
   /// ```
-  pub fn from_blocks<const BLOCK_ROWS: usize, const BLOCK_COLS: usize>(
-    blocks: [[Option<Matrix<F>>; BLOCK_COLS]; BLOCK_ROWS],
-  ) -> Self {
-    if BLOCK_ROWS == 0 || BLOCK_COLS == 0 {
+  ///
+  /// For more complex block structures:
+  ///
+  /// ```
+  /// use cova_algebra::tensors::dynamic::matrix::Matrix;
+  ///
+  /// // Create a 3x3 block matrix
+  /// let a = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
+  /// let b = Matrix::builder().row([5.0]).row([6.0]).build();
+  /// let c = Matrix::builder().row([7.0, 8.0]).build();
+  /// let d = Matrix::builder().row([9.0]).build();
+  /// let e = Matrix::identity(2);
+  /// let f = Matrix::builder().row([10.0]).row([11.0]).build();
+  ///
+  /// let blocks = vec![vec![a, b, Matrix::zeros(2, 2)], vec![c, d, f], vec![
+  ///   Matrix::zeros(2, 2),
+  ///   Matrix::zeros(2, 1),
+  ///   e,
+  /// ]];
+  /// let complex_block_matrix = Matrix::from_blocks(blocks);
+  /// ```
+  pub fn from_blocks(blocks: Vec<Vec<Matrix<F>>>) -> Self {
+    if blocks.is_empty() || blocks[0].is_empty() {
       return Self::new();
     }
 
-    // Determine block sizes by examining the first non-None block in each row/column
-    let mut row_block_sizes = vec![0; BLOCK_ROWS];
-    let mut col_block_sizes = vec![0; BLOCK_COLS];
+    let block_rows = blocks.len();
+    let block_cols = blocks[0].len();
 
-    // Find row heights
+    // Validate that all rows have the same number of columns
+    for (i, row) in blocks.iter().enumerate() {
+      assert_eq!(
+        row.len(),
+        block_cols,
+        "Block row {} has {} columns, expected {}",
+        i,
+        row.len(),
+        block_cols
+      );
+    }
+
+    // Determine block sizes by examining blocks in each row/column
+    let mut row_block_sizes = vec![0; block_rows];
+    let mut col_block_sizes = vec![0; block_cols];
+
+    // Find row heights from the first column
     for (block_row, row) in blocks.iter().enumerate() {
-      for block in row.iter().flatten() {
-        if row_block_sizes[block_row] == 0 {
-          row_block_sizes[block_row] = block.num_rows();
-        } else {
-          assert_eq!(
-            block.num_rows(),
-            row_block_sizes[block_row],
-            "All blocks in block-row {} must have the same height",
-            block_row
-          );
-        }
-      }
+      row_block_sizes[block_row] = row[0].num_rows();
     }
 
-    // Find column widths
-    for block_col in 0..BLOCK_COLS {
-      for block_row in 0..BLOCK_ROWS {
-        if let Some(ref block) = blocks[block_row][block_col] {
-          if col_block_sizes[block_col] == 0 {
-            col_block_sizes[block_col] = block.num_cols();
-          } else {
-            assert_eq!(
-              block.num_cols(),
-              col_block_sizes[block_col],
-              "All blocks in block-column {} must have the same width",
-              block_col
-            );
-          }
-        }
-      }
+    // Find column widths from the first row
+    for (block_col, block) in blocks[0].iter().enumerate() {
+      col_block_sizes[block_col] = block.num_cols();
     }
 
-    // Validate that we found sizes for all blocks
-    for (i, &size) in row_block_sizes.iter().enumerate() {
-      assert!(size > 0, "Block row {} has no non-zero blocks to determine size", i);
-    }
-    for (i, &size) in col_block_sizes.iter().enumerate() {
-      assert!(size > 0, "Block column {} has no non-zero blocks to determine size", i);
+    // Validate that all blocks have consistent dimensions
+    for (block_row, row) in blocks.iter().enumerate() {
+      for (block_col, block) in row.iter().enumerate() {
+        assert_eq!(
+          block.num_rows(),
+          row_block_sizes[block_row],
+          "Block at ({}, {}) has {} rows, expected {}",
+          block_row,
+          block_col,
+          block.num_rows(),
+          row_block_sizes[block_row]
+        );
+        assert_eq!(
+          block.num_cols(),
+          col_block_sizes[block_col],
+          "Block at ({}, {}) has {} columns, expected {}",
+          block_row,
+          block_col,
+          block.num_cols(),
+          col_block_sizes[block_col]
+        );
+      }
     }
 
     // Calculate total dimensions
@@ -260,27 +321,25 @@ impl<F: Field + Copy> Matrix<F> {
     let mut result = Self::zeros(total_rows, total_cols);
 
     // Compute offsets for efficient placement
-    let mut row_offsets = vec![0; BLOCK_ROWS + 1];
-    for i in 0..BLOCK_ROWS {
+    let mut row_offsets = vec![0; block_rows + 1];
+    for i in 0..block_rows {
       row_offsets[i + 1] = row_offsets[i] + row_block_sizes[i];
     }
 
-    let mut col_offsets = vec![0; BLOCK_COLS + 1];
-    for i in 0..BLOCK_COLS {
+    let mut col_offsets = vec![0; block_cols + 1];
+    for i in 0..block_cols {
       col_offsets[i + 1] = col_offsets[i] + col_block_sizes[i];
     }
 
     // Place blocks
     for (block_row, row) in blocks.iter().enumerate() {
-      for (block_col, block_opt) in row.iter().enumerate() {
-        if let Some(ref block) = block_opt {
-          let row_start = row_offsets[block_row];
-          let col_start = col_offsets[block_col];
+      for (block_col, block) in row.iter().enumerate() {
+        let row_start = row_offsets[block_row];
+        let col_start = col_offsets[block_col];
 
-          for i in 0..block.num_rows() {
-            for j in 0..block.num_cols() {
-              result.set(row_start + i, col_start + j, *block.get(i, j).unwrap());
-            }
+        for i in 0..block.num_rows() {
+          for j in 0..block.num_cols() {
+            result.set(row_start + i, col_start + j, *block.get(i, j).unwrap());
           }
         }
       }
@@ -506,162 +565,7 @@ impl<F: Field + Copy> Matrix<F> {
 
   /// Creates a block matrix builder for fluent block construction.
   pub fn block_builder() -> BlockMatrixBuilder<F> { BlockMatrixBuilder::new() }
-}
 
-// Index trait for convenient element access
-impl<F> Index<(usize, usize)> for Matrix<F> {
-  type Output = F;
-
-  fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
-    self.get(row, col).expect("Index out of bounds")
-  }
-}
-
-/// Builder for constructing matrices with a fluent API.
-pub struct MatrixBuilder<F> {
-  rows: Vec<Vector<F>>,
-}
-
-impl<F: Field + Copy> MatrixBuilder<F> {
-  /// Creates a new matrix builder.
-  pub fn new() -> Self { Self { rows: Vec::new() } }
-
-  /// Adds a row from an array.
-  pub fn row<const N: usize>(mut self, row: [F; N]) -> Self {
-    self.rows.push(Vector::from(row));
-    self
-  }
-
-  /// Adds a row from a vector.
-  pub fn row_vec(mut self, row: Vector<F>) -> Self {
-    self.rows.push(row);
-    self
-  }
-
-  /// Adds a row from an iterator.
-  pub fn row_iter<I>(mut self, row: I) -> Self
-  where I: IntoIterator<Item = F> {
-    self.rows.push(Vector::from(row.into_iter().collect::<Vec<_>>()));
-    self
-  }
-
-  /// Builds the matrix.
-  pub fn build(self) -> Matrix<F> { Matrix::from_rows(self.rows) }
-}
-
-impl<F: Field + Copy> Default for MatrixBuilder<F> {
-  fn default() -> Self { Self::new() }
-}
-
-/// Builder for constructing block matrices with a fluent API.
-///
-/// This builder allows you to specify blocks at specific positions and then
-/// build the final matrix with the specified block structure.
-pub struct BlockMatrixBuilder<F> {
-  blocks: std::collections::HashMap<(usize, usize), Matrix<F>>,
-}
-
-impl<F: Field + Copy> BlockMatrixBuilder<F> {
-  /// Creates a new block matrix builder.
-  pub fn new() -> Self { Self { blocks: std::collections::HashMap::new() } }
-
-  /// Adds a block at the specified position.
-  pub fn block(mut self, block_row: usize, block_col: usize, matrix: Matrix<F>) -> Self {
-    self.blocks.insert((block_row, block_col), matrix);
-    self
-  }
-
-  /// Builds the block matrix with the specified block structure.
-  ///
-  /// # Arguments
-  ///
-  /// * `row_block_sizes`: Array specifying the height of each block row
-  /// * `col_block_sizes`: Array specifying the width of each block column
-  ///
-  /// # Panics
-  ///
-  /// Panics if any block has dimensions that don't match the specified structure.
-  pub fn build<const BLOCK_ROWS: usize, const BLOCK_COLS: usize>(
-    self,
-    row_block_sizes: [usize; BLOCK_ROWS],
-    col_block_sizes: [usize; BLOCK_COLS],
-  ) -> Matrix<F> {
-    // Validate block dimensions
-    for ((block_row, block_col), matrix) in &self.blocks {
-      assert!(
-        *block_row < BLOCK_ROWS,
-        "Block row {} out of bounds (max: {})",
-        block_row,
-        BLOCK_ROWS - 1
-      );
-      assert!(
-        *block_col < BLOCK_COLS,
-        "Block column {} out of bounds (max: {})",
-        block_col,
-        BLOCK_COLS - 1
-      );
-
-      let expected_rows = row_block_sizes[*block_row];
-      let expected_cols = col_block_sizes[*block_col];
-
-      assert_eq!(
-        matrix.num_rows(),
-        expected_rows,
-        "Block at ({}, {}) has {} rows, expected {}",
-        block_row,
-        block_col,
-        matrix.num_rows(),
-        expected_rows
-      );
-      assert_eq!(
-        matrix.num_cols(),
-        expected_cols,
-        "Block at ({}, {}) has {} columns, expected {}",
-        block_row,
-        block_col,
-        matrix.num_cols(),
-        expected_cols
-      );
-    }
-
-    // Calculate total dimensions
-    let total_rows: usize = row_block_sizes.iter().sum();
-    let total_cols: usize = col_block_sizes.iter().sum();
-
-    let mut result = Matrix::zeros(total_rows, total_cols);
-
-    // Compute offsets
-    let mut row_offsets = vec![0; BLOCK_ROWS + 1];
-    for i in 0..BLOCK_ROWS {
-      row_offsets[i + 1] = row_offsets[i] + row_block_sizes[i];
-    }
-
-    let mut col_offsets = vec![0; BLOCK_COLS + 1];
-    for i in 0..BLOCK_COLS {
-      col_offsets[i + 1] = col_offsets[i] + col_block_sizes[i];
-    }
-
-    // Place blocks
-    for ((block_row, block_col), matrix) in &self.blocks {
-      let row_start = row_offsets[*block_row];
-      let col_start = col_offsets[*block_col];
-
-      for i in 0..matrix.num_rows() {
-        for j in 0..matrix.num_cols() {
-          result.set(row_start + i, col_start + j, *matrix.get(i, j).unwrap());
-        }
-      }
-    }
-
-    result
-  }
-}
-
-impl<F: Field + Copy> Default for BlockMatrixBuilder<F> {
-  fn default() -> Self { Self::new() }
-}
-
-impl<F: Field + Copy> Matrix<F> {
   /// Extracts a block from the matrix at the specified position.
   ///
   /// # Arguments
@@ -853,6 +757,454 @@ impl<F: Field + Copy> Matrix<F> {
   }
 }
 
+// Index trait for convenient element access
+impl<F> Index<(usize, usize)> for Matrix<F> {
+  type Output = F;
+
+  fn index(&self, (row, col): (usize, usize)) -> &Self::Output {
+    self.get(row, col).expect("Index out of bounds")
+  }
+}
+
+/// Builder for constructing matrices with a fluent API.
+pub struct MatrixBuilder<F> {
+  rows:       Vec<Vector<F>>,
+  cols:       Vec<Vector<F>>,
+  build_mode: BuildMode,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum BuildMode {
+  Rows,
+  Columns,
+}
+
+impl<F: Field + Copy> MatrixBuilder<F> {
+  /// Creates a new matrix builder.
+  pub fn new() -> Self { Self { rows: Vec::new(), cols: Vec::new(), build_mode: BuildMode::Rows } }
+
+  /// Adds a row from an array.
+  pub fn row<const N: usize>(mut self, row: [F; N]) -> Self {
+    assert_eq!(
+      self.build_mode,
+      BuildMode::Rows,
+      "Cannot mix row and column operations in MatrixBuilder"
+    );
+    self.rows.push(Vector::from(row));
+    self
+  }
+
+  /// Adds a row from a vector.
+  pub fn row_vec(mut self, row: Vector<F>) -> Self {
+    assert_eq!(
+      self.build_mode,
+      BuildMode::Rows,
+      "Cannot mix row and column operations in MatrixBuilder"
+    );
+    self.rows.push(row);
+    self
+  }
+
+  /// Adds a row from an iterator.
+  pub fn row_iter<I>(mut self, row: I) -> Self
+  where I: IntoIterator<Item = F> {
+    assert_eq!(
+      self.build_mode,
+      BuildMode::Rows,
+      "Cannot mix row and column operations in MatrixBuilder"
+    );
+    self.rows.push(Vector::from(row.into_iter().collect::<Vec<_>>()));
+    self
+  }
+
+  /// Adds a column from an array.
+  pub fn column<const N: usize>(mut self, col: [F; N]) -> Self {
+    if self.build_mode == BuildMode::Rows && !self.rows.is_empty() {
+      panic!("Cannot mix row and column operations in MatrixBuilder");
+    }
+    self.build_mode = BuildMode::Columns;
+    self.cols.push(Vector::from(col));
+    self
+  }
+
+  /// Adds a column from a vector.
+  pub fn column_vec(mut self, col: Vector<F>) -> Self {
+    if self.build_mode == BuildMode::Rows && !self.rows.is_empty() {
+      panic!("Cannot mix row and column operations in MatrixBuilder");
+    }
+    self.build_mode = BuildMode::Columns;
+    self.cols.push(col);
+    self
+  }
+
+  /// Adds a column from an iterator.
+  pub fn column_iter<I>(mut self, col: I) -> Self
+  where I: IntoIterator<Item = F> {
+    if self.build_mode == BuildMode::Rows && !self.rows.is_empty() {
+      panic!("Cannot mix row and column operations in MatrixBuilder");
+    }
+    self.build_mode = BuildMode::Columns;
+    self.cols.push(Vector::from(col.into_iter().collect::<Vec<_>>()));
+    self
+  }
+
+  /// Builds the matrix.
+  pub fn build(self) -> Matrix<F> {
+    match self.build_mode {
+      BuildMode::Rows => Matrix::from_rows(self.rows),
+      BuildMode::Columns => Matrix::from_cols(self.cols),
+    }
+  }
+}
+
+impl<F: Field + Copy> Default for MatrixBuilder<F> {
+  fn default() -> Self { Self::new() }
+}
+
+/// Builder for constructing block matrices with a fluent API.
+///
+/// This builder allows you to specify blocks at specific positions and then
+/// build the final matrix with the specified block structure. The builder
+/// implements `Display` to show the current construction state, making it
+/// easy to debug block matrix construction.
+///
+/// # Examples
+///
+/// ```
+/// use cova_algebra::tensors::dynamic::matrix::Matrix;
+///
+/// let builder =
+///   Matrix::block_builder().block(0, 0, Matrix::identity(2)).block(1, 1, Matrix::identity(3));
+///
+/// // Debug the construction state
+/// println!("Builder state: {}", builder);
+///
+/// // Build the final matrix
+/// let block_matrix = builder.build(vec![2, 3], vec![2, 3]);
+/// ```
+pub struct BlockMatrixBuilder<F> {
+  blocks: std::collections::HashMap<(usize, usize), Matrix<F>>,
+}
+
+impl<F: Field + Copy> BlockMatrixBuilder<F> {
+  /// Creates a new block matrix builder.
+  pub fn new() -> Self { Self { blocks: std::collections::HashMap::new() } }
+
+  /// Adds a block at the specified position.
+  pub fn block(mut self, block_row: usize, block_col: usize, matrix: Matrix<F>) -> Self {
+    self.blocks.insert((block_row, block_col), matrix);
+    self
+  }
+
+  /// Builds the block matrix with the specified block structure.
+  ///
+  /// # Arguments
+  ///
+  /// * `row_block_sizes`: Vector specifying the height of each block row
+  /// * `col_block_sizes`: Vector specifying the width of each block column
+  ///
+  /// # Panics
+  ///
+  /// Panics if any block has dimensions that don't match the specified structure.
+  ///
+  /// # Examples
+  ///
+  /// ```
+  /// use cova_algebra::tensors::dynamic::matrix::Matrix;
+  ///
+  /// let builder =
+  ///   Matrix::block_builder().block(0, 0, Matrix::identity(2)).block(1, 1, Matrix::identity(3));
+  ///
+  /// // Debug the construction state
+  /// println!("Builder state: {}", builder);
+  ///
+  /// // Build the final matrix
+  /// let block_matrix = builder.build(vec![2, 3], vec![2, 3]);
+  /// ```
+  pub fn build(self, row_block_sizes: Vec<usize>, col_block_sizes: Vec<usize>) -> Matrix<F> {
+    let block_rows = row_block_sizes.len();
+    let block_cols = col_block_sizes.len();
+
+    // Validate block dimensions
+    for ((block_row, block_col), matrix) in &self.blocks {
+      assert!(
+        *block_row < block_rows,
+        "Block row {} out of bounds (max: {})",
+        block_row,
+        block_rows - 1
+      );
+      assert!(
+        *block_col < block_cols,
+        "Block column {} out of bounds (max: {})",
+        block_col,
+        block_cols - 1
+      );
+
+      let expected_rows = row_block_sizes[*block_row];
+      let expected_cols = col_block_sizes[*block_col];
+
+      assert_eq!(
+        matrix.num_rows(),
+        expected_rows,
+        "Block at ({}, {}) has {} rows, expected {}",
+        block_row,
+        block_col,
+        matrix.num_rows(),
+        expected_rows
+      );
+      assert_eq!(
+        matrix.num_cols(),
+        expected_cols,
+        "Block at ({}, {}) has {} columns, expected {}",
+        block_row,
+        block_col,
+        matrix.num_cols(),
+        expected_cols
+      );
+    }
+
+    // Calculate total dimensions
+    let total_rows: usize = row_block_sizes.iter().sum();
+    let total_cols: usize = col_block_sizes.iter().sum();
+
+    let mut result = Matrix::zeros(total_rows, total_cols);
+
+    // Compute offsets
+    let mut row_offsets = vec![0; block_rows + 1];
+    for i in 0..block_rows {
+      row_offsets[i + 1] = row_offsets[i] + row_block_sizes[i];
+    }
+
+    let mut col_offsets = vec![0; block_cols + 1];
+    for i in 0..block_cols {
+      col_offsets[i + 1] = col_offsets[i] + col_block_sizes[i];
+    }
+
+    // Place blocks
+    for ((block_row, block_col), matrix) in &self.blocks {
+      let row_start = row_offsets[*block_row];
+      let col_start = col_offsets[*block_col];
+
+      for i in 0..matrix.num_rows() {
+        for j in 0..matrix.num_cols() {
+          result.set(row_start + i, col_start + j, *matrix.get(i, j).unwrap());
+        }
+      }
+    }
+
+    result
+  }
+}
+
+impl<F: Field + Copy> Default for BlockMatrixBuilder<F> {
+  fn default() -> Self { Self::new() }
+}
+
+impl<F: Field + Copy + fmt::Display> fmt::Display for BlockMatrixBuilder<F> {
+  fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+    if self.blocks.is_empty() {
+      return writeln!(f, "BlockMatrixBuilder: (empty)");
+    }
+
+    // Determine the grid dimensions by finding max block coordinates
+    let max_block_row = self.blocks.keys().map(|(r, _)| *r).max().unwrap_or(0);
+    let max_block_col = self.blocks.keys().map(|(_, c)| *c).max().unwrap_or(0);
+    let grid_rows = max_block_row + 1;
+    let grid_cols = max_block_col + 1;
+
+    // Determine block sizes by examining existing blocks
+    let mut row_block_sizes = vec![0; grid_rows];
+    let mut col_block_sizes = vec![0; grid_cols];
+
+    // Find row heights and column widths from existing blocks
+    for ((block_row, block_col), matrix) in &self.blocks {
+      row_block_sizes[*block_row] = row_block_sizes[*block_row].max(matrix.num_rows());
+      col_block_sizes[*block_col] = col_block_sizes[*block_col].max(matrix.num_cols());
+    }
+
+    // If any block size is still 0, use a default size of 1
+    for size in &mut row_block_sizes {
+      if *size == 0 {
+        *size = 1;
+      }
+    }
+    for size in &mut col_block_sizes {
+      if *size == 0 {
+        *size = 1;
+      }
+    }
+
+    // Calculate total dimensions
+    let total_rows: usize = row_block_sizes.iter().sum();
+    let total_cols: usize = col_block_sizes.iter().sum();
+
+    // Create the full matrix by assembling blocks
+    let mut full_matrix = Matrix::zeros(total_rows, total_cols);
+
+    // Compute offsets for block placement
+    let mut row_offsets = vec![0; grid_rows + 1];
+    for i in 0..grid_rows {
+      row_offsets[i + 1] = row_offsets[i] + row_block_sizes[i];
+    }
+
+    let mut col_offsets = vec![0; grid_cols + 1];
+    for i in 0..grid_cols {
+      col_offsets[i + 1] = col_offsets[i] + col_block_sizes[i];
+    }
+
+    // Place existing blocks
+    for ((block_row, block_col), matrix) in &self.blocks {
+      let row_start = row_offsets[*block_row];
+      let col_start = col_offsets[*block_col];
+
+      for i in 0..matrix.num_rows() {
+        for j in 0..matrix.num_cols() {
+          full_matrix.set(row_start + i, col_start + j, *matrix.get(i, j).unwrap());
+        }
+      }
+    }
+
+    // Now display the matrix with block boundaries
+    self.display_matrix_with_blocks(f, &full_matrix, &row_block_sizes, &col_block_sizes)
+  }
+}
+
+impl<F: Field + Copy + fmt::Display> BlockMatrixBuilder<F> {
+  /// Display a matrix with block boundaries
+  fn display_matrix_with_blocks(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    matrix: &Matrix<F>,
+    row_block_sizes: &[usize],
+    col_block_sizes: &[usize],
+  ) -> fmt::Result {
+    let total_rows = matrix.num_rows();
+    let total_cols = matrix.num_cols();
+
+    if total_rows == 0 {
+      return writeln!(f, "( )");
+    }
+
+    // Calculate column widths for proper alignment
+    let mut col_widths = vec![0; total_cols];
+    for i in 0..total_rows {
+      for j in 0..total_cols {
+        let element_str = format!("{}", matrix.get(i, j).unwrap());
+        col_widths[j] = col_widths[j].max(element_str.len());
+      }
+    }
+
+    // Compute block boundary positions
+    let row_boundaries = self.compute_row_boundaries(row_block_sizes);
+    let col_boundaries = self.compute_col_boundaries(col_block_sizes);
+
+    for i in 0..total_rows {
+      // Print horizontal separator before this row if it's a block boundary (but not the first row)
+      if i > 0 && row_boundaries.contains(&i) {
+        // Print left parenthesis part for separator row
+        if total_rows == 1 {
+          write!(f, "│ ")?; // Won't happen since single row has no separators
+        } else {
+          write!(f, "⎜ ")?; // Mid-section of parenthesis
+        }
+
+        self.print_horizontal_separator(f, &col_widths, &col_boundaries)?;
+
+        // Print right parenthesis part for separator row
+        writeln!(f, " ⎟")?;
+      }
+
+      // Print the row with vertical separators and parentheses
+      // Left parenthesis
+      if total_rows == 1 {
+        write!(f, "( ")?; // Single row: simple parentheses
+      } else if i == 0 {
+        write!(f, "⎛ ")?; // Top of parenthesis
+      } else if i == total_rows - 1 {
+        write!(f, "⎝ ")?; // Bottom of parenthesis
+      } else {
+        write!(f, "⎜ ")?; // Middle of parenthesis
+      }
+
+      // Print matrix elements with block separators
+      for j in 0..total_cols {
+        if j > 0 {
+          if col_boundaries.contains(&j) {
+            write!(f, " │ ")?; // Unicode vertical line with padding for block separator
+          } else {
+            write!(f, "  ")?; // Regular spacing between elements in same block
+          }
+        }
+        write!(f, "{:>width$}", matrix.get(i, j).unwrap(), width = col_widths[j])?;
+      }
+
+      // Right parenthesis
+      if total_rows == 1 {
+        writeln!(f, " )")?; // Single row: simple parentheses
+      } else if i == 0 {
+        writeln!(f, " ⎞")?; // Top of parenthesis
+      } else if i == total_rows - 1 {
+        writeln!(f, " ⎠")?; // Bottom of parenthesis
+      } else {
+        writeln!(f, " ⎟")?; // Middle of parenthesis
+      }
+    }
+
+    Ok(())
+  }
+
+  /// Computes the row indices where block boundaries occur
+  fn compute_row_boundaries(&self, row_block_sizes: &[usize]) -> Vec<usize> {
+    let mut boundaries = Vec::new();
+    let mut current_row = 0;
+
+    for &block_height in row_block_sizes {
+      current_row += block_height;
+      boundaries.push(current_row);
+    }
+
+    // Remove the last boundary (which is the total number of rows)
+    boundaries.pop();
+    boundaries
+  }
+
+  /// Computes the column indices where block boundaries occur
+  fn compute_col_boundaries(&self, col_block_sizes: &[usize]) -> Vec<usize> {
+    let mut boundaries = Vec::new();
+    let mut current_col = 0;
+
+    for &block_width in col_block_sizes {
+      current_col += block_width;
+      boundaries.push(current_col);
+    }
+
+    // Remove the last boundary (which is the total number of columns)
+    boundaries.pop();
+    boundaries
+  }
+
+  /// Prints a horizontal separator line with proper alignment
+  fn print_horizontal_separator(
+    &self,
+    f: &mut fmt::Formatter<'_>,
+    col_widths: &[usize],
+    col_boundaries: &[usize],
+  ) -> fmt::Result {
+    for (j, &width) in col_widths.iter().enumerate() {
+      if j > 0 {
+        if col_boundaries.contains(&j) {
+          write!(f, "─┼─")?; // Unicode cross at block boundary
+        } else {
+          write!(f, "──")?; // Unicode horizontal line for regular spacing
+        }
+      }
+      write!(f, "{}", "─".repeat(width))?; // Unicode horizontal line for column width
+    }
+
+    Ok(())
+  }
+}
+
 // Matrix-vector multiplication
 impl<F: Field + Copy> std::ops::Mul<Vector<F>> for Matrix<F> {
   type Output = Vector<F>;
@@ -970,7 +1322,6 @@ impl<F: Field + Copy + fmt::Display> fmt::Display for Matrix<F> {
 #[cfg(test)]
 mod tests {
   use super::*;
-  use crate::fixtures::Mod7;
 
   #[test]
   fn test_matrix_creation() {
@@ -1056,7 +1407,7 @@ mod tests {
     let matrix =
       Matrix::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).row([7.0, 8.0, 9.0]).build();
 
-    let (rref, output) = matrix.into_row_echelon_form();
+    let (_rref, output) = matrix.into_row_echelon_form();
     assert_eq!(output.rank, 2);
     assert_eq!(output.pivots.len(), 2);
   }
@@ -1101,11 +1452,12 @@ mod tests {
 
   #[test]
   fn test_from_blocks() {
-    // Test 2x2 block matrix with identity blocks on diagonal
-    let block_matrix = Matrix::<f64>::from_blocks([[Some(Matrix::identity(2)), None], [
-      None,
-      Some(Matrix::identity(3)),
-    ]]);
+    // Test 2x2 block matrix with identity blocks on diagonal and zeros off-diagonal
+    let blocks = vec![vec![Matrix::identity(2), Matrix::zeros(2, 3)], vec![
+      Matrix::zeros(3, 2),
+      Matrix::identity(3),
+    ]];
+    let block_matrix = Matrix::<f64>::from_blocks(blocks);
 
     assert_eq!(block_matrix.dimensions(), (5, 5));
 
@@ -1125,11 +1477,25 @@ mod tests {
   }
 
   #[test]
+  #[should_panic(expected = "Block at (0, 1) has 3 rows, expected 2")]
+  fn test_from_blocks_mismatched_heights() {
+    let blocks = vec![vec![Matrix::identity(2), Matrix::identity(3)]];
+    let _block_matrix = Matrix::<f64>::from_blocks(blocks);
+  }
+
+  #[test]
+  #[should_panic(expected = "Block at (1, 0) has 3 columns, expected 2")]
+  fn test_from_blocks_mismatched_widths() {
+    let blocks = vec![vec![Matrix::identity(2)], vec![Matrix::identity(3)]];
+    let _block_matrix = Matrix::<f64>::from_blocks(blocks);
+  }
+
+  #[test]
   fn test_block_builder() {
     let block_matrix = Matrix::block_builder()
       .block(0, 0, Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build())
       .block(1, 1, Matrix::builder().row([5.0]).build())
-      .build([2, 1], [2, 1]);
+      .build(vec![2, 1], vec![2, 1]);
 
     assert_eq!(block_matrix.dimensions(), (3, 3));
     assert_eq!(block_matrix[(0, 0)], 1.0);
@@ -1250,20 +1616,6 @@ mod tests {
   }
 
   #[test]
-  #[should_panic(expected = "All blocks in block-row 0 must have the same height")]
-  fn test_from_blocks_mismatched_heights() {
-    let _block_matrix =
-      Matrix::<f64>::from_blocks([[Some(Matrix::identity(2)), Some(Matrix::identity(3))]]);
-  }
-
-  #[test]
-  #[should_panic(expected = "All blocks in block-column 0 must have the same width")]
-  fn test_from_blocks_mismatched_widths() {
-    let _block_matrix =
-      Matrix::<f64>::from_blocks([[Some(Matrix::identity(2))], [Some(Matrix::identity(3))]]);
-  }
-
-  #[test]
   #[should_panic(expected = "Matrix 1 has 1 rows, expected 2")]
   fn test_hstack_mismatched_rows() {
     let a = Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build();
@@ -1292,5 +1644,106 @@ mod tests {
 
     let empty_vstack = Matrix::vstack(Vec::<Matrix<f64>>::new());
     assert!(empty_vstack.is_empty());
+  }
+
+  #[test]
+  fn test_block_display() {
+    // Test the BlockMatrixBuilder display functionality
+    let builder = Matrix::<f64>::block_builder().block(0, 0, Matrix::identity(2)).block(
+      1,
+      1,
+      Matrix::identity(3),
+    );
+
+    let display_str = format!("{}", builder);
+
+    // Verify it contains the expected structure - should show actual matrix with block boundaries
+    assert!(display_str.contains("1"));
+    assert!(display_str.contains("0"));
+    assert!(display_str.contains("│")); // Block separator
+
+    println!("Block matrix builder display:\n{}", display_str);
+  }
+
+  #[test]
+  fn test_block_builder_display() {
+    // Create a block matrix using the builder and test display during construction
+    let builder = Matrix::block_builder()
+      .block(0, 0, Matrix::builder().row([1.0, 2.0]).row([3.0, 4.0]).build())
+      .block(1, 1, Matrix::builder().row([5.0]).build());
+
+    // Display the builder state
+    println!("Block builder during construction:\n{}", builder);
+
+    // Build the final matrix
+    let block_matrix = builder.build(vec![2, 1], vec![2, 1]);
+
+    // Verify structure
+    assert_eq!(block_matrix.dimensions(), (3, 3));
+    assert_eq!(block_matrix[(0, 0)], 1.0);
+    assert_eq!(block_matrix[(2, 2)], 5.0);
+  }
+
+  #[test]
+  fn test_matrix_builder_columns() {
+    // Test building matrix using column methods
+    let matrix = Matrix::builder().column([1.0, 3.0, 5.0]).column([2.0, 4.0, 6.0]).build();
+
+    assert_eq!(matrix.dimensions(), (3, 2));
+    assert_eq!(matrix[(0, 0)], 1.0);
+    assert_eq!(matrix[(0, 1)], 2.0);
+    assert_eq!(matrix[(1, 0)], 3.0);
+    assert_eq!(matrix[(1, 1)], 4.0);
+    assert_eq!(matrix[(2, 0)], 5.0);
+    assert_eq!(matrix[(2, 1)], 6.0);
+  }
+
+  #[test]
+  fn test_matrix_builder_column_vec() {
+    // Test building matrix using column_vec method
+    let col1 = Vector::from([1.0, 3.0]);
+    let col2 = Vector::from([2.0, 4.0]);
+
+    let matrix = Matrix::builder().column_vec(col1).column_vec(col2).build();
+
+    assert_eq!(matrix.dimensions(), (2, 2));
+    assert_eq!(matrix[(0, 0)], 1.0);
+    assert_eq!(matrix[(0, 1)], 2.0);
+    assert_eq!(matrix[(1, 0)], 3.0);
+    assert_eq!(matrix[(1, 1)], 4.0);
+  }
+
+  #[test]
+  fn test_matrix_builder_column_iter() {
+    // Test building matrix using column_iter method
+    let matrix = Matrix::builder()
+      .column_iter([1.0, 4.0, 7.0])
+      .column_iter([2.0, 5.0, 8.0])
+      .column_iter([3.0, 6.0, 9.0])
+      .build();
+
+    assert_eq!(matrix.dimensions(), (3, 3));
+    // First column: [1, 4, 7]
+    assert_eq!(matrix[(0, 0)], 1.0);
+    assert_eq!(matrix[(1, 0)], 4.0);
+    assert_eq!(matrix[(2, 0)], 7.0);
+    // Second column: [2, 5, 8]
+    assert_eq!(matrix[(0, 1)], 2.0);
+    assert_eq!(matrix[(1, 1)], 5.0);
+    assert_eq!(matrix[(2, 1)], 8.0);
+    // Third column: [3, 6, 9]
+    assert_eq!(matrix[(0, 2)], 3.0);
+    assert_eq!(matrix[(1, 2)], 6.0);
+    assert_eq!(matrix[(2, 2)], 9.0);
+  }
+
+  #[test]
+  #[should_panic(expected = "Cannot mix row and column operations in MatrixBuilder")]
+  fn test_matrix_builder_mixed_operations_panic() {
+    // Test that mixing row and column operations panics
+    let _matrix = Matrix::builder()
+      .row([1.0, 2.0])
+      .column([3.0, 4.0]) // This should panic
+      .build();
   }
 }

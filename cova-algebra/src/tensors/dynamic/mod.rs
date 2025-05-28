@@ -35,15 +35,17 @@
 //! let matrix = Matrix::builder().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
 //!
 //! // Block matrix construction
-//! let block_matrix =
-//!   Matrix::from_blocks([[Some(Matrix::identity(2)), None], [None, Some(Matrix::identity(3))]]);
+//! let block_matrix = Matrix::from_blocks(vec![vec![Some(Matrix::identity(2)), None], vec![
+//!   None,
+//!   Some(Matrix::identity(3)),
+//! ]]);
 //!
 //! // Perform Gaussian elimination to row echelon form
 //! let (rref, output) = matrix.into_row_echelon_form();
 //! ```
 
-use matrix::Matrix;
-use vector::Vector;
+pub use matrix::Matrix;
+pub use vector::Vector;
 
 use super::*;
 

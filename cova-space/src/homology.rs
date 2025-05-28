@@ -45,7 +45,7 @@
 
 use std::{collections::HashMap, hash::Hash, mem, ops::Add};
 
-use cova_algebra::{prelude::*, tensors::dynamic::vector::DynamicVector};
+use cova_algebra::{prelude::*, tensors::dynamic::vector::Vector};
 
 use crate::definitions::Topology;
 
@@ -177,7 +177,7 @@ impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
     &self,
     basis_map: &HashMap<&T::Item, usize>,
     basis_size: usize,
-  ) -> DynamicVector<R>
+  ) -> Vector<R>
   where
     T::Item: Hash + Eq,
     R: Ring + Copy,
@@ -188,7 +188,7 @@ impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
         coeffs[idx] = *coeff;
       }
     }
-    DynamicVector::new(coeffs)
+    Vector::new(coeffs)
   }
 }
 
@@ -421,9 +421,9 @@ where R: Ring + Copy {
   pub betti_number:        usize,
   /// A basis for the homology group $H_k = Z_k / B_k$.
   ///
-  /// Each element is a [`DynamicVector<R>`] representing a homology class generator.
+  /// Each element is a [`Vector<R>`] representing a homology class generator.
   /// These vectors are typically coefficient vectors in some chosen basis for the $k$-cycles.
-  pub homology_generators: Vec<DynamicVector<R>>,
+  pub homology_generators: Vec<Vector<R>>,
 }
 
 impl<R> Homology<R>
