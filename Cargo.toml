@@ -1,17 +1,18 @@
 [workspace]
-members  = ["cova", "cova-space", "cova-algebra", "cova-solvers"]
+members  = ["cova", "cova-space", "cova-algebra", "cova-solver"]
 resolver = "2"
 
 [workspace.dependencies]
 # Local dependencies
 cova-algebra = { path = "cova-algebra", version = "=0.1.2" }
-cova-solvers = { path = "cova-solvers", version = "=0.1.0" }
+cova-solver  = { path = "cova-solver", version = "=0.1.0" }
 cova-space   = { path = "cova-space", version = "=0.2.0" }
 
 # External dependencies
 itertools  = { version = "0.14", default-features = false }
 num-traits = { version = "0.2", default-features = false }
 rayon      = { version = "1.10", default-features = false }
+thiserror  = { version = "2.0", default-features = false }
 
 # Development dependencies
 tempfile = { version = "3.20" }

@@ -1,5 +1,5 @@
 [package]
-name = "cova-solvers"
+name = "cova-solver"
 
 authors     = ["Harness Labs"]
 description = "Cova's solvers library"
@@ -11,4 +11,6 @@ repository  = "https://github.com/harnesslabs/cova"
 version     = "0.1.0"
 
 [dependencies]
-num-traits = { workspace = true }
+cova-algebra = { workspace = true }
+num-traits   = { workspace = true }
+thiserror    = { workspace = true }
