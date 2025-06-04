@@ -9,6 +9,7 @@
 [![Crates.io - cova-algebra](https://img.shields.io/crates/v/cova-algebra?label=cova-algebra)](https://crates.io/crates/cova-algebra)
 [![docs.rs - cova-algebra](https://img.shields.io/docsrs/cova-algebra?label=docs.rs%20cova-algebra)](https://docs.rs/cova-algebra)
 [![License: AGPLv3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
+[![Discord](https://img.shields.io/discord/1363153354338861247?style=flat&logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/qEwPr3GMP2)
 
 # Cova
 
