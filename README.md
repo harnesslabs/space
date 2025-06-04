@@ -2,14 +2,27 @@
   <img src="https://raw.githubusercontent.com/harnesslabs/brand/main/cova/cova-banner.png" alt="Cova Banner" width="500">
 </p>
 
-[![Crates.io - cova](https://img.shields.io/crates/v/cova?label=cova)](https://crates.io/crates/cova)
-[![docs.rs - cova](https://img.shields.io/docsrs/cova?label=docs.rs%20cova)](https://docs.rs/cova)
-[![Crates.io - cova-space](https://img.shields.io/crates/v/cova-space?label=cova-space)](https://crates.io/crates/cova-space)
-[![docs.rs - cova-space](https://img.shields.io/docsrs/cova-space?label=docs.rs%20cova-space)](https://docs.rs/cova-space)
-[![Crates.io - cova-algebra](https://img.shields.io/crates/v/cova-algebra?label=cova-algebra)](https://crates.io/crates/cova-algebra)
-[![docs.rs - cova-algebra](https://img.shields.io/docsrs/cova-algebra?label=docs.rs%20cova-algebra)](https://docs.rs/cova-algebra)
-[![License: AGPLv3](https://img.shields.io/badge/License-AGPL_v3-blue.svg)](https://www.gnu.org/licenses/agpl-3.0)
-[![Discord](https://img.shields.io/discord/1363153354338861247?style=flat&logo=discord&logoColor=white&label=Discord&color=5865F2)](https://discord.gg/qEwPr3GMP2)
+<p align="center">
+  <a href="https://discord.gg/qEwPr3GMP2"><img src="https://img.shields.io/discord/1363153354338861247?style=flat&logo=discord&logoColor=white&label=Discord&color=5865F2" alt="Discord"></a>
+  <a href="https://x.com/harnesslabs"><img src="https://badgen.net/badge/icon/twitter?icon=twitter&label" alt="Twitter"></a>
+  <img src="https://visitor-badge.laobi.icu/badge?page_id=cova" alt="Visitors">
+  <a href="https://www.gnu.org/licenses/agpl-3.0"><img src="https://img.shields.io/badge/License-AGPL_v3-blue.svg" alt="License: AGPLv3"></a>
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/cova"><img src="https://img.shields.io/crates/v/cova?label=cova" alt="Crates.io - cova"></a>
+  <a href="https://docs.rs/cova"><img src="https://img.shields.io/docsrs/cova?label=docs.rs%20cova" alt="docs.rs - cova"></a>
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/cova-space"><img src="https://img.shields.io/crates/v/cova-space?label=cova-space" alt="Crates.io - cova-space"></a>
+  <a href="https://docs.rs/cova-space"><img src="https://img.shields.io/docsrs/cova-space?label=docs.rs%20cova-space" alt="docs.rs - cova-space"></a>
+</p>
+
+<p align="center">
+  <a href="https://crates.io/crates/cova-algebra"><img src="https://img.shields.io/crates/v/cova-algebra?label=cova-algebra" alt="Crates.io - cova-algebra"></a>
+  <a href="https://docs.rs/cova-algebra"><img src="https://img.shields.io/docsrs/cova-algebra?label=docs.rs%20cova-algebra" alt="docs.rs - cova-algebra"></a>
+</p>
 
 # Cova
 
