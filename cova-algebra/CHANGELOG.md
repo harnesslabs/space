@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.3](https://github.com/harnesslabs/cova/compare/cova-algebra-v0.1.2...cova-algebra-v0.1.3) - 2025-06-04
+
+### Fixed
+- LaTeX in docs ([#76](https://github.com/harnesslabs/cova/pull/76))
+
+### Other
+- *(`algebra`)* matrix implementation ([#80](https://github.com/harnesslabs/cova/pull/80))
+
 ## [0.1.2](https://github.com/harnesslabs/cova/compare/cova-algebra-v0.1.1...cova-algebra-v0.1.2) - 2025-05-24
 
 ### Fixed
