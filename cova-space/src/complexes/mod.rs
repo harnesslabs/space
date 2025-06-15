@@ -141,7 +141,7 @@ use std::collections::HashMap;
 
 use cova_algebra::{
   rings::Field,
-  tensors::dynamic::{compute_quotient_basis, Matrix, Vector},
+  tensors::{DMatrix, DVector},
 };
 
 use super::*;
@@ -1061,11 +1061,11 @@ impl<T: ComplexElement> Complex<T> {
     let cycles = if k == 0 {
       // Z₀ = C₀ (kernel of ∂₀: C₀ -> C₋₁ is C₀ itself).
       let num_0_elements = k_elements.len();
-      let mut basis: Vec<Vector<F>> = Vec::with_capacity(num_0_elements);
+      let mut basis: Vec<DVector<F>> = Vec::with_capacity(num_0_elements);
       for i in 0..num_0_elements {
         let mut v_data = vec![F::zero(); num_0_elements];
         v_data[i] = F::one();
-        basis.push(Vector::new(v_data));
+        basis.push(DVector::from_row_slice(&v_data));
       }
       basis
     } else {
@@ -1177,17 +1177,17 @@ impl<T: ComplexElement> Complex<T> {
   /// assert_eq!(boundary_1.num_rows(), 2); // 2 vertices
   /// assert_eq!(boundary_1.num_cols(), 1); // 1 edge
   /// ```
-  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> Matrix<F>
+  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DMatrix<F>
   where T: ComplexElement {
     let domain_basis = self.elements_of_dimension(k);
     let codomain_basis = self.elements_of_dimension(k.saturating_sub(1));
 
     if domain_basis.is_empty() || codomain_basis.is_empty() {
       // Return appropriate empty matrix
-      return Matrix::zeros(codomain_basis.len(), domain_basis.len());
+      return DMatrix::<F>::zeros(codomain_basis.len(), domain_basis.len());
     }
 
-    let mut matrix = Matrix::<F>::builder();
+    let mut matrix = DMatrix::<F>::zeros(codomain_basis.len(), domain_basis.len());
 
     // Create a map from elements to their position in the codomain basis
     let basis_map_for_codomain: HashMap<&T, usize> =
@@ -1201,10 +1201,10 @@ impl<T: ComplexElement> Complex<T> {
       // Convert the chain to a coefficient vector
       let col_vector =
         boundary_chain.to_coeff_vector(&basis_map_for_codomain, num_codomain_elements);
-      matrix = matrix.column_vec(col_vector);
+      matrix.set_column(col_vector, col_vector);
     }
 
-    matrix.build()
+    matrix
   }
 }
 

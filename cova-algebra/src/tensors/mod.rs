@@ -1,1 +1,295 @@
 pub use nalgebra::*;
+
+/// Computes a basis for the quotient space V/U.
+///
+/// Given `subspace_vectors` forming a basis for a subspace U, and
+/// `space_vectors` forming a basis for a space V (where U is a subspace of V),
+/// this method returns a basis for the quotient space V/U.
+/// The input vectors are treated as column vectors.
+pub fn compute_quotient_basis<F: crate::rings::Field + Copy>(
+  subspace_vectors: &[DVector<F>],
+  space_vectors: &[DVector<F>],
+) -> Vec<DVector<F>> {
+  if space_vectors.is_empty() {
+    return Vec::new();
+  }
+
+  // Determine the common dimension of all vectors from the first space vector.
+  // All vectors (subspace and space) must have this same dimension.
+  let expected_num_rows = space_vectors[0].len();
+
+  // Verify all subspace vectors match this dimension.
+  for (idx, vec) in subspace_vectors.iter().enumerate() {
+    assert!(
+      (vec.len() == expected_num_rows),
+      "Subspace vector at index {} has dimension {} but expected {}",
+      idx,
+      vec.len(),
+      expected_num_rows
+    );
+  }
+  // Verify all other space vectors match this dimension.
+  for (idx, vec) in space_vectors.iter().skip(1).enumerate() {
+    assert!(
+      (vec.len() == expected_num_rows),
+      "Space vector at index {} (after first) has dimension {} but expected {}",
+      idx + 1, // adjust index because of skip(1)
+      vec.len(),
+      expected_num_rows
+    );
+  }
+
+  // Create matrix from columns
+  let mut all_columns = Vec::new();
+  all_columns.extend_from_slice(subspace_vectors);
+  all_columns.extend_from_slice(space_vectors);
+
+  // Perform a Gaussian elimination that works over an arbitrary field in order to
+  // identify the pivot (linearly independent) columns.  `nalgebra` itself only
+  // provides echelon/rank utilities for real/complex fields, so we implement a
+  // minimal version that relies solely on the `Field` operations available on `F`.
+
+  /// Returns the indices of the pivot columns that appear when the given matrix
+  /// is brought to (reduced) row-echelon form via Gaussian elimination.  This is
+  /// enough information for `compute_quotient_basis` – we do **not** need the
+  /// transformed matrix itself.
+  fn pivot_columns<F: crate::rings::Field + Copy + num_traits::Zero + PartialEq>(
+    mut m: DMatrix<F>,
+  ) -> Vec<usize> {
+    use num_traits::Zero;
+    let nrows = m.nrows();
+    let ncols = m.ncols();
+
+    let mut pivots = Vec::new();
+    let mut current_row = 0usize;
+
+    for col in 0..ncols {
+      // 1. Find a pivot row (non-zero entry) in the current column at or below `current_row`.
+      let pivot_row_opt = (current_row..nrows).find(|&r| !m[(r, col)].is_zero());
+      if let Some(pivot_row) = pivot_row_opt {
+        // 2. Move the pivot row into position.
+        if pivot_row != current_row {
+          m.swap_rows(pivot_row, current_row);
+        }
+
+        // 3. Normalise the pivot row so that the pivot element becomes 1.
+        let pivot_val = m[(current_row, col)];
+        let inv = pivot_val.multiplicative_inverse();
+        for c in col..ncols {
+          m[(current_row, c)] = m[(current_row, c)] * inv;
+        }
+
+        // 4. Eliminate the current column from all other rows.
+        for r in 0..nrows {
+          if r == current_row {
+            continue;
+          }
+          let factor = m[(r, col)];
+          if factor.is_zero() {
+            continue;
+          }
+          for c in col..ncols {
+            m[(r, c)] = m[(r, c)] - factor * m[(current_row, c)];
+          }
+        }
+
+        pivots.push(col);
+        current_row += 1;
+        if current_row == nrows {
+          break;
+        }
+      }
+    }
+
+    pivots
+  }
+
+  let matrix = DMatrix::<F>::from_columns(&all_columns);
+  let pivot_cols_set: std::collections::HashSet<usize> =
+    pivot_columns(matrix).into_iter().collect();
+
+  let mut quotient_basis: Vec<DVector<F>> = Vec::new();
+  let num_subspace_cols = subspace_vectors.len();
+
+  for (i, original_space_vector) in space_vectors.iter().enumerate() {
+    let augmented_matrix_col_idx = num_subspace_cols + i;
+    if pivot_cols_set.contains(&augmented_matrix_col_idx) {
+      quotient_basis.push(original_space_vector.clone());
+    }
+  }
+
+  quotient_basis
+}
+
+#[cfg(test)]
+mod tests {
+  use super::compute_quotient_basis;
+  use crate::{fixtures::Mod7, tensors::DVector};
+
+  #[test]
+  fn test_quotient_simple_span() {
+    // V = span{[1,0,0], [0,1,0]}, U = span{[1,0,0]}
+    // V/U should be span{[0,1,0]}
+    let u1 = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
+    let v_in_u = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
+    let v_new = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1), Mod7::new(0)]);
+
+    let subspace_vectors = vec![u1];
+    // Order of space_vectors: putting v_in_u first
+    let space_vectors = vec![v_in_u.clone(), v_new.clone()];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+
+    assert_eq!(quotient_basis.len(), 1, "Quotient basis should have 1 vector");
+    assert!(quotient_basis.contains(&v_new), "Quotient basis should contain the new vector");
+    assert!(
+      !quotient_basis.contains(&v_in_u),
+      "Quotient basis should not contain vector already effectively in subspace"
+    );
+  }
+
+  #[test]
+  fn test_quotient_subspace_equals_space() {
+    // V = span{[1,0], [0,1]}, U = span{[1,0], [0,1]}
+    // V/U should be empty
+    let u1 = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0)]);
+    let u2 = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1)]);
+    // space_vectors are the same as subspace_vectors
+    let space_vectors = vec![u1.clone(), u2.clone()];
+    let subspace_vectors = vec![u1.clone(), u2.clone()];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+    assert_eq!(
+      quotient_basis.len(),
+      0,
+      "Quotient basis should be empty when subspace equals space"
+    );
+  }
+
+  #[test]
+  fn test_quotient_trivial_subspace() {
+    // V = span{[1,0], [0,1]}, U = {} (trivial subspace)
+    // V/U should be span{[1,0], [0,1]}
+    let v1 = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0)]);
+    let v2 = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1)]);
+
+    let subspace_vectors: Vec<DVector<Mod7>> = vec![];
+    let space_vectors = vec![v1.clone(), v2.clone()];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+    assert_eq!(quotient_basis.len(), 2, "Quotient basis size mismatch for trivial subspace");
+    assert!(quotient_basis.contains(&v1), "Quotient basis should contain v1 for trivial subspace");
+    assert!(quotient_basis.contains(&v2), "Quotient basis should contain v2 for trivial subspace");
+  }
+
+  #[test]
+  fn test_quotient_dependent_space_vectors() {
+    // V = span{[1,0], [2,0], [0,1]}, U = span{[1,0]}
+    // [2,0] is dependent on [1,0].
+    // V/U should be span{[0,1]}
+    let u1 = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0)]);
+    let v_in_u = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0)]); // Effectively in U
+    let v_dependent_on_u = DVector::<Mod7>::from_row_slice(&[Mod7::new(2), Mod7::new(0)]); // 2*u1
+    let v_new_independent = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1)]);
+
+    let subspace_vectors = vec![u1.clone()];
+    let space_vectors = vec![v_in_u.clone(), v_dependent_on_u.clone(), v_new_independent.clone()];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+
+    assert_eq!(
+      quotient_basis.len(),
+      1,
+      "Quotient basis should have 1 vector for dependent space vectors case"
+    );
+    assert!(
+      quotient_basis.contains(&v_new_independent),
+      "Quotient basis should contain the truly new vector"
+    );
+    assert!(!quotient_basis.contains(&v_in_u));
+    assert!(!quotient_basis.contains(&v_dependent_on_u));
+  }
+
+  #[test]
+  fn test_quotient_space_vectors_dependent_among_themselves_but_new_to_subspace() {
+    // U = span{[1,0,0]}
+    // V = span{[1,0,0], [0,1,0], [0,2,0], [0,0,1]}
+    // Original space_vectors to select from for quotient: [[0,1,0], [0,2,0], [0,0,1]]
+    // Expected quotient basis: a basis for span{[0,1,0], [0,0,1]}, chosen from original space
+    // vectors. So, should be [[0,1,0], [0,0,1]] if [0,2,0] is correctly identified as dependent
+    // on [0,1,0] in context of quotient.
+    let u1 = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0), Mod7::new(0)]);
+
+    let v1_new = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1), Mod7::new(0)]);
+    let v2_dependent_on_v1 =
+      DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(2), Mod7::new(0)]);
+    let v3_new = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(0), Mod7::new(1)]);
+
+    let subspace_vectors = vec![u1];
+    // Order: v1_new, then its dependent v2_dependent_on_v1, then independent v3_new
+    let space_vectors = vec![v1_new.clone(), v2_dependent_on_v1.clone(), v3_new.clone()];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+
+    assert_eq!(
+      quotient_basis.len(),
+      2,
+      "Quotient basis size mismatch for internally dependent space vectors"
+    );
+    assert!(quotient_basis.contains(&v1_new), "Quotient basis should contain v1_new");
+    assert!(quotient_basis.contains(&v3_new), "Quotient basis should contain v3_new");
+    assert!(
+      !quotient_basis.contains(&v2_dependent_on_v1),
+      "Quotient basis should not contain v2_dependent_on_v1"
+    );
+  }
+
+  #[test]
+  fn test_quotient_empty_space_vectors() {
+    let u1 = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0)]);
+    let subspace_vectors = vec![u1];
+    let space_vectors: Vec<DVector<Mod7>> = vec![];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+    assert!(quotient_basis.is_empty(), "Quotient basis should be empty if space_vectors is empty");
+  }
+
+  #[test]
+  fn test_quotient_zero_dimensional_vectors() {
+    let u1_zero_dim = DVector::<Mod7>::zeros(0);
+    let v1_zero_dim = DVector::<Mod7>::zeros(0);
+    let v2_zero_dim = DVector::<Mod7>::zeros(0);
+
+    let subspace_vectors = vec![u1_zero_dim];
+    let space_vectors = vec![v1_zero_dim, v2_zero_dim];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+    assert!(
+      quotient_basis.is_empty(),
+      "Quotient basis for zero-dimensional vectors should be empty"
+    );
+
+    // Case: subspace empty, space has 0-dim vectors
+    let subspace_vectors_empty: Vec<DVector<Mod7>> = vec![];
+    let quotient_basis_empty_sub = compute_quotient_basis(&subspace_vectors_empty, &space_vectors);
+    assert!(
+      quotient_basis_empty_sub.is_empty(),
+      "Quotient basis for zero-dimensional vectors (empty subspace) should be empty"
+    );
+  }
+
+  #[test]
+  fn test_quotient_all_zero_vectors_of_some_dimension() {
+    // V = span{[0,0], [0,0]}, U = span{[0,0]}
+    // V/U should be empty
+    let u1_zero_vec = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(0)]);
+    let v1_zero_vec = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(0)]);
+    let v2_zero_vec = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(0)]);
+
+    let subspace_vectors = vec![u1_zero_vec.clone()];
+    let space_vectors = vec![v1_zero_vec.clone(), v2_zero_vec.clone()];
+
+    let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
+    assert!(quotient_basis.is_empty(), "Quotient basis for all zero vectors should be empty");
+  }
+}
