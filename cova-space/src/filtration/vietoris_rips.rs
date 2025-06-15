@@ -277,9 +277,7 @@ impl<const N: usize, R> ParallelFiltration for VietorisRips<N, Homology<R>> wher
 #[cfg(test)]
 mod tests {
   // For homology coefficients
-  use cova_algebra::{
-    algebras::boolean::Boolean, modular, prime_field, tensors::fixed::FixedVector,
-  };
+  use cova_algebra::{algebras::boolean::Boolean, modular, prime_field, tensors::SVector};
 
   use super::*;
 
@@ -293,7 +291,7 @@ mod tests {
 
   #[test]
   fn test_vietoris_rips_single_point() {
-    let points = vec![FixedVector([0.0, 0.0])];
+    let points = vec![SVector::from([0.0, 0.0])];
     let cloud = Cloud::new(points);
     let vr = VietorisRips::<2, SimplicialComplex>::new();
     let complex = vr.build(&cloud, 0.5, &());
@@ -306,8 +304,8 @@ mod tests {
 
   #[test]
   fn test_vietoris_rips_two_points() {
-    let p1 = FixedVector([0.0, 0.0]);
-    let p2 = FixedVector([1.0, 0.0]);
+    let p1 = SVector::from([0.0, 0.0]);
+    let p2 = SVector::from([1.0, 0.0]);
     let cloud = Cloud::new(vec![p1, p2]);
     let vr = VietorisRips::<2, SimplicialComplex>::new();
 
@@ -326,9 +324,9 @@ mod tests {
 
   #[test]
   fn test_vietoris_rips_triangle() {
-    let p0 = FixedVector([0.0, 0.0]);
-    let p1 = FixedVector([1.0, 0.0]);
-    let p2 = FixedVector([0.5, 0.866]); // Equilateral triangle, side length 1
+    let p0 = SVector::from([0.0, 0.0]);
+    let p1 = SVector::from([1.0, 0.0]);
+    let p2 = SVector::from([0.5, 0.866]); // Equilateral triangle, side length 1
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
     let vr = VietorisRips::<2, SimplicialComplex>::new();
@@ -354,8 +352,8 @@ mod tests {
 
   #[test]
   fn test_compute_homology_filtration_basic() {
-    let p0 = FixedVector([0.0, 0.0]);
-    let p1 = FixedVector([1.0, 0.0]);
+    let p0 = SVector::from([0.0, 0.0]);
+    let p1 = SVector::from([1.0, 0.0]);
     let cloud: Cloud<2> = Cloud::new(vec![p0, p1]);
     let vr_builder = VietorisRips::<2, Homology<Mod7>>::new();
 
@@ -408,9 +406,9 @@ mod tests {
     // It implicitly uses build_parallel from the ParallelFiltration trait.
     use crate::filtration::ParallelFiltration; // Make sure trait is in scope
 
-    let p0 = FixedVector([0.0, 0.0]);
-    let p1 = FixedVector([1.0, 0.0]);
-    let p2 = FixedVector([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
+    let p0 = SVector::from([0.0, 0.0]);
+    let p1 = SVector::from([1.0, 0.0]);
+    let p2 = SVector::from([0.5, 0.8660254]); // Equilateral triangle, side length 1.0
 
     let cloud = Cloud::new(vec![p0, p1, p2]);
     let vr_builder = VietorisRips::<2, Homology<Boolean>>::new();

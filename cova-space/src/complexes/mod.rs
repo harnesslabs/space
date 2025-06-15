@@ -141,7 +141,7 @@ use std::collections::HashMap;
 
 use cova_algebra::{
   rings::Field,
-  tensors::{compute_quotient_basis, DMatrix, DVector},
+  tensors::{compute_quotient_basis, image, kernel, DMatrix, DVector},
 };
 
 use super::*;
@@ -1070,11 +1070,11 @@ impl<T: ComplexElement> Complex<T> {
       basis
     } else {
       let boundary_k = self.get_boundary_matrix::<F>(k);
-      boundary_k.kernel()
+      kernel(&boundary_k)
     };
 
     let boundary_k_plus_1 = self.get_boundary_matrix::<F>(k + 1);
-    let boundaries = boundary_k_plus_1.image();
+    let boundaries = image(&boundary_k_plus_1);
 
     let quotient_basis_vectors = compute_quotient_basis(&boundaries, &cycles);
 
