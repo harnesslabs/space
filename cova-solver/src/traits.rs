@@ -1,4 +1,4 @@
-//! Common traits and types for optimization solvers
+//! Common traits and types for optimization solvers using argmin framework
 
 use cova_algebra::tensors::{DMatrix, DVector};
 
@@ -12,26 +12,18 @@ pub struct Solution {
   /// The optimal objective value
   pub objective_value: f64,
   /// Number of iterations taken
-  pub iterations:      usize,
+  pub iterations:      u64,
   /// Whether the solver converged
   pub converged:       bool,
+  /// Termination reason
+  pub termination:     String,
 }
 
-/// Common interface for optimization solvers
-pub trait Solver {
-  /// Solve the optimization problem
-  fn solve(
-    &mut self,
-    c: &DVector<f64>,
-    a: &DMatrix<f64>,
-    b: &DVector<f64>,
-  ) -> SolverResult<Solution>;
+/// Common interface for optimization problems that can be solved with argmin
+pub trait OptimizationProblem {
+  /// Get the problem dimension
+  fn dimension(&self) -> usize;
 
-  /// Set solver parameters
-  fn set_tolerance(&mut self, tolerance: f64);
-  fn set_max_iterations(&mut self, max_iter: usize);
-
-  /// Get solver status
-  fn get_tolerance(&self) -> f64;
-  fn get_max_iterations(&self) -> usize;
+  /// Solve the optimization problem using argmin
+  fn solve(&self) -> SolverResult<Solution>;
 }

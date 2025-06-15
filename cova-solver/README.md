@@ -1,171 +1,172 @@
-# Cova Solvers
+# Cova Solver
 
-A Rust library for convex optimization solvers, including linear programming and ADMM (Alternating Direction Method of Multipliers).
+A Rust library providing optimization solvers for convex problems, built on top of Clarabel.
 
 ## Features
 
-- **Linear Programming**: Simplex method for solving linear programming problems
-- **ADMM**: Alternating Direction Method of Multipliers for convex optimization
-- **Quadratic Programming**: Support for quadratic programming problems via ADMM
-- **Basis Pursuit**: L1-minimization for sparse solutions
+- **ADMM (Alternating Direction Method of Multipliers)**: Uses Clarabel to solve convex subproblems
+- **LASSO Regression**: Sparse regression with L1 regularization
+- **Basis Pursuit**: Sparse recovery for underdetermined systems
+- **Custom ADMM Problems**: Flexible framework for defining custom optimization problems
 
-## Installation
+## Quick Start
 
 Add this to your `Cargo.toml`:
 
 ```toml
 [dependencies]
-cova-solvers = "0.1.0"
+cova-solver = { path = "." }
+cova-algebra = { path = "../cova-algebra" }
 ```
 
-## Quick Start
+## Usage
 
-### Linear Programming with Simplex Method
+### LASSO Regression
 
-```rust
-use cova_solvers::linear_programming::SimplexSolver;
-use cova_solvers::Solver;
-use nalgebra::{DMatrix, DVector};
-
-// Minimize c^T x subject to Ax <= b, x >= 0
-let c = DVector::from_vec(vec![-1.0, -2.0]); // coefficients to minimize
-let a = DMatrix::from_row_slice(2, 2, &[1.0, 1.0, 2.0, 1.0]); // constraint matrix
-let b = DVector::from_vec(vec![3.0, 4.0]); // constraint bounds
-
-let mut solver = SimplexSolver::new();
-match solver.solve(&c, &a, &b) {
-    Ok(solution) => {
-        println!("Optimal solution: {:?}", solution.x);
-        println!("Optimal value: {}", solution.objective_value);
-        println!("Converged: {}", solution.converged);
-        println!("Iterations: {}", solution.iterations);
-    }
-    Err(e) => println!("Error: {}", e),
-}
-```
-
-### Quadratic Programming with ADMM
+Solve sparse regression problems with L1 regularization:
 
 ```rust
-use cova_solvers::admm::{AdmmSolver, AdmmParams};
-use nalgebra::{DMatrix, DVector};
+use cova_algebra::tensors::{DMatrix, DVector};
+use cova_solver::admm::AdmmSolver;
 
-// Minimize (1/2) x^T P x + q^T x subject to x >= 0
-let p = DMatrix::identity(2, 2); // quadratic term
-let q = DVector::from_vec(vec![-1.0, -2.0]); // linear term
-let a = DMatrix::zeros(0, 2); // no equality constraints
-let b = DVector::zeros(0);
+// Problem: minimize ||Ax - b||² + λ||x||₁
+let a = DMatrix::from_row_slice(3, 2, &[
+    1.0, 2.0,
+    2.0, 1.0,
+    1.0, 1.0,
+]);
+let b = DVector::from_vec(vec![3.0, 4.0, 2.0]);
+let lambda = 0.1; // Regularization parameter
 
 let mut solver = AdmmSolver::new();
-match solver.solve_qp(&p, &q, &a, &b) {
-    Ok(solution) => {
-        println!("Optimal solution: {:?}", solution.x);
-        println!("Optimal value: {}", solution.objective_value);
-    }
-    Err(e) => println!("Error: {}", e),
-}
+let solution = solver.solve_lasso(&a, &b, lambda)?;
+
+println!("Solution: {:?}", solution.x.as_slice());
+println!("Converged: {}", solution.converged);
 ```
 
-### Basis Pursuit (L1-minimization)
+### Basis Pursuit
+
+Solve sparse recovery problems:
 
 ```rust
-use cova_solvers::admm::AdmmSolver;
-use nalgebra::{DMatrix, DVector};
+use cova_algebra::tensors::{DMatrix, DVector};
+use cova_solver::admm::AdmmSolver;
 
-// Minimize ||x||_1 subject to Ax = b
-let a = DMatrix::from_row_slice(2, 4, &[1.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0]);
-let b = DVector::from_vec(vec![1.0, 1.0]);
+// Problem: minimize ||x||₁ subject to Ax = b
+let a = DMatrix::from_row_slice(2, 4, &[
+    1.0, 1.0, 0.0, 0.0,
+    0.0, 1.0, 1.0, 1.0,
+]);
+let b = DVector::from_vec(vec![1.0, 2.0]);
 
 let mut solver = AdmmSolver::new();
-match solver.solve_basis_pursuit(&a, &b) {
-    Ok(solution) => {
-        println!("Sparse solution: {:?}", solution.x);
-        println!("L1 norm: {}", solution.objective_value);
-    }
-    Err(e) => println!("Error: {}", e),
-}
+let solution = solver.solve_basis_pursuit(&a, &b)?;
+
+// The solution should be sparse and satisfy Ax = b
 ```
 
-## Algorithms
+### Custom ADMM Problems
 
-### Simplex Method
+Define custom optimization problems using the general ADMM framework:
 
-The simplex method is implemented for solving linear programming problems of the form:
+```rust
+use cova_algebra::tensors::{DMatrix, DVector};
+use cova_solver::admm::{AdmmSolver, AdmmParams};
 
+// Example: Box-constrained quadratic programming
+// minimize (1/2)||x - x₀||² subject to x ∈ [0,1]ⁿ
+
+let n = 3;
+let x0 = DVector::from_vec(vec![1.5, -0.5, 2.0]); // Target outside [0,1]³
+
+// Set up ADMM formulation
+let p = DMatrix::identity(n, n);
+let q = -&x0;
+let a_constraint = DMatrix::identity(n, n);
+let b_constraint = -DMatrix::identity(n, n);
+let c = DVector::zeros(n);
+
+// Define the z-update (projection onto [0,1]ⁿ)
+let z_update = |target: &DVector<f64>, _z_old: &DVector<f64>, _rho: f64| {
+    target.map(|val| val.max(0.0).min(1.0))
+};
+
+let mut solver = AdmmSolver::new();
+let solution = solver.solve_qp_admm(&p, &q, &a_constraint, &b_constraint, &c, z_update)?;
 ```
-minimize    c^T x
-subject to  Ax <= b
-            x >= 0
-```
 
-Features:
-- Standard two-phase simplex algorithm
-- Handles infeasible and unbounded problems
-- Configurable tolerance and maximum iterations
+## ADMM Algorithm
 
-### ADMM (Alternating Direction Method of Multipliers)
-
-ADMM is implemented for solving convex optimization problems that can be decomposed into:
+The ADMM solver decomposes problems of the form:
 
 ```
 minimize    f(x) + g(z)
 subject to  Ax + Bz = c
 ```
 
-Specific implementations include:
-- **Quadratic Programming**: For problems with quadratic objectives
-- **Basis Pursuit**: For L1-regularized problems (sparse solutions)
-- **Adaptive penalty parameter**: Automatic adjustment of the penalty parameter ρ
+into three iterative steps:
+
+1. **x-update**: Minimize f(x) + (ρ/2)||Ax + Bz - c + u||² (solved using Clarabel)
+2. **z-update**: Apply proximal operator of g(z) (problem-specific, user-defined)
+3. **u-update**: Update dual variable u := u + ρ(Ax + Bz - c)
 
 ## Configuration
 
-### Simplex Solver Parameters
+Customize ADMM parameters:
 
 ```rust
-let mut solver = SimplexSolver::with_params(1e-8, 2000); // tolerance, max_iterations
-solver.set_tolerance(1e-6);
-solver.set_max_iterations(1000);
-```
-
-### ADMM Parameters
-
-```rust
-use cova_solvers::admm::AdmmParams;
+use cova_solver::admm::{AdmmSolver, AdmmParams};
 
 let params = AdmmParams {
-    rho: 1.0,                    // penalty parameter
-    primal_tolerance: 1e-6,      // primal residual tolerance
-    dual_tolerance: 1e-6,        // dual residual tolerance
-    max_iterations: 1000,        // maximum iterations
-    alpha: 1.0,                  // over-relaxation parameter
+    rho: 1.0,                    // Penalty parameter
+    primal_tolerance: 1e-6,      // Primal residual tolerance
+    dual_tolerance: 1e-6,        // Dual residual tolerance
+    max_iterations: 1000,        // Maximum iterations
+    alpha: 1.0,                  // Over-relaxation parameter
 };
 
-let mut solver = AdmmSolver::with_params(params);
+let solver = AdmmSolver::with_params(params);
 ```
 
-## Error Handling
+## Examples
 
-The library provides comprehensive error handling through the `SolverError` enum:
+Run the examples to see the solver in action:
 
-- `Infeasible`: Problem has no solution
-- `Unbounded`: Objective can be made arbitrarily good
-- `ConvergenceFailure`: Solver didn't converge within max iterations
-- `NumericalError`: Numerical issues during computation
-- `InvalidProblem`: Invalid problem formulation
-- `DimensionMismatch`: Matrix/vector dimension mismatches
+```bash
+cargo run --example admm_example
+```
 
-## Performance Notes
+This will demonstrate:
+- LASSO regression with different regularization parameters
+- Basis pursuit for sparse recovery
+- Custom box-constrained optimization
 
-- Both solvers use efficient linear algebra operations via `nalgebra`
-- ADMM benefits from matrix factorization caching for repeated solves
-- For large problems, consider adjusting tolerances and iteration limits
-- The simplex method is exact but can be slower for very large problems
-- ADMM is iterative and scales well but provides approximate solutions
+## How it Works
 
-## Contributing
+The library combines two powerful tools:
 
-Contributions are welcome! Please see our contributing guidelines for more information.
+1. **Clarabel**: A modern conic optimization solver in pure Rust for solving the convex subproblems
+2. **ADMM**: A versatile algorithm that can handle a wide variety of convex optimization problems
+
+Key benefits:
+- **Pure Rust**: No C/C++/Fortran dependencies
+- **Flexible**: Easy to define custom optimization problems
+- **Efficient**: Leverages Clarabel's high-performance interior-point methods
+- **Robust**: Well-tested algorithm with proven convergence properties
+
+## Limitations
+
+- Currently focused on convex optimization problems
+- The x-update subproblems must be efficiently solvable by Clarabel (quadratic programming)
+- For very large-scale problems, specialized solvers might be more efficient
+
+## Dependencies
+
+- `clarabel`: Pure Rust conic optimization solver
+- `cova-algebra`: Linear algebra operations
+- `thiserror`: Error handling
 
 ## License
 
-This project is licensed under the AGPL-3.0 License - see the LICENSE file for details.
+AGPL-3.0

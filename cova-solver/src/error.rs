@@ -1,33 +1,34 @@
-//! Error types for the cova-solvers library
+//! Error types for optimization solvers
 
 use thiserror::Error;
 
+/// Result type for solver operations
 pub type SolverResult<T> = Result<T, SolverError>;
 
-/// Errors that can occur during optimization solving
+/// Errors that can occur during optimization
 #[derive(Error, Debug, Clone)]
 pub enum SolverError {
-  /// The problem is infeasible (no solution exists)
-  #[error("Problem is infeasible")]
-  Infeasible,
+  /// Dimension mismatch between matrices/vectors
+  #[error("Dimension mismatch: expected {expected}, got {actual}")]
+  DimensionMismatch { expected: String, actual: String },
 
-  /// The problem is unbounded (objective can be made arbitrarily good)
-  #[error("Problem is unbounded")]
-  Unbounded,
-
-  /// The solver failed to converge within the maximum iterations
-  #[error("Solver failed to converge within {max_iterations} iterations")]
-  ConvergenceFailure { max_iterations: usize },
-
-  /// Numerical issues encountered during solving
-  #[error("Numerical error: {message}")]
-  NumericalError { message: String },
-
-  /// Invalid problem formulation
+  /// Invalid problem specification
   #[error("Invalid problem: {message}")]
   InvalidProblem { message: String },
 
-  /// Matrix dimension mismatch
-  #[error("Dimension mismatch: expected {expected}, got {actual}")]
-  DimensionMismatch { expected: String, actual: String },
+  /// Numerical error during computation
+  #[error("Numerical error: {message}")]
+  NumericalError { message: String },
+
+  /// Convergence failure
+  #[error("Failed to converge: {message}")]
+  ConvergenceError { message: String },
+
+  /// Infeasible problem
+  #[error("Problem is infeasible: {message}")]
+  InfeasibleProblem { message: String },
+
+  /// Unbounded problem
+  #[error("Problem is unbounded: {message}")]
+  UnboundedProblem { message: String },
 }

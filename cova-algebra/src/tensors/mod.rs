@@ -48,3 +48,6 @@ use crate::{
   rings::Field,
 };
 pub mod fixed;
+
+
+use nalgebra::Scalar;
