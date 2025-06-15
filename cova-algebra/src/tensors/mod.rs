@@ -1,4 +1,55 @@
 pub use nalgebra::*;
+use num_traits::{One, Zero};
+
+/// Returns the reduced row-echelon form of `m` together with the indices of its pivot columns.
+fn rref_with_pivots<F>(m: &DMatrix<F>) -> (DMatrix<F>, Vec<usize>)
+where F: crate::rings::Field + Copy + Zero + PartialEq {
+  let mut mat = m.clone();
+  let nrows = mat.nrows();
+  let ncols = mat.ncols();
+
+  let mut pivot_cols = Vec::new();
+  let mut current_row = 0usize;
+
+  for col in 0..ncols {
+    // Search a pivot row.
+    if let Some(pivot_row) = (current_row..nrows).find(|&r| !mat[(r, col)].is_zero()) {
+      // Move it to the current row.
+      if pivot_row != current_row {
+        mat.swap_rows(pivot_row, current_row);
+      }
+
+      // Normalize the pivot row so that the pivot element is 1.
+      let pivot_val = mat[(current_row, col)];
+      let inv = pivot_val.multiplicative_inverse();
+      for c in col..ncols {
+        mat[(current_row, c)] = mat[(current_row, c)] * inv;
+      }
+
+      // Eliminate this column from the other rows.
+      for r in 0..nrows {
+        if r == current_row {
+          continue;
+        }
+        let factor = mat[(r, col)];
+        if factor.is_zero() {
+          continue;
+        }
+        for c in col..ncols {
+          mat[(r, c)] = mat[(r, c)] - factor * mat[(current_row, c)];
+        }
+      }
+
+      pivot_cols.push(col);
+      current_row += 1;
+      if current_row == nrows {
+        break;
+      }
+    }
+  }
+
+  (mat, pivot_cols)
+}
 
 /// Computes a basis for the quotient space V/U.
 ///
@@ -39,74 +90,14 @@ pub fn compute_quotient_basis<F: crate::rings::Field + Copy>(
     );
   }
 
-  // Create matrix from columns
+  // Create matrix from columns of subspace + space.
   let mut all_columns = Vec::new();
   all_columns.extend_from_slice(subspace_vectors);
   all_columns.extend_from_slice(space_vectors);
 
-  // Perform a Gaussian elimination that works over an arbitrary field in order to
-  // identify the pivot (linearly independent) columns.  `nalgebra` itself only
-  // provides echelon/rank utilities for real/complex fields, so we implement a
-  // minimal version that relies solely on the `Field` operations available on `F`.
-
-  /// Returns the indices of the pivot columns that appear when the given matrix
-  /// is brought to (reduced) row-echelon form via Gaussian elimination.  This is
-  /// enough information for `compute_quotient_basis` – we do **not** need the
-  /// transformed matrix itself.
-  fn pivot_columns<F: crate::rings::Field + Copy + num_traits::Zero + PartialEq>(
-    mut m: DMatrix<F>,
-  ) -> Vec<usize> {
-    use num_traits::Zero;
-    let nrows = m.nrows();
-    let ncols = m.ncols();
-
-    let mut pivots = Vec::new();
-    let mut current_row = 0usize;
-
-    for col in 0..ncols {
-      // 1. Find a pivot row (non-zero entry) in the current column at or below `current_row`.
-      let pivot_row_opt = (current_row..nrows).find(|&r| !m[(r, col)].is_zero());
-      if let Some(pivot_row) = pivot_row_opt {
-        // 2. Move the pivot row into position.
-        if pivot_row != current_row {
-          m.swap_rows(pivot_row, current_row);
-        }
-
-        // 3. Normalise the pivot row so that the pivot element becomes 1.
-        let pivot_val = m[(current_row, col)];
-        let inv = pivot_val.multiplicative_inverse();
-        for c in col..ncols {
-          m[(current_row, c)] = m[(current_row, c)] * inv;
-        }
-
-        // 4. Eliminate the current column from all other rows.
-        for r in 0..nrows {
-          if r == current_row {
-            continue;
-          }
-          let factor = m[(r, col)];
-          if factor.is_zero() {
-            continue;
-          }
-          for c in col..ncols {
-            m[(r, c)] = m[(r, c)] - factor * m[(current_row, c)];
-          }
-        }
-
-        pivots.push(col);
-        current_row += 1;
-        if current_row == nrows {
-          break;
-        }
-      }
-    }
-
-    pivots
-  }
-
   let matrix = DMatrix::<F>::from_columns(&all_columns);
-  let pivot_cols_set: std::collections::HashSet<usize> =
-    pivot_columns(matrix).into_iter().collect();
+  let (_, pivots) = rref_with_pivots(&matrix);
+  let pivot_cols_set: std::collections::HashSet<usize> = pivots.into_iter().collect();
 
   let mut quotient_basis: Vec<DVector<F>> = Vec::new();
   let num_subspace_cols = subspace_vectors.len();
@@ -121,10 +112,70 @@ pub fn compute_quotient_basis<F: crate::rings::Field + Copy>(
   quotient_basis
 }
 
+pub fn image<F>(matrix: &DMatrix<F>) -> Vec<DVector<F>>
+where F: crate::rings::Field + Copy + Zero + PartialEq {
+  let (_, pivot_cols) = rref_with_pivots(matrix);
+
+  pivot_cols.into_iter().map(|col_idx| matrix.column(col_idx).into_owned()).collect()
+}
+
+pub fn kernel<F>(matrix: &DMatrix<F>) -> Vec<DVector<F>>
+where F: crate::rings::Field + Copy + Zero + One + PartialEq {
+  use num_traits::{One, Zero};
+
+  let ncols = matrix.ncols();
+  if ncols == 0 {
+    return Vec::new();
+  }
+
+  let nrows = matrix.nrows();
+  if nrows == 0 {
+    // Entire space is the kernel.
+    return (0..ncols)
+      .map(|i| {
+        let mut comps = vec![F::zero(); ncols];
+        comps[i] = F::one();
+        DVector::from_row_slice(&comps)
+      })
+      .collect();
+  }
+
+  let (rref, pivot_cols) = rref_with_pivots(matrix);
+
+  let mut is_pivot = vec![false; ncols];
+  for &c in &pivot_cols {
+    if c < ncols {
+      is_pivot[c] = true;
+    }
+  }
+
+  let free_cols: Vec<usize> = (0..ncols).filter(|&j| !is_pivot[j]).collect();
+
+  let mut basis = Vec::new();
+  for &free in &free_cols {
+    let mut comps = vec![F::zero(); ncols];
+    comps[free] = F::one();
+
+    for (row_idx, &pivot_col) in pivot_cols.iter().enumerate() {
+      let coeff = rref[(row_idx, free)];
+      if !coeff.is_zero() {
+        comps[pivot_col] = -coeff;
+      }
+    }
+
+    basis.push(DVector::from_row_slice(&comps));
+  }
+
+  basis
+}
+
 #[cfg(test)]
 mod tests {
-  use super::compute_quotient_basis;
-  use crate::{fixtures::Mod7, tensors::DVector};
+  use super::{compute_quotient_basis, image, kernel};
+  use crate::{
+    fixtures::Mod7,
+    tensors::{DMatrix, DVector},
+  };
 
   #[test]
   fn test_quotient_simple_span() {
@@ -291,5 +342,30 @@ mod tests {
 
     let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
     assert!(quotient_basis.is_empty(), "Quotient basis for all zero vectors should be empty");
+  }
+
+  #[test]
+  fn test_image_simple() {
+    // Matrix with dependent first two columns.
+    let col1 = DVector::<Mod7>::from_row_slice(&[Mod7::new(1), Mod7::new(0)]);
+    let col2 = DVector::<Mod7>::from_row_slice(&[Mod7::new(2), Mod7::new(0)]); // 2 * col1
+    let col3 = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1)]);
+
+    let m = DMatrix::<Mod7>::from_columns(&[col1.clone(), col2.clone(), col3.clone()]);
+    let img_basis = image(&m);
+
+    assert_eq!(img_basis.len(), 2);
+    assert!(img_basis.contains(&col1) && img_basis.contains(&col3));
+  }
+
+  #[test]
+  fn test_kernel_simple() {
+    // 1 x 2 matrix [1 0]; kernel should be all vectors of the form (0, t).
+    let m = DMatrix::<Mod7>::from_row_slice(1, 2, &[Mod7::new(1), Mod7::new(0)]);
+    let ker_basis = kernel(&m);
+
+    assert_eq!(ker_basis.len(), 1);
+    let expected = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1)]);
+    assert_eq!(ker_basis[0], expected);
   }
 }

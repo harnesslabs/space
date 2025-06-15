@@ -141,7 +141,7 @@ use std::collections::HashMap;
 
 use cova_algebra::{
   rings::Field,
-  tensors::{DMatrix, DVector},
+  tensors::{compute_quotient_basis, DMatrix, DVector},
 };
 
 use super::*;
