@@ -31,10 +31,10 @@
 //! ## Vector Spaces
 //!
 //! ```
-//! use cova_algebra::{algebras::boolean::Boolean, rings::Field, tensors::fixed::FixedVector};
+//! use cova_algebra::{algebras::boolean::Boolean, rings::Field, tensors::SVector};
 //!
-//! let v1 = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
-//! let v2 = FixedVector::<3, f64>([4.0, 5.0, 6.0]);
+//! let v1 = SVector::<f64, 3>::from_row_slice(&[1.0, 2.0, 3.0]);
+//! let v2 = SVector::<f64, 3>::from_row_slice(&[4.0, 5.0, 6.0]);
 //! let sum = v1 + v2;
 //! ```
 
