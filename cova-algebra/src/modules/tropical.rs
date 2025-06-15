@@ -62,19 +62,15 @@ use crate::rings::Semiring;
 /// - Zero is -∞
 /// - One is 0
 #[derive(Copy, Clone, Debug, PartialEq, PartialOrd)]
-pub enum TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+pub enum TropicalElement<F: Field> {
   /// A finite element of the tropical algebra.
   Element(F),
   /// Represents negative infinity, the zero element in tropical algebra.
   NegInfinity,
 }
 
-impl<F> Eq for TropicalElement<F> where F: Copy + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
-impl<F> TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+impl<F: Field> Eq for TropicalElement<F> {}
+impl<F: Field> TropicalElement<F> {
   /// Creates a new tropical element with the given value.
   pub fn new(value: F) -> Self { TropicalElement::Element(value) }
 
@@ -82,9 +78,7 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
   pub fn value(&self) -> TropicalElement<F> { *self }
 }
 
-impl<F> Add for TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+impl<F: Field + PartialOrd> Add for TropicalElement<F> {
   type Output = Self;
 
   fn add(self, other: Self) -> Self::Output {
@@ -106,15 +100,11 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
   }
 }
 
-impl<F> AddAssign for TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+impl<F: Field + PartialOrd> AddAssign for TropicalElement<F> {
   fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
 }
 
-impl<F> Mul for TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+impl<F: Field + PartialOrd> Mul for TropicalElement<F> {
   type Output = Self;
 
   fn mul(self, other: Self) -> Self::Output {
@@ -134,35 +124,29 @@ where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<O
   }
 }
 
-impl<F> MulAssign for TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+impl<F: Field + PartialOrd> MulAssign for TropicalElement<F> {
   fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
 }
 
-impl<F> Zero for TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+impl<F: Field + PartialOrd> Zero for TropicalElement<F> {
   fn zero() -> Self { TropicalElement::NegInfinity }
 
   fn is_zero(&self) -> bool { *self == TropicalElement::NegInfinity }
 }
 
-impl<F> One for TropicalElement<F>
-where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One
-{
+impl<F: Field + PartialOrd> One for TropicalElement<F> {
   fn one() -> Self { TropicalElement::Element(F::zero()) }
 }
 
-impl<F> Additive for TropicalElement<F> where F: Copy + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
-impl<F> Multiplicative for TropicalElement<F> where F: Copy + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
-impl<F> Semiring for TropicalElement<F> where F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One {}
+impl<F: Field + PartialOrd> Additive for TropicalElement<F> {}
+impl<F: Field + PartialOrd> Multiplicative for TropicalElement<F> {}
+impl<F: Field + PartialOrd> Semiring for TropicalElement<F> {}
 
 /// Symmetric bilinear form
 #[derive(Debug, PartialEq, Eq)]
 pub struct BilinearForm<const N: usize, F>
 where
-  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  F: Field + PartialOrd,
   [(); N * (N + 1) / 2]:, {
   // Store only the upper triangular part of the matrix
   // The elements are stored in row-major order, only including elements where i <= j
@@ -171,7 +155,7 @@ where
 
 impl<const N: usize, F> BilinearForm<N, F>
 where
-  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  F: Field + PartialOrd,
   [(); N * (N + 1) / 2]:, // Ensure the array size is valid at compile time
 {
   /// Creates a new bilinear form with the given matrix.
@@ -243,7 +227,7 @@ where
 /// A tropical algebra.
 pub struct TropicalAlgebra<const N: usize, F>
 where
-  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  F: Field + PartialOrd,
   [(); N * (N + 1) / 2]:, {
   /// The bilinear form defining the algebra
   bilinear_form: BilinearForm<N, F>,
@@ -251,7 +235,7 @@ where
 
 impl<const N: usize, F> TropicalAlgebra<N, F>
 where
-  F: Copy + Clone + Debug + PartialEq + PartialOrd + Add<Output = F> + Mul<Output = F> + Zero + One,
+  F: Field + PartialOrd,
   [(); N * (N + 1) / 2]:,
 {
   /// Creates a new tropical algebra with the given bilinear form.

@@ -24,6 +24,10 @@
   color: "006b75"
   description: "Space related changes"
 
+- name: "area: solvers"
+  color: "008672"
+  description: "Solvers related changes"
+
 # Task Types (Purples)
 - name: "type: refactor"
   color: "6f42c1"

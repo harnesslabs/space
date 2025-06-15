@@ -18,7 +18,7 @@ pub trait Ring: AbelianGroup + Multiplicative + One {}
 /// A field is a set on which addition, subtraction, multiplication, and division
 /// are defined and behave as the corresponding operations on rational and real numbers.
 /// Every non-zero element has a multiplicative inverse.
-pub trait Field: Ring + Div + DivAssign {
+pub trait Field: Ring + Div + DivAssign + Copy {
   /// Returns the multiplicative inverse of a non-zero element.
   ///
   /// # Panics

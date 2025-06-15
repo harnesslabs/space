@@ -1,0 +1,16 @@
+[package]
+edition = "2021"
+name    = "cova-solver"
+version = "0.1.0"
+
+authors     = ["Harness Labs"]
+description = "Cova's solvers library"
+keywords    = ["mathematics", "algebra", "solvers", "numerical"]
+license     = "AGPL-3.0"
+readme      = "README.md"
+repository  = "https://github.com/harnesslabs/cova"
+
+[dependencies]
+clarabel     = "0.11"
+cova-algebra = { path = "../cova-algebra" }
+thiserror    = "1.0"
