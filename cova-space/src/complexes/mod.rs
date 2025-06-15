@@ -1157,8 +1157,8 @@ impl<T: ComplexElement> Complex<T> {
   /// let boundary_2 = complex.get_boundary_matrix::<Boolean>(2);
   ///
   /// // Should be 3×1 matrix (3 edges, 1 triangle)
-  /// assert_eq!(boundary_2.num_rows(), 3); // 3 edges
-  /// assert_eq!(boundary_2.num_cols(), 1); // 1 triangle
+  /// assert_eq!(boundary_2.nrows(), 3); // 3 edges
+  /// assert_eq!(boundary_2.ncols(), 1); // 1 triangle
   /// ```
   ///
   /// ## Edge Boundary Matrix  
@@ -1174,8 +1174,8 @@ impl<T: ComplexElement> Complex<T> {
   /// let boundary_1 = complex.get_boundary_matrix::<Boolean>(1);
   ///
   /// // Should be 2×1 matrix (2 vertices, 1 edge)
-  /// assert_eq!(boundary_1.num_rows(), 2); // 2 vertices
-  /// assert_eq!(boundary_1.num_cols(), 1); // 1 edge
+  /// assert_eq!(boundary_1.nrows(), 2); // 2 vertices
+  /// assert_eq!(boundary_1.ncols(), 1); // 1 edge
   /// ```
   pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DMatrix<F>
   where T: ComplexElement {
@@ -1194,14 +1194,16 @@ impl<T: ComplexElement> Complex<T> {
       codomain_basis.iter().enumerate().map(|(i, s)| (s, i)).collect();
     let num_codomain_elements = codomain_basis.len();
 
-    for element_from_domain in &domain_basis {
+    for (col_idx, element_from_domain) in domain_basis.iter().enumerate() {
       // Compute boundary using the Topology trait implementation
       let boundary_chain: Chain<Self, F> = self.boundary(element_from_domain);
 
-      // Convert the chain to a coefficient vector
+      // Convert the chain to a coefficient vector representing this column.
       let col_vector =
         boundary_chain.to_coeff_vector(&basis_map_for_codomain, num_codomain_elements);
-      matrix.set_column(col_vector, col_vector);
+
+      // Fill the `col_idx`-th column of the boundary matrix.
+      matrix.set_column(col_idx, &col_vector);
     }
 
     matrix

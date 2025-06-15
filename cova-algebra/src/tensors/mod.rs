@@ -369,3 +369,132 @@ mod tests {
     assert_eq!(ker_basis[0], expected);
   }
 }
+
+// -------------------------------------------------------------------------------------------------
+// Simple builder API (only the subset needed by cova-space tests).
+// -------------------------------------------------------------------------------------------------
+
+/// Convenience builder for small dynamic matrices used in tests.
+pub struct MatrixBuilder<F: Scalar + Copy + Zero> {
+  mode: BuilderMode,
+  data: Vec<Vec<F>>, // each inner Vec is a row or column depending on `mode`.
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum BuilderMode {
+  None,
+  Row,
+  Column,
+}
+
+impl<F: Scalar + Copy + Zero> MatrixBuilder<F> {
+  pub fn new() -> Self { Self { mode: BuilderMode::None, data: Vec::new() } }
+
+  /// Adds a column with the given data.
+  pub fn column<I>(mut self, values: I) -> Self
+  where I: IntoIterator<Item = F> {
+    let vals: Vec<F> = values.into_iter().collect();
+    if self.mode == BuilderMode::Row {
+      panic!("MatrixBuilder: cannot mix row and column calls");
+    }
+    self.mode = BuilderMode::Column;
+    self.data.push(vals);
+    self
+  }
+
+  /// Adds a row with the given data.
+  pub fn row<I>(mut self, values: I) -> Self
+  where I: IntoIterator<Item = F> {
+    let vals: Vec<F> = values.into_iter().collect();
+    if self.mode == BuilderMode::Column {
+      panic!("MatrixBuilder: cannot mix row and column calls");
+    }
+    self.mode = BuilderMode::Row;
+    self.data.push(vals);
+    self
+  }
+
+  /// Builds the `DMatrix`.
+  pub fn build(self) -> DMatrix<F> {
+    match self.mode {
+      BuilderMode::None => DMatrix::zeros(0, 0),
+      BuilderMode::Column => {
+        // All columns must have same length.
+        let ncols = self.data.len();
+        if ncols == 0 {
+          return DMatrix::zeros(0, 0);
+        }
+        let nrows = self.data[0].len();
+        assert!(self.data.iter().all(|c| c.len() == nrows), "All columns must have same length");
+        let vectors: Vec<DVector<F>> =
+          self.data.into_iter().map(|v| DVector::from_row_slice(&v)).collect();
+        DMatrix::from_columns(&vectors)
+      },
+      BuilderMode::Row => {
+        let nrows = self.data.len();
+        if nrows == 0 {
+          return DMatrix::zeros(0, 0);
+        }
+        let ncols = self.data[0].len();
+        assert!(self.data.iter().all(|r| r.len() == ncols), "All rows must have same length");
+        let vectors: Vec<RowDVector<F>> =
+          self.data.into_iter().map(|v| RowDVector::from_row_slice(&v)).collect();
+        DMatrix::from_rows(&vectors)
+      },
+    }
+  }
+}
+
+use crate::category::Category;
+
+impl<F> Category for DVector<F>
+where F: crate::rings::Field + Copy + Zero + One
+{
+  type Morphism = DMatrix<F>;
+
+  // Compose two linear maps represented by matrices via a simple, generic
+  // O(n^3) multiplication that only relies on the `Field` operations instead
+  // of nalgebraʼs `ClosedMul`/`ClosedAdd` traits (which our custom finite
+  // fields donʼt implement).
+  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism {
+    assert_eq!(f.ncols(), g.nrows(), "Incompatible dimensions for composition");
+    let m = f.nrows();
+    let n = g.ncols();
+    let k = f.ncols();
+    let mut result = DMatrix::<F>::zeros(m, n);
+    for i in 0..m {
+      for j in 0..n {
+        let mut acc = F::zero();
+        for p in 0..k {
+          acc += f[(i, p)] * g[(p, j)];
+        }
+        result[(i, j)] = acc;
+      }
+    }
+    result
+  }
+
+  fn identity(a: Self) -> Self::Morphism {
+    let n = a.len();
+    let mut id = DMatrix::<F>::zeros(n, n);
+    for i in 0..n {
+      id[(i, i)] = F::one();
+    }
+    id
+  }
+
+  fn apply(f: Self::Morphism, x: Self) -> Self {
+    assert_eq!(f.ncols(), x.len(), "Matrix–vector dimension mismatch");
+    let m = f.nrows();
+    let n = f.ncols();
+    let mut out = Self::zeros(m);
+    for i in 0..m {
+      let mut acc = F::zero();
+      for j in 0..n {
+        acc += f[(i, j)] * x[j];
+      }
+      out[i] = acc;
+    }
+    out
+  }
+}

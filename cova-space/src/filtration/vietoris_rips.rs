@@ -39,7 +39,7 @@
 //! [`SimplicialComplex`] or, optionally, [`Homology`]s for specified dimensions.
 //!
 //! ```rust
-//! use cova_algebra::tensors::fixed::FixedVector;
+//! use cova_algebra::tensors::SVector;
 //! use cova_space::{
 //!   cloud::Cloud,
 //!   complexes::SimplicialComplex,
@@ -47,9 +47,9 @@
 //! };
 //!
 //! // Example: Create a cloud of 3 points forming a triangle
-//! let p0 = FixedVector([0.0, 0.0]);
-//! let p1 = FixedVector([1.0, 0.0]);
-//! let p2 = FixedVector([0.5, 0.866]); // Approx. equilateral triangle
+//! let p0 = SVector::from_row_slice(&[0.0, 0.0]);
+//! let p1 = SVector::from_row_slice(&[1.0, 0.0]);
+//! let p2 = SVector::from_row_slice(&[0.5, 0.866]); // Approx. equilateral triangle
 //! let cloud: Cloud<2> = Cloud::new(vec![p0, p1, p2]);
 //!
 //! // Create a VietorisRips builder for SimplicialComplex output

@@ -44,7 +44,7 @@
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use cova_algebra::tensors::dynamic::{Matrix, Vector};
+use cova_algebra::tensors::{DMatrix, DVector, MatrixBuilder, Vector};
 
 use super::*;
 use crate::{
@@ -221,7 +221,7 @@ where
 
 // TODO: This is a temporary implementation for the coboundary map specifically for the vector
 // stalks.
-impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, Vector<F>>
+impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, DVector<F>>
 where T: Hash + Eq + Clone + Debug
 {
   /// Constructs the coboundary matrix δ^k: C^k → C^(k+1) for the sheaf.
@@ -241,7 +241,7 @@ where T: Hash + Eq + Clone + Debug
   ///
   /// # Returns
   /// A matrix representing δ^k: C^k → C^(k+1)
-  pub fn coboundary(&self, dimension: usize) -> Matrix<F> {
+  pub fn coboundary(&self, dimension: usize) -> DMatrix<F> {
     // Get sorted k-dimensional and (k+1)-dimensional elements
     let k_elements = {
       let mut elements = self.space.elements_of_dimension(dimension);
@@ -257,7 +257,7 @@ where T: Hash + Eq + Clone + Debug
 
     if k_elements.is_empty() || k_plus_1_elements.is_empty() {
       // No source elements or no target elements - return empty matrix
-      return Matrix::new();
+      return DMatrix::<F>::zeros(0, 0);
     }
 
     // Determine block sizes based on stalk dimensions
@@ -269,9 +269,9 @@ where T: Hash + Eq + Clone + Debug
         .iter()
         .find_map(|((from, to), matrix)| {
           if from.same_content(k_element) {
-            Some(matrix.num_cols()) // When k_element is the source, its stalk dimension is num_cols
+            Some(matrix.ncols()) // When k_element is the source, its stalk dimension is num_cols
           } else if to.same_content(k_element) {
-            Some(matrix.num_rows()) // When k_element is the target, its stalk dimension is num_rows
+            Some(matrix.nrows()) // When k_element is the target, its stalk dimension is num_rows
           } else {
             None
           }
@@ -288,11 +288,11 @@ where T: Hash + Eq + Clone + Debug
         .iter()
         .find_map(|((from, to), matrix)| {
           if from.same_content(k_plus_1_element) {
-            Some(matrix.num_cols()) // When k_plus_1_element is the source, its stalk dimension is
-                                    // num_cols
+            Some(matrix.ncols()) // When k_plus_1_element is the source, its stalk dimension is
+                                 // num_cols
           } else if to.same_content(k_plus_1_element) {
-            Some(matrix.num_rows()) // When k_plus_1_element is the target, its stalk dimension is
-                                    // num_rows
+            Some(matrix.nrows()) // When k_plus_1_element is the target, its stalk dimension is
+                                 // num_rows
           } else {
             None
           }
@@ -301,49 +301,62 @@ where T: Hash + Eq + Clone + Debug
       row_block_sizes.push(stalk_dim);
     }
 
-    // Create the block matrix builder
-    let mut block_builder = Matrix::block_builder();
+    // Pre-compute offsets for each block row/column.
+    let row_offsets: Vec<usize> = {
+      let mut offs = Vec::with_capacity(row_block_sizes.len());
+      let mut acc = 0usize;
+      for &size in &row_block_sizes {
+        offs.push(acc);
+        acc += size;
+      }
+      offs
+    };
+    let col_offsets: Vec<usize> = {
+      let mut offs = Vec::with_capacity(col_block_sizes.len());
+      let mut acc = 0usize;
+      for &size in &col_block_sizes {
+        offs.push(acc);
+        acc += size;
+      }
+      offs
+    };
 
-    // Fill in the blocks
+    let total_rows: usize = row_block_sizes.iter().sum();
+    let total_cols: usize = col_block_sizes.iter().sum();
+    let mut result = DMatrix::<F>::zeros(total_rows, total_cols);
+
     for (row_idx, k_plus_1_element) in k_plus_1_elements.iter().enumerate() {
       for (col_idx, k_element) in k_elements.iter().enumerate() {
-        // Check if k_element appears in the boundary of k_plus_1_element
+        // Determine if k_element is in boundary
         let boundary_with_orientations = k_plus_1_element.boundary_with_orientations();
-
         if let Some((_, orientation_coeff)) =
           boundary_with_orientations.iter().find(|(face, _)| face.same_content(k_element))
         {
-          // k_element is in the boundary, so we need the restriction matrix
           if let Some(restriction_matrix) =
             self.restrictions.get(&(k_element.clone(), k_plus_1_element.clone()))
           {
-            // Apply the orientation sign to the restriction matrix
-            let signed_matrix = if *orientation_coeff > 0 {
-              restriction_matrix.clone()
-            } else if *orientation_coeff < 0 {
-              // Multiply by -1
-              let mut negated = restriction_matrix.clone();
-              for i in 0..negated.num_rows() {
-                for j in 0..negated.num_cols() {
-                  let val = *negated.get(i, j).unwrap();
-                  negated.set(i, j, -val);
-                }
+            // Signed matrix
+            let mut signed = restriction_matrix.clone();
+            if *orientation_coeff < 0 {
+              for val in signed.iter_mut() {
+                *val = -*val;
               }
-              negated
-            } else {
-              // Zero coefficient - create zero matrix
-              Matrix::<F>::zeros(row_block_sizes[row_idx], col_block_sizes[col_idx])
-            };
+            } else if *orientation_coeff == 0 {
+              signed.fill(F::zero());
+            }
 
-            block_builder = block_builder.block(row_idx, col_idx, signed_matrix);
+            // Place into result
+            let row_offset = row_offsets[row_idx];
+            let col_offset = col_offsets[col_idx];
+            let r_rows = signed.nrows();
+            let r_cols = signed.ncols();
+            result.slice_mut((row_offset, col_offset), (r_rows, r_cols)).copy_from(&signed);
           }
-          // If no restriction found, the block remains zero (not stored)
         }
-        // If k_element is not in the boundary, the block remains zero (not stored)
       }
     }
 
-    block_builder.build(row_block_sizes, col_block_sizes)
+    result
   }
 }
 
@@ -352,13 +365,13 @@ mod tests {
   #![allow(clippy::type_complexity)]
   #![allow(clippy::too_many_lines)]
   #![allow(clippy::float_cmp)]
-  use cova_algebra::tensors::dynamic::{Matrix, Vector};
+  use cova_algebra::tensors::{DMatrix, DVector, MatrixBuilder, Vector};
 
   use super::*;
   use crate::complexes::{Cube, CubicalComplex, Simplex, SimplicialComplex};
 
   fn simplicial_complex_1d(
-  ) -> (SimplicialComplex, HashMap<(Simplex, Simplex), Matrix<f64>>, Simplex, Simplex, Simplex) {
+  ) -> (SimplicialComplex, HashMap<(Simplex, Simplex), DMatrix<f64>>, Simplex, Simplex, Simplex) {
     let mut cc = SimplicialComplex::new();
     let v0 = Simplex::new(0, vec![0]);
     let v1 = Simplex::new(0, vec![1]);
@@ -367,9 +380,9 @@ mod tests {
     let v1 = cc.join_element(v1);
     let e01 = cc.join_element(e01);
     let restrictions = HashMap::from([
-      ((v0.clone(), e01.clone()), { Matrix::builder().column([1.0, 2.0]).build() }),
+      ((v0.clone(), e01.clone()), { MatrixBuilder::new().column([1.0, 2.0]).build() }),
       ((v1.clone(), e01.clone()), {
-        Matrix::builder().column([2.0, 0.0]).column([0.0, 2.0]).build()
+        MatrixBuilder::new().column([2.0, 0.0]).column([0.0, 2.0]).build()
       }),
     ]);
     (cc, restrictions, v0, v1, e01)
@@ -379,33 +392,33 @@ mod tests {
   fn test_simplicial_sheaf_global_section_1d() {
     let (cc, restrictions, v1, v2, e1) = simplicial_complex_1d();
 
-    let sheaf = Sheaf::<SimplicialComplex, Vector<f64>>::new(cc, restrictions);
+    let sheaf = Sheaf::<SimplicialComplex, DVector<f64>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v1.clone(), Vector::new(vec![2.0])),      // R^1
-      (v2.clone(), Vector::new(vec![1.0, 2.0])), // R^2
-      (e1.clone(), Vector::new(vec![2.0, 4.0])), // R^2
+      (v1.clone(), DVector::from_row_slice(&[2.0])), // R^1
+      (v2.clone(), DVector::from_row_slice(&[1.0, 2.0])), // R^2
+      (e1.clone(), DVector::from_row_slice(&[2.0, 4.0])), // R^2
     ]);
     assert!(sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1.clone(), Vector::new(vec![1.0])),      // R^1
-      (v2.clone(), Vector::new(vec![1.0, 2.0])), // R^2
-      (e1.clone(), Vector::new(vec![2.0, 4.0])), // R^2
+      (v1.clone(), DVector::from_row_slice(&[1.0])), // R^1
+      (v2.clone(), DVector::from_row_slice(&[1.0, 2.0])), // R^2
+      (e1.clone(), DVector::from_row_slice(&[2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1.clone(), Vector::new(vec![2.0])),      // R^1
-      (v2.clone(), Vector::new(vec![1.0, 2.0])), // R^2
-      (e1.clone(), Vector::new(vec![1.0, 2.0])), // R^2
+      (v1.clone(), DVector::from_row_slice(&[2.0])), // R^1
+      (v2.clone(), DVector::from_row_slice(&[1.0, 2.0])), // R^2
+      (e1.clone(), DVector::from_row_slice(&[1.0, 2.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
 
     let section = HashMap::from([
-      (v1, Vector::new(vec![2.0])),      // R^1
-      (v2, Vector::new(vec![3.0, 3.0])), // R^2
-      (e1, Vector::new(vec![2.0, 4.0])), // R^2
+      (v1, DVector::from_row_slice(&[2.0])),      // R^1
+      (v2, DVector::from_row_slice(&[3.0, 3.0])), // R^2
+      (e1, DVector::from_row_slice(&[2.0, 4.0])), // R^2
     ]);
     assert!(!sheaf.is_global_section(&section));
   }
@@ -413,47 +426,48 @@ mod tests {
   #[test]
   fn test_simplicial_sheaf_coboundary_1d() {
     let (cc, restrictions, ..) = simplicial_complex_1d();
-    let sheaf = Sheaf::<SimplicialComplex, Vector<f64>>::new(cc, restrictions);
+    let sheaf = Sheaf::<SimplicialComplex, DVector<f64>>::new(cc, restrictions);
     let coboundary = sheaf.coboundary(0);
 
     // Expected structure: 1 block row × 2 block columns
     // Block (0,0): 2×1 (from v0's R¹ stalk to e01's R² stalk)
     // Block (0,1): 2×2 (from v1's R² stalk to e01's R² stalk)
-    assert_eq!(coboundary.dimensions(), (2, 3)); // 2 rows (e01 stalk), 3 cols (v0 + v1 stalks)
+    assert_eq!(coboundary.nrows(), 2); // 2 rows (e01 stalk), 3 cols (v0 + v1 stalks)
+    assert_eq!(coboundary.ncols(), 3);
 
     // Extract blocks manually for testing
-    let block_00 = coboundary.extract_block(0, 2, 0, 1); // 2×1 block
-    let block_01 = coboundary.extract_block(0, 2, 1, 3); // 2×2 block
+    let block_00 = coboundary.slice((0, 0), (2, 1)).into_owned(); // 2×1 block
+    let block_01 = coboundary.slice((0, 1), (2, 2)).into_owned(); // 2×2 block
 
     // Block (0,0): Should be -1 × [[1.0], [2.0]] = [[-1.0], [-2.0]]
     // (since v0 has orientation coefficient -1 in ∂e01 = v1 - v0)
-    assert_eq!(block_00.num_rows(), 2);
-    assert_eq!(block_00.num_cols(), 1);
-    assert_eq!(*block_00.get(0, 0).unwrap(), -1.0);
-    assert_eq!(*block_00.get(1, 0).unwrap(), -2.0);
+    assert_eq!(block_00.nrows(), 2);
+    assert_eq!(block_00.ncols(), 1);
+    assert_eq!(block_00[(0, 0)], -1.0);
+    assert_eq!(block_00[(1, 0)], -2.0);
 
     // Block (0,1): Should be +1 × [[2.0, 0.0], [0.0, 2.0]] = [[2.0, 0.0], [0.0, 2.0]]
     // (since v1 has orientation coefficient +1 in ∂e01 = v1 - v0)
-    assert_eq!(block_01.num_rows(), 2);
-    assert_eq!(block_01.num_cols(), 2);
-    assert_eq!(*block_01.get(0, 0).unwrap(), 2.0);
-    assert_eq!(*block_01.get(0, 1).unwrap(), 0.0);
-    assert_eq!(*block_01.get(1, 0).unwrap(), 0.0);
-    assert_eq!(*block_01.get(1, 1).unwrap(), 2.0);
+    assert_eq!(block_01.nrows(), 2);
+    assert_eq!(block_01.ncols(), 2);
+    assert_eq!(block_01[(0, 0)], 2.0);
+    assert_eq!(block_01[(0, 1)], 0.0);
+    assert_eq!(block_01[(1, 0)], 0.0);
+    assert_eq!(block_01[(1, 1)], 2.0);
 
     // Verify the full matrix is correct
-    assert_eq!(coboundary.num_rows(), 2);
-    assert_eq!(coboundary.num_cols(), 3);
+    assert_eq!(coboundary.nrows(), 2);
+    assert_eq!(coboundary.ncols(), 3);
 
     // Row 0: [-1, 2, 0]
-    assert_eq!(*coboundary.get(0, 0).unwrap(), -1.0);
-    assert_eq!(*coboundary.get(0, 1).unwrap(), 2.0);
-    assert_eq!(*coboundary.get(0, 2).unwrap(), 0.0);
+    assert_eq!(coboundary[(0, 0)], -1.0);
+    assert_eq!(coboundary[(0, 1)], 2.0);
+    assert_eq!(coboundary[(0, 2)], 0.0);
 
     // Row 1: [-2, 0, 2]
-    assert_eq!(*coboundary.get(1, 0).unwrap(), -2.0);
-    assert_eq!(*coboundary.get(1, 1).unwrap(), 0.0);
-    assert_eq!(*coboundary.get(1, 2).unwrap(), 2.0);
+    assert_eq!(coboundary[(1, 0)], -2.0);
+    assert_eq!(coboundary[(1, 1)], 0.0);
+    assert_eq!(coboundary[(1, 2)], 2.0);
 
     println!("Coboundary matrix:");
     println!("{coboundary}");
@@ -465,7 +479,7 @@ mod tests {
 
   fn simplicial_complex_2d() -> (
     SimplicialComplex,
-    HashMap<(Simplex, Simplex), Matrix<f64>>,
+    HashMap<(Simplex, Simplex), DMatrix<f64>>,
     Simplex,
     Simplex,
     Simplex,
@@ -496,28 +510,28 @@ mod tests {
     let f012 = cc.join_element(f012);
 
     let restrictions = HashMap::from([
-      ((v0.clone(), e01.clone()), { Matrix::builder().column([1.0, 2.0]).build() }),
+      ((v0.clone(), e01.clone()), { MatrixBuilder::new().column([1.0, 2.0]).build() }),
       ((v1.clone(), e01.clone()), {
-        Matrix::builder().column([1.0, 0.0]).column([0.0, 1.0]).build()
+        MatrixBuilder::new().column([1.0, 0.0]).column([0.0, 1.0]).build()
       }),
-      ((v0.clone(), e02.clone()), { Matrix::builder().column([1.0, 0.0]).build() }),
+      ((v0.clone(), e02.clone()), { MatrixBuilder::new().column([1.0, 0.0]).build() }),
       ((v2.clone(), e02.clone()), {
-        Matrix::builder().column([1.0, 0.0]).column([0.0, 0.0]).column([0.0, 0.0]).build()
+        MatrixBuilder::new().column([1.0, 0.0]).column([0.0, 0.0]).column([0.0, 0.0]).build()
       }),
       ((v1.clone(), e12.clone()), {
-        Matrix::builder().column([2.0, 0.0]).column([0.0, 2.0]).build()
+        MatrixBuilder::new().column([2.0, 0.0]).column([0.0, 2.0]).build()
       }),
       ((v2.clone(), e12.clone()), {
-        Matrix::builder().column([2.0, 0.0]).column([0.0, 2.0]).column([0.0, 0.0]).build()
+        MatrixBuilder::new().column([2.0, 0.0]).column([0.0, 2.0]).column([0.0, 0.0]).build()
       }),
       ((e01.clone(), f012.clone()), {
-        Matrix::builder().column([2.0, 0.0, 0.0]).column([0.0, 0.0, 0.0]).build()
+        MatrixBuilder::new().column([2.0, 0.0, 0.0]).column([0.0, 0.0, 0.0]).build()
       }),
       ((e02.clone(), f012.clone()), {
-        Matrix::builder().column([2.0, 0.0, 0.0]).column([0.0, 1.0, 0.0]).build()
+        MatrixBuilder::new().column([2.0, 0.0, 0.0]).column([0.0, 1.0, 0.0]).build()
       }),
       ((e12.clone(), f012.clone()), {
-        Matrix::builder().column([1.0, 0.0, 0.0]).column([0.0, 0.0, 0.0]).build()
+        MatrixBuilder::new().column([1.0, 0.0, 0.0]).column([0.0, 0.0, 0.0]).build()
       }),
     ]);
     (cc, restrictions, v0, v1, v2, e01, e02, e12, f012)
@@ -527,16 +541,16 @@ mod tests {
   fn test_simplicial_sheaf_global_section_2d() {
     let (cc, restrictions, v0, v1, v2, e01, e02, e12, f012) = simplicial_complex_2d();
 
-    let sheaf = Sheaf::<SimplicialComplex, Vector<f64>>::new(cc, restrictions);
+    let sheaf = Sheaf::<SimplicialComplex, DVector<f64>>::new(cc, restrictions);
 
     let section = HashMap::from([
-      (v0, Vector::new(vec![1.0])),             // R^1
-      (v1, Vector::new(vec![1.0, 2.0])),        // R^2
-      (v2, Vector::new(vec![1.0, 2.0, 3.0])),   // R^3
-      (e01, Vector::new(vec![1.0, 2.0])),       // R^2
-      (e02, Vector::new(vec![1.0, 0.0])),       // R^2
-      (e12, Vector::new(vec![2.0, 4.0])),       // R^2
-      (f012, Vector::new(vec![2.0, 0.0, 0.0])), // R^3
+      (v0, DVector::from_row_slice(&[1.0])),             // R^1
+      (v1, DVector::from_row_slice(&[1.0, 2.0])),        // R^2
+      (v2, DVector::from_row_slice(&[1.0, 2.0, 3.0])),   // R^3
+      (e01, DVector::from_row_slice(&[1.0, 2.0])),       // R^2
+      (e02, DVector::from_row_slice(&[1.0, 0.0])),       // R^2
+      (e12, DVector::from_row_slice(&[2.0, 4.0])),       // R^2
+      (f012, DVector::from_row_slice(&[2.0, 0.0, 0.0])), // R^3
     ]);
     assert!(sheaf.is_global_section(&section));
   }
@@ -544,21 +558,23 @@ mod tests {
   #[test]
   fn test_simplicial_sheaf_coboundary_2d() {
     let (cc, restrictions, ..) = simplicial_complex_2d();
-    let sheaf = Sheaf::<SimplicialComplex, Vector<f64>>::new(cc, restrictions);
+    let sheaf = Sheaf::<SimplicialComplex, DVector<f64>>::new(cc, restrictions);
     let coboundary = sheaf.coboundary(0);
     println!("{coboundary}");
-    assert_eq!(coboundary.dimensions(), (6, 6)); // 3 edges with 2×2 stalks = 6×6
+    assert_eq!(coboundary.nrows(), 6); // 3 edges with 2×2 stalks = 6×6
+    assert_eq!(coboundary.ncols(), 6);
 
     let coboundary = sheaf.coboundary(1);
     println!("{coboundary}");
-    assert_eq!(coboundary.dimensions(), (3, 6)); // 1 face with 3×3 stalk, 3 edges with 2×2 stalks
+    assert_eq!(coboundary.nrows(), 3); // 1 face with 3×3 stalk, 3 edges with 2×2 stalks
+    assert_eq!(coboundary.ncols(), 6);
 
     let coboundary = sheaf.coboundary(2);
     println!("{coboundary}");
     assert!(coboundary.is_empty()); // No 3-dimensional elements
   }
 
-  fn cubical_complex_2d() -> (CubicalComplex, HashMap<(Cube, Cube), Matrix<f64>>) {
+  fn cubical_complex_2d() -> (CubicalComplex, HashMap<(Cube, Cube), DMatrix<f64>>) {
     let mut cc = CubicalComplex::new();
 
     // Create a 2x2 grid of cubes
@@ -592,34 +608,35 @@ mod tests {
 
     let restrictions = HashMap::from([
       ((v00.clone(), e_h1.clone()), {
-        Matrix::builder().row([1.0, 0.5]).row([0.0, 0.0]).build() // R^2 → R^2
+        MatrixBuilder::new().row([1.0, 0.5]).row([0.0, 0.0]).build() // R^2 → R^2
       }),
       ((v10.clone(), e_h1.clone()), {
-        Matrix::builder().row([1.0, 0.0]).row([0.0, 1.0]).build() // R^2 → R^2
+        MatrixBuilder::new().row([1.0, 0.0]).row([0.0, 1.0]).build() // R^2 → R^2
       }),
       ((v01.clone(), e_h2.clone()), {
-        Matrix::builder().row([1.0, 0.0, 0.0]).row([0.0, 0.0, 0.0]).row([0.0, 0.0, 0.0]).build() // R^3 → R^3
+        MatrixBuilder::new().row([1.0, 0.0, 0.0]).row([0.0, 0.0, 0.0]).row([0.0, 0.0, 0.0]).build() // R^3 → R^3
       }),
       ((v11.clone(), e_h2.clone()), {
-        Matrix::builder().row([0.0, 1.0, 0.0]).row([0.0, 0.0, 1.0]).row([1.0, 0.0, 0.0]).build() // R^3 → R^3
+        MatrixBuilder::new().row([0.0, 1.0, 0.0]).row([0.0, 0.0, 1.0]).row([1.0, 0.0, 0.0]).build() // R^3 → R^3
       }),
       ((v00, e_v1.clone()), {
-        Matrix::builder().row([2.0, 1.0]).row([0.0, 0.0]).build() // R^2 → R^2
+        MatrixBuilder::new().row([2.0, 1.0]).row([0.0, 0.0]).build() // R^2 → R^2
       }),
       ((v01, e_v1.clone()), {
-        Matrix::builder().row([1.0, 0.0, 0.0]).row([0.0, 0.0, 0.0]).build() // R^3 → R^2
+        MatrixBuilder::new().row([1.0, 0.0, 0.0]).row([0.0, 0.0, 0.0]).build() // R^3 → R^2
       }),
       ((v10, e_v2.clone()), {
-        Matrix::builder().row([1.0, 0.0]).row([0.0, 1.0]).row([0.0, 0.0]).build() // R^2 → R^3
+        MatrixBuilder::new().row([1.0, 0.0]).row([0.0, 1.0]).row([0.0, 0.0]).build() // R^2 → R^3
       }),
       ((v11, e_v2.clone()), {
-        Matrix::builder().row([1.0, 0.0, 0.0]).row([0.0, 1.0, 0.0]).row([0.0, 0.0, 0.0]).build() // R^3 → R^3
+        MatrixBuilder::new().row([1.0, 0.0, 0.0]).row([0.0, 1.0, 0.0]).row([0.0, 0.0, 0.0]).build() // R^3 → R^3
       }),
       ((e_h1, square.clone()), {
-        Matrix::builder().row([1.0, 0.0]).row([0.0, 1.0]).row([0.0, 0.0]).row([0.0, 0.0]).build() // R^2 → R^4
+        MatrixBuilder::new().row([1.0, 0.0]).row([0.0, 1.0]).row([0.0, 0.0]).row([0.0, 0.0]).build()
+        // R^2 → R^4
       }),
       ((e_h2, square.clone()), {
-        Matrix::builder()
+        MatrixBuilder::new()
           .row([0.0, 0.0, 1.0])
           .row([0.0, 0.0, 0.0])
           .row([0.0, 0.0, 0.0])
@@ -627,10 +644,11 @@ mod tests {
           .build() // R^3 → R^4
       }),
       ((e_v1, square.clone()), {
-        Matrix::builder().row([1.0, 0.0]).row([0.0, 0.0]).row([0.0, 0.0]).row([0.0, 0.0]).build() // R^2 → R^4
+        MatrixBuilder::new().row([1.0, 0.0]).row([0.0, 0.0]).row([0.0, 0.0]).row([0.0, 0.0]).build()
+        // R^2 → R^4
       }),
       ((e_v2, square), {
-        Matrix::builder()
+        MatrixBuilder::new()
           .row([0.0, 1.0, 0.0])
           .row([0.0, 0.0, 0.0])
           .row([0.0, 0.0, 0.0])
@@ -645,7 +663,7 @@ mod tests {
   #[test]
   fn test_cubical_sheaf_coboundary_2d() {
     let (cc, restrictions) = cubical_complex_2d();
-    let sheaf = Sheaf::<CubicalComplex, Vector<f64>>::new(cc, restrictions);
+    let sheaf = Sheaf::<CubicalComplex, DVector<f64>>::new(cc, restrictions);
 
     println!("=== 2D Cubical Sheaf Analysis ===");
 
@@ -655,15 +673,16 @@ mod tests {
     println!("{coboundary_0}");
 
     // Expected: 4 edges with varying stalk sizes
-    assert_eq!(coboundary_0.dimensions(), (10, 10)); // Total stalk dimensions
-
+    assert_eq!(coboundary_0.nrows(), 10); // Total stalk dimensions
+    assert_eq!(coboundary_0.ncols(), 10);
     // Test 1-dimensional coboundary (edges → faces)
     let coboundary_1 = sheaf.coboundary(1);
     println!("\n1-dimensional coboundary (edges → faces):");
     println!("{coboundary_1}");
 
     // Expected: 1 square with 4×4 stalk, 4 edges with varying stalks
-    assert_eq!(coboundary_1.dimensions(), (4, 10)); // 1 square (4×4), edges total 10
+    assert_eq!(coboundary_1.nrows(), 4); // 1 square (4×4), edges total 10
+    assert_eq!(coboundary_1.ncols(), 10);
 
     // Test 2-dimensional coboundary (faces → higher dim, should be empty)
     let coboundary_2 = sheaf.coboundary(2);
