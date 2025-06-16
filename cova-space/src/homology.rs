@@ -45,7 +45,7 @@
 
 use std::{collections::HashMap, hash::Hash, mem, ops::Add};
 
-use cova_algebra::{prelude::*, tensors::dynamic::vector::Vector};
+use cova_algebra::{prelude::*, tensors::DVector};
 
 use crate::definitions::Topology;
 
@@ -172,12 +172,12 @@ impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
   ///
   /// # Returns
   ///
-  /// A [`Vector<R>`] representing the coefficients of this chain in the specified basis.
+  /// A [`DVector<R>`] representing the coefficients of this chain in the specified basis.
   pub fn to_coeff_vector(
     &self,
     basis_map: &HashMap<&T::Item, usize>,
     basis_size: usize,
-  ) -> Vector<R>
+  ) -> DVector<R>
   where
     T::Item: Hash + Eq,
     R: Ring + Copy,
@@ -188,7 +188,7 @@ impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
         coeffs[idx] = *coeff;
       }
     }
-    Vector::new(coeffs)
+    DVector::from_row_slice(&coeffs)
   }
 }
 
@@ -421,9 +421,9 @@ where R: Ring + Copy {
   pub betti_number:        usize,
   /// A basis for the homology group $H_k = Z_k / B_k$.
   ///
-  /// Each element is a [`Vector<R>`] representing a homology class generator.
+  /// Each element is a [`DVector<R>`] representing a homology class generator.
   /// These vectors are typically coefficient vectors in some chosen basis for the $k$-cycles.
-  pub homology_generators: Vec<Vector<R>>,
+  pub homology_generators: Vec<DVector<R>>,
 }
 
 impl<R> Homology<R>

@@ -141,7 +141,7 @@ use std::collections::HashMap;
 
 use cova_algebra::{
   rings::Field,
-  tensors::dynamic::{compute_quotient_basis, Matrix, Vector},
+  tensors::{compute_quotient_basis, image, kernel, DMatrix, DVector},
 };
 
 use super::*;
@@ -1061,20 +1061,20 @@ impl<T: ComplexElement> Complex<T> {
     let cycles = if k == 0 {
       // Z₀ = C₀ (kernel of ∂₀: C₀ -> C₋₁ is C₀ itself).
       let num_0_elements = k_elements.len();
-      let mut basis: Vec<Vector<F>> = Vec::with_capacity(num_0_elements);
+      let mut basis: Vec<DVector<F>> = Vec::with_capacity(num_0_elements);
       for i in 0..num_0_elements {
         let mut v_data = vec![F::zero(); num_0_elements];
         v_data[i] = F::one();
-        basis.push(Vector::new(v_data));
+        basis.push(DVector::from_row_slice(&v_data));
       }
       basis
     } else {
       let boundary_k = self.get_boundary_matrix::<F>(k);
-      boundary_k.kernel()
+      kernel(&boundary_k)
     };
 
     let boundary_k_plus_1 = self.get_boundary_matrix::<F>(k + 1);
-    let boundaries = boundary_k_plus_1.image();
+    let boundaries = image(&boundary_k_plus_1);
 
     let quotient_basis_vectors = compute_quotient_basis(&boundaries, &cycles);
 
@@ -1157,8 +1157,8 @@ impl<T: ComplexElement> Complex<T> {
   /// let boundary_2 = complex.get_boundary_matrix::<Boolean>(2);
   ///
   /// // Should be 3×1 matrix (3 edges, 1 triangle)
-  /// assert_eq!(boundary_2.num_rows(), 3); // 3 edges
-  /// assert_eq!(boundary_2.num_cols(), 1); // 1 triangle
+  /// assert_eq!(boundary_2.nrows(), 3); // 3 edges
+  /// assert_eq!(boundary_2.ncols(), 1); // 1 triangle
   /// ```
   ///
   /// ## Edge Boundary Matrix  
@@ -1174,37 +1174,39 @@ impl<T: ComplexElement> Complex<T> {
   /// let boundary_1 = complex.get_boundary_matrix::<Boolean>(1);
   ///
   /// // Should be 2×1 matrix (2 vertices, 1 edge)
-  /// assert_eq!(boundary_1.num_rows(), 2); // 2 vertices
-  /// assert_eq!(boundary_1.num_cols(), 1); // 1 edge
+  /// assert_eq!(boundary_1.nrows(), 2); // 2 vertices
+  /// assert_eq!(boundary_1.ncols(), 1); // 1 edge
   /// ```
-  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> Matrix<F>
+  pub fn get_boundary_matrix<F: Field + Copy>(&self, k: usize) -> DMatrix<F>
   where T: ComplexElement {
     let domain_basis = self.elements_of_dimension(k);
     let codomain_basis = self.elements_of_dimension(k.saturating_sub(1));
 
     if domain_basis.is_empty() || codomain_basis.is_empty() {
       // Return appropriate empty matrix
-      return Matrix::zeros(codomain_basis.len(), domain_basis.len());
+      return DMatrix::<F>::zeros(codomain_basis.len(), domain_basis.len());
     }
 
-    let mut matrix = Matrix::<F>::builder();
+    let mut matrix = DMatrix::<F>::zeros(codomain_basis.len(), domain_basis.len());
 
     // Create a map from elements to their position in the codomain basis
     let basis_map_for_codomain: HashMap<&T, usize> =
       codomain_basis.iter().enumerate().map(|(i, s)| (s, i)).collect();
     let num_codomain_elements = codomain_basis.len();
 
-    for element_from_domain in &domain_basis {
+    for (col_idx, element_from_domain) in domain_basis.iter().enumerate() {
       // Compute boundary using the Topology trait implementation
       let boundary_chain: Chain<Self, F> = self.boundary(element_from_domain);
 
-      // Convert the chain to a coefficient vector
+      // Convert the chain to a coefficient vector representing this column.
       let col_vector =
         boundary_chain.to_coeff_vector(&basis_map_for_codomain, num_codomain_elements);
-      matrix = matrix.column_vec(col_vector);
+
+      // Fill the `col_idx`-th column of the boundary matrix.
+      matrix.set_column(col_idx, &col_vector);
     }
 
-    matrix.build()
+    matrix
   }
 }
 

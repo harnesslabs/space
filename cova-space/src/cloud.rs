@@ -15,12 +15,12 @@
 //! ## Example
 //!
 //! ```
-//! use cova_algebra::tensors::fixed::FixedVector;
+//! use cova_algebra::tensors::SVector;
 //! use cova_space::{cloud::Cloud, prelude::*};
 //!
 //! // Create two 2D vectors
-//! let v1 = FixedVector([1.0, 2.0]);
-//! let v2 = FixedVector([3.0, 4.0]);
+//! let v1 = SVector::from([1.0, 2.0]);
+//! let v2 = SVector::from([3.0, 4.0]);
 //!
 //! // Create a cloud containing these vectors
 //! let cloud = Cloud::new(vec![v1, v2]);
@@ -39,7 +39,7 @@
 //! - [`MetricSpace`] - Distance calculations
 //! - [`NormedSpace`] - Norm calculations (Euclidean norm)
 
-use cova_algebra::tensors::fixed::FixedVector;
+use cova_algebra::tensors::SVector;
 
 use crate::{
   definitions::{MetricSpace, NormedSpace},
@@ -58,7 +58,7 @@ use crate::{
 /// as well as metric and normed space functionalities.
 #[derive(Debug, Clone)]
 pub struct Cloud<const N: usize> {
-  points: Vec<FixedVector<N, f64>>,
+  points: Vec<SVector<f64, N>>,
 }
 
 impl<const N: usize> Cloud<N> {
@@ -67,14 +67,14 @@ impl<const N: usize> Cloud<N> {
   /// # Arguments
   ///
   /// * `points`: A `HashSet` of `Vector<N, F>` representing the points in the cloud.
-  pub const fn new(points: Vec<FixedVector<N, f64>>) -> Self { Self { points } }
+  pub const fn new(points: Vec<SVector<f64, N>>) -> Self { Self { points } }
 
   /// Returns a reference to the points in the cloud.
-  pub const fn points_ref(&self) -> &Vec<FixedVector<N, f64>> { &self.points }
+  pub const fn points_ref(&self) -> &Vec<SVector<f64, N>> { &self.points }
 }
 
 impl<const N: usize> Collection for Cloud<N> {
-  type Item = FixedVector<N, f64>;
+  type Item = SVector<f64, N>;
 
   fn contains(&self, point: &Self::Item) -> bool { self.points.contains(point) }
 
@@ -98,7 +98,7 @@ impl<const N: usize> NormedSpace for Cloud<N> {
   /// Calculates the norm of a point.
   ///
   /// The norm is defined as the sum of the squares of its components (Euclidean norm).
-  fn norm(point: Self::Item) -> Self::Norm { point.0.iter().map(|p| *p * *p).sum::<f64>().sqrt() }
+  fn norm(point: Self::Item) -> Self::Norm { point.iter().map(|p| *p * *p).sum::<f64>().sqrt() }
 }
 
 #[cfg(test)]
@@ -107,9 +107,9 @@ mod tests {
 
   use super::*;
 
-  fn create_test_vector1() -> FixedVector<2, f64> { FixedVector([1.0, 2.0]) }
+  fn create_test_vector1() -> SVector<f64, 2> { SVector::from([1.0, 2.0]) }
 
-  fn create_test_vector2() -> FixedVector<2, f64> { FixedVector([3.0, 4.0]) }
+  fn create_test_vector2() -> SVector<f64, 2> { SVector::from([3.0, 4.0]) }
 
   #[test]
   fn test_new_cloud() {
@@ -128,7 +128,7 @@ mod tests {
 
   #[test]
   fn test_is_empty() {
-    let points: Vec<FixedVector<2, f64>> = Vec::new();
+    let points: Vec<SVector<f64, 2>> = Vec::new();
     let cloud = Cloud::new(points);
     assert!(cloud.is_empty());
 

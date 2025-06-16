@@ -11,4 +11,5 @@ repository  = "https://github.com/harnesslabs/cova"
 version     = "0.1.2"
 
 [dependencies]
+nalgebra   = { workspace = true, features = ["std"] }
 num-traits = { workspace = true }

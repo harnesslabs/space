@@ -31,11 +31,11 @@
 //! #![feature(generic_const_exprs)]
 //! use cova_algebra::{
 //!   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-//!   tensors::fixed::FixedVector,
+//!   tensors::SVector,
 //! };
 //!
 //! // Create a 3D Clifford algebra with signature (+, +, -)
-//! let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
+//! let quadratic_form = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0]));
 //! let algebra = CliffordAlgebra::new(quadratic_form);
 //!
 //! // Create basis vectors
@@ -48,7 +48,7 @@
 //! assert_eq!(format!("{}", e1 * e01), "-1e₀");
 //!
 //! // Example: e2 * e2 = -1 (using the quadratic form)
-//! assert_eq!(format!("{}", e2 * e2), "-1");
+//! assert_eq!(format!("{}", e2.clone() * e2), "-1");
 //! ```
 //!
 //! # Geometric Interpretation
@@ -87,7 +87,7 @@ use crate::{
   groups::{AbelianGroup, Group},
   modules::{LeftModule, RightModule, TwoSidedModule},
   rings::Field,
-  tensors::fixed::FixedVector,
+  tensors::SVector,
 };
 
 /// A quadratic form on a vector space, represented in diagonal form.
@@ -99,14 +99,14 @@ use crate::{
 /// # Examples
 ///
 /// ```
-/// use cova_algebra::{algebras::clifford::QuadraticForm, tensors::fixed::FixedVector};
+/// use cova_algebra::{algebras::clifford::QuadraticForm, tensors::SVector};
 ///
 /// // Create a quadratic form with coefficients [1, 1, -1]
-/// let q = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
+/// let q = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0]));
 /// ```
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct QuadraticForm<F: Field, const N: usize> {
-  coefficients: FixedVector<N, F>,
+  coefficients: SVector<F, N>,
 }
 
 impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
@@ -119,11 +119,11 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   /// # Examples
   ///
   /// ```
-  /// use cova_algebra::{algebras::clifford::QuadraticForm, tensors::fixed::FixedVector};
+  /// use cova_algebra::{algebras::clifford::QuadraticForm, tensors::SVector};
   ///
-  /// let q = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
+  /// let q = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0]));
   /// ```
-  pub const fn new(coefficients: FixedVector<N, F>) -> Self { Self { coefficients } }
+  pub const fn new(coefficients: SVector<F, N>) -> Self { Self { coefficients } }
 
   /// Evaluates the quadratic form at a given vector.
   ///
@@ -138,16 +138,16 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
   /// # Examples
   ///
   /// ```
-  /// use cova_algebra::{algebras::clifford::QuadraticForm, tensors::fixed::FixedVector};
+  /// use cova_algebra::{algebras::clifford::QuadraticForm, tensors::SVector};
   ///
-  /// let q = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
-  /// let v = FixedVector::<3, f64>([1.0, 2.0, 3.0]);
+  /// let q = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0]));
+  /// let v = SVector::<f64, 3>::from_row_slice(&[1.0, 2.0, 3.0]);
   /// assert_eq!(q.evaluate(&v), 1.0 + 4.0 - 9.0); // 1*1² + 1*2² + (-1)*3²
   /// ```
-  pub fn evaluate(&self, v: &FixedVector<N, F>) -> F {
+  pub fn evaluate(&self, v: &SVector<F, N>) -> F {
     let mut result = F::zero();
     for i in 0..N {
-      result += self.coefficients.0[i] * v.0[i] * v.0[i];
+      result += self.coefficients[i] * v[i] * v[i];
     }
     result
   }
@@ -170,10 +170,10 @@ impl<F: Field + Copy, const N: usize> QuadraticForm<F, N> {
 /// #![feature(generic_const_exprs)]
 /// use cova_algebra::{
 ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-///   tensors::fixed::FixedVector,
+///   tensors::SVector,
 /// };
 ///
-/// let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
+/// let quadratic_form = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0]));
 /// let algebra = CliffordAlgebra::new(quadratic_form);
 /// ```
 pub struct CliffordAlgebra<F: Field, const N: usize> {
@@ -195,10 +195,10 @@ where [(); 1 << N]:
   /// #![feature(generic_const_exprs)]
   /// use cova_algebra::{
   ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-  ///   tensors::fixed::FixedVector,
+  ///   tensors::SVector,
   /// };
   ///
-  /// let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
+  /// let quadratic_form = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0]));
   /// let algebra = CliffordAlgebra::new(quadratic_form);
   /// ```
   pub const fn new(quadratic_form: QuadraticForm<F, N>) -> Self { Self { quadratic_form } }
@@ -215,17 +215,16 @@ where [(); 1 << N]:
   /// #![feature(generic_const_exprs)]
   /// use cova_algebra::{
   ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-  ///   tensors::fixed::FixedVector,
+  ///   tensors::SVector,
   /// };
   ///
-  /// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
-  /// let element = algebra.element(FixedVector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+  /// let algebra =
+  ///   CliffordAlgebra::new(QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0])));
+  /// let element =
+  ///   algebra.element(SVector::<f64, 8>::from_row_slice(&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
   /// ```
-  pub const fn element(
-    &self,
-    value: FixedVector<{ 1 << N }, F>,
-  ) -> CliffordAlgebraElement<'_, F, N> {
-    CliffordAlgebraElement { value, quadratic_form: Some(&self.quadratic_form) }
+  pub fn element(&self, value: SVector<F, { 1 << N }>) -> CliffordAlgebraElement<F, N> {
+    CliffordAlgebraElement { value, quadratic_form: Some(self.quadratic_form.clone()) }
   }
 
   /// Creates a basis blade with the given indices.
@@ -247,14 +246,15 @@ where [(); 1 << N]:
   /// #![feature(generic_const_exprs)]
   /// use cova_algebra::{
   ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-  ///   tensors::fixed::FixedVector,
+  ///   tensors::SVector,
   /// };
   ///
-  /// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
+  /// let algebra =
+  ///   CliffordAlgebra::new(QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0])));
   /// let e1 = algebra.blade([1]);
   /// let e01 = algebra.blade([0, 1]);
   /// ```
-  pub fn blade<const I: usize>(&self, indices: [usize; I]) -> CliffordAlgebraElement<'_, F, N> {
+  pub fn blade<const I: usize>(&self, indices: [usize; I]) -> CliffordAlgebraElement<F, N> {
     // Validate indices are in range and sorted
     for i in 1..I {
       assert!(
@@ -267,10 +267,10 @@ where [(); 1 << N]:
     // Convert indices to bit position using our helper function
     let bit_position = Self::blade_indices_to_bit(&indices);
 
-    let mut value = FixedVector::<{ 1 << N }, F>::zero();
-    value.0[bit_position] = <F as One>::one();
+    let mut value = SVector::<F, { 1 << N }>::zeros();
+    value[bit_position] = <F as One>::one();
 
-    CliffordAlgebraElement { value, quadratic_form: Some(&self.quadratic_form) }
+    CliffordAlgebraElement { value, quadratic_form: Some(self.quadratic_form.clone()) }
   }
 
   /// Maps a set of basis blade indices back to a bit position.
@@ -330,50 +330,56 @@ fn binomial(n: usize, k: usize) -> usize {
 /// #![feature(generic_const_exprs)]
 /// use cova_algebra::{
 ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-///   tensors::fixed::FixedVector,
+///   tensors::SVector,
 /// };
 ///
-/// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
+/// let algebra =
+///   CliffordAlgebra::new(QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0])));
 /// let e1 = algebra.blade([1]);
 /// let e2 = algebra.blade([2]);
 /// let sum = e1 + e2;
 /// ```
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct CliffordAlgebraElement<'a, F: Field, const N: usize>
+#[derive(Clone, Debug, PartialEq)]
+pub struct CliffordAlgebraElement<F: Field, const N: usize>
 where [(); 1 << N]: {
-  value:          FixedVector<{ 1 << N }, F>,
-  quadratic_form: Option<&'a QuadraticForm<F, N>>,
+  value:          SVector<F, { 1 << N }>,
+  quadratic_form: Option<QuadraticForm<F, N>>, // Owned quadratic form for element
 }
 
 // TODO: All of these impls should check the same bilinear space. This should probably be a compile
 // time thing.
 
-impl<F: Field + Copy + Debug, const N: usize> Add for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> Add for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
 
   fn add(self, other: Self) -> Self::Output {
     assert_eq!(self.quadratic_form, other.quadratic_form);
-    Self { value: self.value + other.value, quadratic_form: self.quadratic_form }
+    Self { value: self.value + other.value, quadratic_form: self.quadratic_form.clone() }
   }
 }
 
-impl<F: Field + Copy + Debug, const N: usize> AddAssign for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> AddAssign for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
-  fn add_assign(&mut self, rhs: Self) { *self = *self + rhs; }
+  fn add_assign(&mut self, rhs: Self) {
+    assert_eq!(self.quadratic_form, rhs.quadratic_form);
+    self.value += rhs.value;
+  }
 }
 
-impl<F: Field + Copy, const N: usize> Neg for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> Neg for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
 
-  fn neg(self) -> Self::Output { Self { value: -self.value, quadratic_form: self.quadratic_form } }
+  fn neg(self) -> Self::Output {
+    Self { value: -self.value, quadratic_form: self.quadratic_form.clone() }
+  }
 }
 
-impl<F: Field + Copy + Debug, const N: usize> Sub for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> Sub for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
@@ -381,32 +387,36 @@ where [(); 1 << N]:
   fn sub(self, other: Self) -> Self::Output { self + -other }
 }
 
-impl<F: Field + Copy + Debug, const N: usize> SubAssign for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> SubAssign for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
-  fn sub_assign(&mut self, rhs: Self) { *self = *self - rhs; }
+  fn sub_assign(&mut self, rhs: Self) {
+    assert_eq!(self.quadratic_form, rhs.quadratic_form);
+    self.value -= rhs.value;
+  }
 }
 
-impl<F: Field + Copy + Debug, const N: usize> Mul for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> Mul for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
 
   fn mul(self, other: Self) -> Self::Output {
     assert_eq!(self.quadratic_form, other.quadratic_form);
-    let quadratic_form = self.quadratic_form.expect("Both elements must have a bilinear space");
+    let quadratic_form =
+      self.quadratic_form.as_ref().expect("Both elements must have a quadratic form");
 
-    let mut result = FixedVector::<{ 1 << N }, F>::zero();
+    let mut result = SVector::<F, { 1 << N }>::zeros();
 
     // For each non-zero component in the first element
     for i in 0..(1 << N) {
-      if self.value.0[i].is_zero() {
+      if self.value[i].is_zero() {
         continue;
       }
 
       // For each non-zero component in the second element
       for j in 0..(1 << N) {
-        if other.value.0[j].is_zero() {
+        if other.value[j].is_zero() {
           continue;
         }
 
@@ -418,7 +428,7 @@ where [(); 1 << N]:
         let (sign, product_indices) = multiply_blades::<N>(&left_indices, &right_indices);
 
         // Calculate the coefficient
-        let mut coefficient = self.value.0[i] * other.value.0[j];
+        let mut coefficient = self.value[i] * other.value[j];
 
         // Apply sign
         coefficient = match sign {
@@ -448,90 +458,84 @@ where [(); 1 << N]:
 
         // Multiply by quadratic form coefficients for each repeated index
         for &idx in &repeated_indices {
-          coefficient *= quadratic_form.coefficients.0[idx];
+          coefficient *= quadratic_form.coefficients[idx];
         }
 
         // Add to the result
         let product_bit = blade_indices_to_bit::<N>(&product_indices);
-        result.0[product_bit] += coefficient;
+        result[product_bit] += coefficient;
       }
     }
 
-    Self { value: result, quadratic_form: self.quadratic_form }
+    Self { value: result, quadratic_form: self.quadratic_form.clone() }
   }
 }
 
-impl<F: Field + Copy + Debug, const N: usize> MulAssign for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> MulAssign for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
-  fn mul_assign(&mut self, rhs: Self) { *self = *self * rhs; }
+  fn mul_assign(&mut self, rhs: Self) {
+    let result = self.clone() * rhs;
+    *self = result;
+  }
 }
 
-impl<F: Field + Copy, const N: usize> Mul<F> for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> Mul<F> for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Output = Self;
 
   fn mul(self, rhs: F) -> Self::Output {
-    Self { value: self.value * rhs, quadratic_form: self.quadratic_form }
+    Self { value: self.value * rhs, quadratic_form: self.quadratic_form.clone() }
   }
 }
 
-impl<F: Field + Copy + Debug, const N: usize> Multiplicative for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
+impl<F: Field, const N: usize> Multiplicative for CliffordAlgebraElement<F, N> where [(); 1 << N]: {}
 
 // TODO: This is weird... i'll use option to note the zero element.
-impl<F: Field + Copy + Debug, const N: usize> Zero for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> Zero for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
-  fn zero() -> Self { Self { value: FixedVector::<{ 1 << N }, F>::zero(), quadratic_form: None } }
+  fn zero() -> Self { Self { value: SVector::<F, { 1 << N }>::zeros(), quadratic_form: None } }
 
-  fn is_zero(&self) -> bool { self.value.is_zero() }
+  fn is_zero(&self) -> bool { self.value.iter().all(|x| x.is_zero()) }
 }
 
-impl<F: Field + Copy + Debug, const N: usize> Additive for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
-impl<F: Field + Copy + Debug, const N: usize> Group for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> Additive for CliffordAlgebraElement<F, N> where [(); 1 << N]: {}
+impl<F: Field, const N: usize> Group for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   fn identity() -> Self {
     CliffordAlgebraElement {
-      value:          FixedVector::<{ 1 << N }, F>::zero(),
+      value:          SVector::<F, { 1 << N }>::zeros(),
       quadratic_form: None,
     }
   }
 
-  fn inverse(&self) -> Self { Self { value: -self.value, quadratic_form: self.quadratic_form } }
+  fn inverse(&self) -> Self {
+    Self { value: -self.value, quadratic_form: self.quadratic_form.clone() }
+  }
 }
-impl<F: Field + Copy + Debug, const N: usize> AbelianGroup for CliffordAlgebraElement<'_, F, N> where [(); 1 << N]: {}
-impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> LeftModule
-  for CliffordAlgebraElement<'_, F, N>
+impl<F: Field, const N: usize> AbelianGroup for CliffordAlgebraElement<F, N> where [(); 1 << N]: {}
+impl<F: Field + Mul<Self>, const N: usize> LeftModule for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Ring = F;
 }
-impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> RightModule
-  for CliffordAlgebraElement<'_, F, N>
+impl<F: Field + Mul<Self>, const N: usize> RightModule for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Ring = F;
 }
-impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> TwoSidedModule
-  for CliffordAlgebraElement<'_, F, N>
+impl<F: Field + Mul<Self>, const N: usize> TwoSidedModule for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   type Ring = F;
 }
-impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> VectorSpace
-  for CliffordAlgebraElement<'_, F, N>
-where [(); 1 << N]:
-{
-}
-impl<F: Field + Copy + Debug + Mul<Self>, const N: usize> Algebra
-  for CliffordAlgebraElement<'_, F, N>
-where [(); 1 << N]:
-{
-}
+impl<F: Field + Mul<Self>, const N: usize> VectorSpace for CliffordAlgebraElement<F, N> where [(); 1 << N]: {}
+impl<F: Field + Mul<Self>, const N: usize> Algebra for CliffordAlgebraElement<F, N> where [(); 1 << N]: {}
 
-impl<F: Field + Copy + Display, const N: usize> Display for CliffordAlgebraElement<'_, F, N>
+impl<F: Field + Display, const N: usize> Display for CliffordAlgebraElement<F, N>
 where [(); 1 << N]:
 {
   fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
@@ -584,11 +588,11 @@ where [(); 1 << N]:
       // Print each combination in order
       for indices in combinations {
         let bit_position = CliffordAlgebra::<F, N>::blade_indices_to_bit(&indices);
-        if !self.value.0[bit_position].is_zero() {
+        if !self.value[bit_position].is_zero() {
           if !first {
             write!(f, " + ")?;
           }
-          write!(f, "{}", self.value.0[bit_position])?;
+          write!(f, "{}", self.value[bit_position])?;
           if grade > 0 {
             write_basis(f, &indices)?;
           }
@@ -636,14 +640,15 @@ fn generate_combinations(
 /// #![feature(generic_const_exprs)]
 /// use cova_algebra::{
 ///   algebras::clifford::{CliffordAlgebra, QuadraticForm},
-///   tensors::fixed::FixedVector,
+///   tensors::SVector,
 /// };
 ///
-/// let algebra = CliffordAlgebra::new(QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0])));
+/// let algebra =
+///   CliffordAlgebra::new(QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0])));
 /// let e1 = algebra.blade([1]);
 ///
 /// // Both of these are valid thanks to this macro
-/// let doubled1 = 2.0 * e1;
+/// let doubled1 = 2.0 * e1.clone();
 /// let doubled2 = e1 * 2.0;
 /// ```
 /// This allows scalar multiplication to be commutative, delegating to the existing
@@ -651,12 +656,12 @@ fn generate_combinations(
 #[macro_export]
 macro_rules! impl_mul_scalar_clifford {
   ($($t:ty)*) => ($(
-    impl<'a, const N: usize> Mul<CliffordAlgebraElement<'a, $t, N>> for $t
+    impl<const N: usize> Mul<CliffordAlgebraElement<$t, N>> for $t
     where [(); 1 << N]:
     {
-      type Output = CliffordAlgebraElement<'a, $t, N>;
+      type Output = CliffordAlgebraElement<$t, N>;
 
-      fn mul(self, rhs: CliffordAlgebraElement<'a, $t, N>) -> Self::Output { rhs * self }
+      fn mul(self, rhs: CliffordAlgebraElement<$t, N>) -> Self::Output { rhs * self }
     }
   )*)
 }
@@ -788,26 +793,34 @@ mod tests {
   use super::*;
 
   fn clifford_algebra_non_euclidean() -> CliffordAlgebra<f64, 3> {
-    let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, -1.0]));
+    let quadratic_form = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, -1.0]));
     CliffordAlgebra::new(quadratic_form)
   }
 
   fn clifford_algebra_euclidean() -> CliffordAlgebra<f64, 3> {
-    let quadratic_form = QuadraticForm::new(FixedVector::<3, f64>([1.0, 1.0, 1.0]));
+    let quadratic_form = QuadraticForm::new(SVector::<f64, 3>::from_row_slice(&[1.0, 1.0, 1.0]));
     CliffordAlgebra::new(quadratic_form)
   }
 
   #[test]
   fn test_display_order() {
     let algebra = clifford_algebra_non_euclidean();
-    let one = algebra.element(FixedVector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    let e0 = algebra.element(FixedVector::<8, f64>([0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    let e1 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
-    let e2 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
-    let e01 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
-    let e02 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
-    let e12 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
-    let e012 = algebra.element(FixedVector::<8, f64>([0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
+    let one =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e0 =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e1 =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let e2 =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0]));
+    let e01 =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0]));
+    let e02 =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0]));
+    let e12 =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0]));
+    let e012 =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1.0]));
 
     let sum = one + 2.0 * e0 + 3.0 * e1 + 4.0 * e2 + 5.0 * e01 + 6.0 * e02 + 7.0 * e12 + 8.0 * e012;
     assert_eq!(format!("{sum}"), "1 + 2e₀ + 3e₁ + 4e₂ + 5e₀‚₁ + 6e₀‚₂ + 7e₁‚₂ + 8e₀‚₁‚₂");
@@ -882,24 +895,25 @@ mod tests {
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
 
-    // Test anti-commutativity of basis vectors
-    assert_eq!(format!("{}", e0 * e1), "1e₀‚₁");
-    assert_eq!(format!("{}", e1 * e0), "-1e₀‚₁");
-    assert_eq!(format!("{}", e1 * e2), "1e₁‚₂");
-    assert_eq!(format!("{}", e2 * e1), "-1e₁‚₂");
+    // Test anti-commutativity of basis vectors (clone to avoid move)
+    assert_eq!(format!("{}", e0.clone() * e1.clone()), "1e₀‚₁");
+    assert_eq!(format!("{}", e1.clone() * e0.clone()), "-1e₀‚₁");
+    assert_eq!(format!("{}", e1.clone() * e2.clone()), "1e₁‚₂");
+    assert_eq!(format!("{}", e2.clone() * e1), "-1e₁‚₂");
   }
 
   #[test]
   fn test_mul_scalar() {
     let algebra = clifford_algebra_non_euclidean();
-    let one = algebra.element(FixedVector::<8, f64>([1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
+    let one =
+      algebra.element(SVector::<f64, 8>::from_row_slice(&[1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]));
     let e1 = algebra.blade([1]);
     let e2 = algebra.blade([2]);
 
-    // Test scalar multiplication
-    assert_eq!(format!("{}", one * e1), "1e₁");
-    assert_eq!(format!("{}", e1 * one), "1e₁");
-    assert_eq!(format!("{}", one * e2), "1e₂");
+    // Test scalar multiplication (clone to avoid move)
+    assert_eq!(format!("{}", one.clone() * e1.clone()), "1e₁");
+    assert_eq!(format!("{}", e1 * one.clone()), "1e₁");
+    assert_eq!(format!("{}", one.clone() * e2.clone()), "1e₂");
     assert_eq!(format!("{}", e2 * one), "1e₂");
   }
 
@@ -911,9 +925,9 @@ mod tests {
     let e2 = algebra.blade([2]);
 
     // Test quadratic form application
-    assert_eq!(format!("{}", e0 * e0), "1"); // Q(e0) = 1
-    assert_eq!(format!("{}", e1 * e1), "1"); // Q(e1) = 1
-    assert_eq!(format!("{}", e2 * e2), "-1"); // Q(e2) = -1
+    assert_eq!(format!("{}", e0.clone() * e0), "1"); // Q(e0) = 1
+    assert_eq!(format!("{}", e1.clone() * e1), "1"); // Q(e1) = 1
+    assert_eq!(format!("{}", e2.clone() * e2), "-1"); // Q(e2) = -1
   }
 
   #[test]
@@ -924,12 +938,14 @@ mod tests {
     let e02 = algebra.blade([0, 2]);
 
     // Test multiplication of bivectors
-    assert_eq!(format!("{}", e01 * e12), "1e₀‚₂"); // e01 * e12 = e0 * e1 * e1 * e2 = e0 * Q(e1) * e2 = e0 * 1 * e2 = e0 * e2 = e02
+    assert_eq!(format!("{}", e01.clone() * e12.clone()), "1e₀‚₂"); // e01 * e12 = e0 * e1 * e1 * e2 = e0 * Q(e1) * e2 = e0 * 1 * e2 = e0 * e2 = e02
 
-    assert_eq!(format!("{}", e12 * e01), "1e₀‚₂");
-    assert_eq!(format!("{}", e02 * e12), "1e₀‚₁"); // e02 * e12 = e0 * e2 * e1 * e2 = -e0 * e1 * e2
-                                                   // * e2 = -e0 * e1 * Q(e2) = -e0 * e1 * -1 = e0
-                                                   // * e1 = e01
+    assert_eq!(format!("{}", e12.clone() * e01), "1e₀‚₂");
+    assert_eq!(format!("{}", e02.clone() * e12), "1e₀‚₁"); // e02 * e12 = e0 * e2 * e1 * e2 = -e0 *
+                                                           // e1 * e2
+                                                           // * e2 = -e0 * e1 * Q(e2) = -e0 * e1 *
+                                                           //   -1 = e0
+                                                           // * e1 = e01
   }
 
   #[test]
@@ -940,9 +956,11 @@ mod tests {
     let e012 = algebra.blade([0, 1, 2]);
 
     // Test multiplication with trivector
-    assert_eq!(format!("{}", e01 * e2), "1e₀‚₁‚₂");
-    assert_eq!(format!("{}", e2 * e01), "1e₀‚₁‚₂");
-    assert_eq!(format!("{}", e012 * e2), "-1e₀‚₁"); // e012 * e2 = e0 * e1 * e2 * e2 = e0 * e1 *
-                                                    // Q(e2) = e0 * e1 * -1 = -e0 * e1 = -e01
+    assert_eq!(format!("{}", e01.clone() * e2.clone()), "1e₀‚₁‚₂");
+    assert_eq!(format!("{}", e2.clone() * e01), "1e₀‚₁‚₂");
+    assert_eq!(format!("{}", e012.clone() * e2), "-1e₀‚₁"); // e012 * e2 = e0 * e1 * e2 * e2 = e0 *
+                                                            // e1 *
+                                                            // Q(e2) = e0 * e1 * -1 = -e0 * e1 =
+                                                            // -e01
   }
 }

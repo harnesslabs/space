@@ -36,7 +36,9 @@ pub mod primitive;
 ///   this trait.
 /// - Using the [`prime_field!`] macro, you can define a prime field type and it will implement this
 ///   trait.
-pub trait Additive: Add<Output = Self> + AddAssign + PartialEq + Sized {}
+pub trait Additive:
+  Add<Output = Self> + AddAssign + PartialEq + std::fmt::Debug + Sized + 'static {
+}
 
 /// A trait for types that support multiplication operations.
 ///
@@ -54,7 +56,9 @@ pub trait Additive: Add<Output = Self> + AddAssign + PartialEq + Sized {}
 ///   this trait.
 /// - Using the [`prime_field!`] macro, you can define a prime field type and it will implement this
 ///   trait.
-pub trait Multiplicative: Mul<Output = Self> + MulAssign + PartialEq + Sized {}
+pub trait Multiplicative:
+  Mul<Output = Self> + MulAssign + PartialEq + std::fmt::Debug + Sized + 'static {
+}
 
 /// Trait for types that have a concept of positive infinity.
 pub trait Infinity {
