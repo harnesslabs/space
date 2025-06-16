@@ -4,9 +4,9 @@ resolver = "2"
 
 [workspace.dependencies]
 # Local dependencies
-cova-algebra = { path = "cova-algebra", version = "=0.1.2" }
+cova-algebra = { path = "cova-algebra", version = "=0.1.3" }
 cova-solver  = { path = "cova-solver", version = "=0.1.0" }
-cova-space   = { path = "cova-space", version = "=0.2.0" }
+cova-space   = { path = "cova-space", version = "=0.2.1" }
 
 # External dependencies
 itertools  = { version = "0.14", default-features = false }

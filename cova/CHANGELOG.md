@@ -6,6 +6,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.4](https://github.com/harnesslabs/cova/compare/cova-v0.1.3...cova-v0.1.4) - 2025-06-16
+
+### Added
+- `cova-solver` + `nalgebra` backend ([#84](https://github.com/harnesslabs/cova/pull/84))
+
+### Fixed
+- LaTeX in docs ([#76](https://github.com/harnesslabs/cova/pull/76))
+
 ## [0.1.3](https://github.com/harnesslabs/cova/compare/cova-v0.1.2...cova-v0.1.3) - 2025-05-25
 
 ### Other
