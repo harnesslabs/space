@@ -172,7 +172,7 @@ impl<'a, T: Topology, R: Ring> Chain<'a, T, R> {
   ///
   /// # Returns
   ///
-  /// A [`Vector<R>`] representing the coefficients of this chain in the specified basis.
+  /// A [`DVector<R>`] representing the coefficients of this chain in the specified basis.
   pub fn to_coeff_vector(
     &self,
     basis_map: &HashMap<&T::Item, usize>,
@@ -421,7 +421,7 @@ where R: Ring + Copy {
   pub betti_number:        usize,
   /// A basis for the homology group $H_k = Z_k / B_k$.
   ///
-  /// Each element is a [`Vector<R>`] representing a homology class generator.
+  /// Each element is a [`DVector<R>`] representing a homology class generator.
   /// These vectors are typically coefficient vectors in some chosen basis for the $k$-cycles.
   pub homology_generators: Vec<DVector<R>>,
 }

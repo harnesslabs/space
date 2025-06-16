@@ -228,7 +228,7 @@ where F: crate::rings::Field + Copy + Zero + One + PartialEq {
 /// Example – create a 2 × 3 matrix by rows:
 /// ```rust
 /// # use cova_algebra::tensors::MatrixBuilder;
-/// let m = MatrixBuilder::new().row([1, 2, 3]).row([4, 5, 6]).build();
+/// let m = MatrixBuilder::new().row([1.0, 2.0, 3.0]).row([4.0, 5.0, 6.0]).build();
 /// assert_eq!(m.nrows(), 2);
 /// assert_eq!(m.ncols(), 3);
 /// ```
@@ -259,8 +259,8 @@ impl<F: crate::rings::Field> MatrixBuilder<F> {
   ///
   /// # Example
   /// ```rust
-  /// # use cova_algebra::tensors::MatrixBuilder;
-  /// let m = MatrixBuilder::new().column([1, 0]).column([0, 1]).build();
+  /// # use cova_algebra::{tensors::MatrixBuilder, prelude::*};
+  /// let m = MatrixBuilder::new().column([1.0, 0.0]).column([0.0, 1.0]).build();
   /// assert_eq!(m.nrows(), 2);
   /// assert_eq!(m.ncols(), 2);
   /// ```
