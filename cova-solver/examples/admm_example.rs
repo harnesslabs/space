@@ -4,10 +4,7 @@
 //! for solving various convex optimization problems.
 
 use cova_algebra::tensors::{DMatrix, DVector};
-use cova_solver::{
-  admm::{AdmmParams, AdmmSolver},
-  SolverResult,
-};
+use cova_solver::{admm::AdmmSolver, SolverResult};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
   println!("ADMM Examples using Clarabel\n");
@@ -36,9 +33,9 @@ fn lasso_example() -> SolverResult<()> {
   let lambda = 0.1; // Regularization parameter
 
   println!("Problem: minimize ||Ax - b||² + λ||x||₁");
-  println!("A = \n{}", a);
+  println!("A = \n{a}");
   println!("b = {:?}", b.as_slice());
-  println!("λ = {}", lambda);
+  println!("λ = {lambda}");
 
   let mut solver = AdmmSolver::new();
   let solution = solver.solve_lasso(&a, &b, lambda)?;
@@ -54,8 +51,8 @@ fn lasso_example() -> SolverResult<()> {
   let residual_norm = residual.norm();
   let l1_norm: f64 = solution.x.iter().map(|x| x.abs()).sum();
 
-  println!("  Residual norm = {:.6}", residual_norm);
-  println!("  L1 norm = {:.6}", l1_norm);
+  println!("  Residual norm = {residual_norm:.6}");
+  println!("  L1 norm = {l1_norm:.6}");
 
   Ok(())
 }
@@ -68,7 +65,7 @@ fn basis_pursuit_example() -> SolverResult<()> {
   let b = DVector::from_vec(vec![1.0, 2.0]);
 
   println!("Problem: minimize ||x||₁ subject to Ax = b");
-  println!("A = \n{}", a);
+  println!("A = \n{a}");
   println!("b = {:?}", b.as_slice());
 
   let mut solver = AdmmSolver::new();
@@ -107,9 +104,8 @@ fn custom_admm_example() -> SolverResult<()> {
   let c = DVector::zeros(n);
 
   // z-update: projection onto [0,1]ⁿ
-  let z_update = |target: &DVector<f64>, _z_old: &DVector<f64>, _rho: f64| {
-    target.map(|val| val.max(0.0).min(1.0))
-  };
+  let z_update =
+    |target: &DVector<f64>, _z_old: &DVector<f64>, _rho: f64| target.map(|val| val.clamp(0.0, 1.0));
 
   let mut solver = AdmmSolver::new();
   let solution = solver.solve_qp_admm(&p, &q, &a_constraint, &b_constraint, &c, z_update)?;
@@ -121,8 +117,8 @@ fn custom_admm_example() -> SolverResult<()> {
   println!("  Converged = {}", solution.converged);
 
   // Verify box constraints
-  let in_bounds = solution.x.iter().all(|&x| x >= -1e-6 && x <= 1.0 + 1e-6);
-  println!("  Satisfies box constraints = {}", in_bounds);
+  let in_bounds = solution.x.iter().all(|&x| (-1e-6..=1.0 + 1e-6).contains(&x));
+  println!("  Satisfies box constraints = {in_bounds}");
 
   Ok(())
 }

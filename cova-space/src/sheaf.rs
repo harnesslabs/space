@@ -44,7 +44,7 @@
 
 use std::{collections::HashMap, fmt::Debug, hash::Hash};
 
-use cova_algebra::tensors::{DMatrix, DVector, MatrixBuilder, Vector};
+use cova_algebra::tensors::{DMatrix, DVector};
 
 use super::*;
 use crate::{
@@ -350,7 +350,7 @@ where T: Hash + Eq + Clone + Debug
             let col_offset = col_offsets[col_idx];
             let r_rows = signed.nrows();
             let r_cols = signed.ncols();
-            result.slice_mut((row_offset, col_offset), (r_rows, r_cols)).copy_from(&signed);
+            result.view_mut((row_offset, col_offset), (r_rows, r_cols)).copy_from(&signed);
           }
         }
       }
@@ -365,7 +365,7 @@ mod tests {
   #![allow(clippy::type_complexity)]
   #![allow(clippy::too_many_lines)]
   #![allow(clippy::float_cmp)]
-  use cova_algebra::tensors::{DMatrix, DVector, MatrixBuilder, Vector};
+  use cova_algebra::tensors::{DMatrix, DVector, MatrixBuilder};
 
   use super::*;
   use crate::complexes::{Cube, CubicalComplex, Simplex, SimplicialComplex};
@@ -436,8 +436,8 @@ mod tests {
     assert_eq!(coboundary.ncols(), 3);
 
     // Extract blocks manually for testing
-    let block_00 = coboundary.slice((0, 0), (2, 1)).into_owned(); // 2×1 block
-    let block_01 = coboundary.slice((0, 1), (2, 2)).into_owned(); // 2×2 block
+    let block_00 = coboundary.view((0, 0), (2, 1)); // 2×1 block
+    let block_01 = coboundary.view((0, 1), (2, 2)); // 2×2 block
 
     // Block (0,0): Should be -1 × [[1.0], [2.0]] = [[-1.0], [-2.0]]
     // (since v0 has orientation coefficient -1 in ∂e01 = v1 - v0)

@@ -1,8 +1,8 @@
 //! Common traits and types for optimization solvers using argmin framework
 
-use cova_algebra::tensors::{DMatrix, DVector};
+use cova_algebra::tensors::DVector;
 
-use crate::{SolverError, SolverResult};
+use crate::SolverResult;
 
 /// Solution information returned by solvers
 #[derive(Debug, Clone)]

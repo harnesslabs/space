@@ -79,7 +79,6 @@
 
 use std::fmt::{Debug, Display, Formatter};
 
-use nalgebra::ArrayStorage;
 use num_traits::One;
 
 use super::*;

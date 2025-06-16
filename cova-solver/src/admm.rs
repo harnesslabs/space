@@ -95,7 +95,6 @@ impl AdmmSolver {
     let p_aug = p + self.params.rho * &ata;
 
     for iteration in 0..self.params.max_iterations {
-      let x_old = x.clone();
       let z_old = z.clone();
 
       // x-update: solve QP using Clarabel
@@ -120,9 +119,9 @@ impl AdmmSolver {
       if primal_residual <= self.params.primal_tolerance
         && dual_residual <= self.params.dual_tolerance
       {
-        let objective_value = 0.5 * x.dot(&(p * &x)) + q.dot(&x);
+        let objective_value = 0.5f64.mul_add(x.dot(&(p * &x)), q.dot(&x));
         return Ok(Solution {
-          x: x.clone(),
+          x,
           objective_value,
           iterations: iteration as u64 + 1,
           converged: true,
@@ -131,7 +130,7 @@ impl AdmmSolver {
       }
     }
 
-    let objective_value = 0.5 * x.dot(&(p * &x)) + q.dot(&x);
+    let objective_value = 0.5f64.mul_add(x.dot(&(p * &x)), q.dot(&x));
     Ok(Solution {
       x,
       objective_value,
@@ -163,9 +162,7 @@ impl AdmmSolver {
     // Create and solve the problem
     let mut solver =
       DefaultSolver::new(&p_csc, &q_vec, &a_csc, &b_vec, &cones, settings).map_err(|e| {
-        SolverError::NumericalError {
-          message: format!("Failed to create Clarabel solver: {:?}", e),
-        }
+        SolverError::NumericalError { message: format!("Failed to create Clarabel solver: {e:?}") }
       })?;
 
     solver.solve();
@@ -187,7 +184,6 @@ impl AdmmSolver {
     lambda: f64,
   ) -> SolverResult<Solution> {
     let n = a.ncols();
-    let m = a.nrows();
 
     // LASSO as ADMM:
     // minimize ||Ax - b||² + λ||z||₁
@@ -225,21 +221,6 @@ impl AdmmSolver {
     // Use LASSO with very small λ to approximate basis pursuit
     self.solve_lasso(a, b, 1e-8)
   }
-}
-
-/// Helper function to convert dense matrix to triplets for Clarabel
-fn triplets_from_dense(matrix: &DMatrix<f64>) -> Vec<(usize, usize, f64)> {
-  let mut triplets = Vec::new();
-  for i in 0..matrix.nrows() {
-    for j in 0..matrix.ncols() {
-      let val = matrix[(i, j)];
-      if val.abs() > 1e-15 {
-        // Only include non-zero entries
-        triplets.push((i, j, val));
-      }
-    }
-  }
-  triplets
 }
 
 /// Convert dense matrix to CSC format (col_offsets, row_indices, values)

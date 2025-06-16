@@ -1,8 +1,43 @@
+//! Tensor utilities and linear-algebra helpers built on top of the [`nalgebra`] crate.
+//!
+//! This sub-module re-exports the whole of `nalgebra` so that downstream crates can simply do
+//!
+//! ```rust
+//! use cova_algebra::tensors::*;
+//! ```
+//!
+//! and immediately gain access to `nalgebra`'s `Matrix`, `Vector` and fixed-size aliases without
+//! having to depend on the library directly.  On top of that it provides a handful of
+//! **generic, field-agnostic** helpers that work for *any* type implementing
+//! [`crate::rings::Field`]:
+//!
+//! * `compute_quotient_basis` – extracts a basis of the quotient space `V / U`.
+//! * `image` / `kernel` – basis of a matrix' image / kernel computed via a reduced row–echelon
+//!   transform written purely in terms of field operations.
+//! * `MatrixBuilder` – a tiny builder-pattern wrapper that makes it ergonomic to write the small
+//!   block matrices that show up in tests and in the Sheaf implementation.
+//! * An implementation of the [`crate::category::Category`] trait for the dynamic column vector
+//!   type `DVector<F>` so that *vectors are objects and matrices are morphisms*.
+//!
+//! None of these helpers require the scalar type `F` to implement `ClosedAdd`, `ClosedMul`, … and
+//! therefore remain usable for finite-field types such as the `Mod7` fixture used throughout the
+//! test-suite.
+
 pub use nalgebra::*;
 use num_traits::{One, Zero};
 
-/// Returns the reduced row-echelon form of `m` together with the indices of its pivot columns.
-fn rref_with_pivots<F>(m: &DMatrix<F>) -> (DMatrix<F>, Vec<usize>)
+/// Computes the **Reduced Row-Echelon Form** (RREF) of the given dynamic matrix using a
+/// plain-Rust Gauss–Jordan elimination that only requires the scalar type `F` to implement the
+/// [`crate::rings::Field`] trait.
+///
+/// The routine returns a tuple `(rref, pivots)` where:
+/// * `rref`   – a fresh `DMatrix<F>` in reduced row-echelon form.
+/// * `pivots` – indices of the pivot columns (one index per pivot row) of the *original* matrix.
+///
+/// The algorithm works for *any* field (finite or infinite) because it never relies on floating-
+/// point specific operations such as ε-pivoting.  It runs in-place on a clone of the input so the
+/// original matrix is left untouched.
+pub fn rref_with_pivots<F>(m: &DMatrix<F>) -> (DMatrix<F>, Vec<usize>)
 where F: crate::rings::Field + Copy + Zero + PartialEq {
   let mut mat = m.clone();
   let nrows = mat.nrows();
@@ -23,7 +58,7 @@ where F: crate::rings::Field + Copy + Zero + PartialEq {
       let pivot_val = mat[(current_row, col)];
       let inv = pivot_val.multiplicative_inverse();
       for c in col..ncols {
-        mat[(current_row, c)] = mat[(current_row, c)] * inv;
+        mat[(current_row, c)] *= inv;
       }
 
       // Eliminate this column from the other rows.
@@ -51,12 +86,20 @@ where F: crate::rings::Field + Copy + Zero + PartialEq {
   (mat, pivot_cols)
 }
 
-/// Computes a basis for the quotient space V/U.
+/// Returns a basis of the quotient space **V / U**.
 ///
-/// Given `subspace_vectors` forming a basis for a subspace U, and
-/// `space_vectors` forming a basis for a space V (where U is a subspace of V),
-/// this method returns a basis for the quotient space V/U.
-/// The input vectors are treated as column vectors.
+/// * `subspace_vectors` – a slice of column vectors forming a basis of the sub-space **U**.
+/// * `space_vectors`    – a slice of column vectors spanning the ambient space **V** (the caller
+///   must ensure `U ⊆ V`).
+///
+/// The function concatenates the vectors `U ∪ V`, computes the RREF, and picks the pivot columns
+/// that originate from the `space_vectors` slice – i.e. those columns that are linearly
+/// independent *modulo* **U**.  The returned `Vec<DVector<F>>` therefore forms a basis of the
+/// quotient space.
+///
+/// All vectors must share the same dimension; this is asserted in debug builds.
+///
+/// The routine is completely generic over the field `F`.
 pub fn compute_quotient_basis<F: crate::rings::Field + Copy>(
   subspace_vectors: &[DVector<F>],
   space_vectors: &[DVector<F>],
@@ -112,6 +155,13 @@ pub fn compute_quotient_basis<F: crate::rings::Field + Copy>(
   quotient_basis
 }
 
+/// Computes a **basis of the column space** (image) of `matrix`.
+///
+/// The implementation is field-agnostic: it calls [`rref_with_pivots`] and returns the original
+/// columns that correspond to the pivot indices.
+///
+/// The resulting vectors are returned *in the order in which the pivots appear* in the original
+/// matrix, which makes the function useful for deterministic test fixtures.
 pub fn image<F>(matrix: &DMatrix<F>) -> Vec<DVector<F>>
 where F: crate::rings::Field + Copy + Zero + PartialEq {
   let (_, pivot_cols) = rref_with_pivots(matrix);
@@ -119,10 +169,13 @@ where F: crate::rings::Field + Copy + Zero + PartialEq {
   pivot_cols.into_iter().map(|col_idx| matrix.column(col_idx).into_owned()).collect()
 }
 
+/// Computes a **basis of the kernel** (null-space) of `matrix`.
+///
+/// A standard Gauss–Jordan solve is performed on an identity-augmented matrix to express the free
+/// variables in terms of the pivots; one basis vector per free column is produced.  The method is
+/// generic over any field `F` and does *not* require floating-point capabilities.
 pub fn kernel<F>(matrix: &DMatrix<F>) -> Vec<DVector<F>>
 where F: crate::rings::Field + Copy + Zero + One + PartialEq {
-  use num_traits::{One, Zero};
-
   let ncols = matrix.ncols();
   if ncols == 0 {
     return Vec::new();
@@ -169,6 +222,170 @@ where F: crate::rings::Field + Copy + Zero + One + PartialEq {
   basis
 }
 
+/// A **very** small builder-pattern utility aimed at test code and at places where manually
+/// writing `DMatrix` literals would be unbearably verbose.
+///
+/// Example – create a 2 × 3 matrix by rows:
+/// ```rust
+/// # use cova_algebra::tensors::MatrixBuilder;
+/// let m = MatrixBuilder::new().row([1, 2, 3]).row([4, 5, 6]).build();
+/// assert_eq!(m.nrows(), 2);
+/// assert_eq!(m.ncols(), 3);
+/// ```
+///
+/// The builder can also operate in *column* mode by calling `column` first.  Mixing `row` and
+/// `column` calls will panic at runtime because the resulting layout would be ambiguous.
+pub struct MatrixBuilder<F: crate::rings::Field> {
+  mode: BuilderMode,
+  data: Vec<Vec<F>>, // each inner Vec is a row or column depending on `mode`.
+}
+
+/// Internal state machine used by `MatrixBuilder` to ensure we do not mix row- and column-wise
+/// initialisation.
+enum BuilderMode {
+  None,
+  Row,
+  Column,
+}
+
+impl<F: crate::rings::Field> MatrixBuilder<F> {
+  /// Creates a fresh, empty `MatrixBuilder` in the *neutral* state – no rows/columns have been
+  /// supplied yet so the builder does not know whether you intend to initialise by rows or by
+  /// columns.
+  ///
+  /// The first call to either [`MatrixBuilder::row`] or [`MatrixBuilder::column`] fixes the mode;
+  /// subsequent calls must use the same method or the builder will panic to avoid producing an
+  /// ill-defined matrix.
+  ///
+  /// # Example
+  /// ```rust
+  /// # use cova_algebra::tensors::MatrixBuilder;
+  /// let m = MatrixBuilder::new().column([1, 0]).column([0, 1]).build();
+  /// assert_eq!(m.nrows(), 2);
+  /// assert_eq!(m.ncols(), 2);
+  /// ```
+  #[must_use]
+  pub const fn new() -> Self { Self { mode: BuilderMode::None, data: Vec::new() } }
+
+  /// Pushes a **column** into the matrix being built.
+  ///
+  /// All columns *must* have the same length – this is checked at `build` time.
+  pub fn column<I>(mut self, values: I) -> Self
+  where I: IntoIterator<Item = F> {
+    let vals: Vec<F> = values.into_iter().collect();
+    if matches!(self.mode, BuilderMode::Row) {
+      panic!("MatrixBuilder: cannot mix row and column calls");
+    }
+    self.mode = BuilderMode::Column;
+    self.data.push(vals);
+    self
+  }
+
+  /// Pushes a **row** into the matrix being built.
+  ///
+  /// All rows *must* have the same length – this is checked at `build` time.
+  pub fn row<I>(mut self, values: I) -> Self
+  where I: IntoIterator<Item = F> {
+    let vals: Vec<F> = values.into_iter().collect();
+    if matches!(self.mode, BuilderMode::Column) {
+      panic!("MatrixBuilder: cannot mix row and column calls");
+    }
+    self.mode = BuilderMode::Row;
+    self.data.push(vals);
+    self
+  }
+
+  /// Finalises the builder and produces an owned `DMatrix<F>`.
+  ///
+  /// If no `row`/`column` was ever supplied the resulting matrix is empty (0 × 0).
+  pub fn build(self) -> DMatrix<F> {
+    match self.mode {
+      BuilderMode::None => DMatrix::zeros(0, 0),
+      BuilderMode::Column => {
+        // All columns must have same length.
+        let ncols = self.data.len();
+        if ncols == 0 {
+          return DMatrix::zeros(0, 0);
+        }
+        let nrows = self.data[0].len();
+        assert!(self.data.iter().all(|c| c.len() == nrows), "All columns must have same length");
+        let vectors: Vec<DVector<F>> =
+          self.data.into_iter().map(|v| DVector::from_row_slice(&v)).collect();
+        DMatrix::from_columns(&vectors)
+      },
+      BuilderMode::Row => {
+        let nrows = self.data.len();
+        if nrows == 0 {
+          return DMatrix::zeros(0, 0);
+        }
+        let ncols = self.data[0].len();
+        assert!(self.data.iter().all(|r| r.len() == ncols), "All rows must have same length");
+        let vectors: Vec<RowDVector<F>> =
+          self.data.into_iter().map(|v| RowDVector::from_row_slice(&v)).collect();
+        DMatrix::from_rows(&vectors)
+      },
+    }
+  }
+}
+
+impl<F: crate::rings::Field> Default for MatrixBuilder<F> {
+  fn default() -> Self { Self::new() }
+}
+
+use crate::category::Category;
+
+impl<F> Category for DVector<F>
+where F: crate::rings::Field + Copy + Zero + One
+{
+  type Morphism = DMatrix<F>;
+
+  // Compose two linear maps represented by matrices via a simple, generic
+  // O(n^3) multiplication that only relies on the `Field` operations instead
+  // of nalgebra's `ClosedMul`/`ClosedAdd` traits (which our custom finite
+  // fields don't implement).
+  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism {
+    assert_eq!(f.ncols(), g.nrows(), "Incompatible dimensions for composition");
+    let m = f.nrows();
+    let n = g.ncols();
+    let k = f.ncols();
+    let mut result = DMatrix::<F>::zeros(m, n);
+    for i in 0..m {
+      for j in 0..n {
+        let mut acc = F::zero();
+        for p in 0..k {
+          acc += f[(i, p)] * g[(p, j)];
+        }
+        result[(i, j)] = acc;
+      }
+    }
+    result
+  }
+
+  fn identity(a: Self) -> Self::Morphism {
+    let n = a.len();
+    let mut id = DMatrix::<F>::zeros(n, n);
+    for i in 0..n {
+      id[(i, i)] = F::one();
+    }
+    id
+  }
+
+  fn apply(f: Self::Morphism, x: Self) -> Self {
+    assert_eq!(f.ncols(), x.len(), "Matrix–vector dimension mismatch");
+    let m = f.nrows();
+    let n = f.ncols();
+    let mut out = Self::zeros(m);
+    for i in 0..m {
+      let mut acc = F::zero();
+      for j in 0..n {
+        acc += f[(i, j)] * x[j];
+      }
+      out[i] = acc;
+    }
+    out
+  }
+}
+
 #[cfg(test)]
 mod tests {
   use super::{compute_quotient_basis, image, kernel};
@@ -207,7 +424,7 @@ mod tests {
     let u2 = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1)]);
     // space_vectors are the same as subspace_vectors
     let space_vectors = vec![u1.clone(), u2.clone()];
-    let subspace_vectors = vec![u1.clone(), u2.clone()];
+    let subspace_vectors = vec![u1, u2];
 
     let quotient_basis = compute_quotient_basis(&subspace_vectors, &space_vectors);
     assert_eq!(
@@ -367,134 +584,5 @@ mod tests {
     assert_eq!(ker_basis.len(), 1);
     let expected = DVector::<Mod7>::from_row_slice(&[Mod7::new(0), Mod7::new(1)]);
     assert_eq!(ker_basis[0], expected);
-  }
-}
-
-// -------------------------------------------------------------------------------------------------
-// Simple builder API (only the subset needed by cova-space tests).
-// -------------------------------------------------------------------------------------------------
-
-/// Convenience builder for small dynamic matrices used in tests.
-pub struct MatrixBuilder<F: Scalar + Copy + Zero> {
-  mode: BuilderMode,
-  data: Vec<Vec<F>>, // each inner Vec is a row or column depending on `mode`.
-}
-
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum BuilderMode {
-  None,
-  Row,
-  Column,
-}
-
-impl<F: Scalar + Copy + Zero> MatrixBuilder<F> {
-  pub fn new() -> Self { Self { mode: BuilderMode::None, data: Vec::new() } }
-
-  /// Adds a column with the given data.
-  pub fn column<I>(mut self, values: I) -> Self
-  where I: IntoIterator<Item = F> {
-    let vals: Vec<F> = values.into_iter().collect();
-    if self.mode == BuilderMode::Row {
-      panic!("MatrixBuilder: cannot mix row and column calls");
-    }
-    self.mode = BuilderMode::Column;
-    self.data.push(vals);
-    self
-  }
-
-  /// Adds a row with the given data.
-  pub fn row<I>(mut self, values: I) -> Self
-  where I: IntoIterator<Item = F> {
-    let vals: Vec<F> = values.into_iter().collect();
-    if self.mode == BuilderMode::Column {
-      panic!("MatrixBuilder: cannot mix row and column calls");
-    }
-    self.mode = BuilderMode::Row;
-    self.data.push(vals);
-    self
-  }
-
-  /// Builds the `DMatrix`.
-  pub fn build(self) -> DMatrix<F> {
-    match self.mode {
-      BuilderMode::None => DMatrix::zeros(0, 0),
-      BuilderMode::Column => {
-        // All columns must have same length.
-        let ncols = self.data.len();
-        if ncols == 0 {
-          return DMatrix::zeros(0, 0);
-        }
-        let nrows = self.data[0].len();
-        assert!(self.data.iter().all(|c| c.len() == nrows), "All columns must have same length");
-        let vectors: Vec<DVector<F>> =
-          self.data.into_iter().map(|v| DVector::from_row_slice(&v)).collect();
-        DMatrix::from_columns(&vectors)
-      },
-      BuilderMode::Row => {
-        let nrows = self.data.len();
-        if nrows == 0 {
-          return DMatrix::zeros(0, 0);
-        }
-        let ncols = self.data[0].len();
-        assert!(self.data.iter().all(|r| r.len() == ncols), "All rows must have same length");
-        let vectors: Vec<RowDVector<F>> =
-          self.data.into_iter().map(|v| RowDVector::from_row_slice(&v)).collect();
-        DMatrix::from_rows(&vectors)
-      },
-    }
-  }
-}
-
-use crate::category::Category;
-
-impl<F> Category for DVector<F>
-where F: crate::rings::Field + Copy + Zero + One
-{
-  type Morphism = DMatrix<F>;
-
-  // Compose two linear maps represented by matrices via a simple, generic
-  // O(n^3) multiplication that only relies on the `Field` operations instead
-  // of nalgebraʼs `ClosedMul`/`ClosedAdd` traits (which our custom finite
-  // fields donʼt implement).
-  fn compose(f: Self::Morphism, g: Self::Morphism) -> Self::Morphism {
-    assert_eq!(f.ncols(), g.nrows(), "Incompatible dimensions for composition");
-    let m = f.nrows();
-    let n = g.ncols();
-    let k = f.ncols();
-    let mut result = DMatrix::<F>::zeros(m, n);
-    for i in 0..m {
-      for j in 0..n {
-        let mut acc = F::zero();
-        for p in 0..k {
-          acc += f[(i, p)] * g[(p, j)];
-        }
-        result[(i, j)] = acc;
-      }
-    }
-    result
-  }
-
-  fn identity(a: Self) -> Self::Morphism {
-    let n = a.len();
-    let mut id = DMatrix::<F>::zeros(n, n);
-    for i in 0..n {
-      id[(i, i)] = F::one();
-    }
-    id
-  }
-
-  fn apply(f: Self::Morphism, x: Self) -> Self {
-    assert_eq!(f.ncols(), x.len(), "Matrix–vector dimension mismatch");
-    let m = f.nrows();
-    let n = f.ncols();
-    let mut out = Self::zeros(m);
-    for i in 0..m {
-      let mut acc = F::zero();
-      for j in 0..n {
-        acc += f[(i, j)] * x[j];
-      }
-      out[i] = acc;
-    }
-    out
   }
 }
