@@ -13,4 +13,4 @@ repository  = "https://github.com/harnesslabs/cova"
 [dependencies]
 clarabel     = "0.11"
 cova-algebra = { path = "../cova-algebra" }
-thiserror    = "1.0"
+thiserror    = "2.0"
