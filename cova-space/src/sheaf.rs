@@ -219,28 +219,10 @@ where
   }
 }
 
-// TODO: This is a temporary implementation for the coboundary map specifically for the vector
-// stalks.
 impl<T: ComplexElement, F: Field + Copy> Sheaf<Complex<T>, DVector<F>>
 where T: Hash + Eq + Clone + Debug
 {
   /// Constructs the coboundary matrix δ^k: C^k → C^(k+1) for the sheaf.
-  ///
-  /// The coboundary map is dual to the boundary map of the underlying complex.
-  /// For dimension k, this maps k-cochains (sections over k-dimensional elements)
-  /// to (k+1)-cochains (sections over (k+1)-dimensional elements).
-  ///
-  /// The matrix has:
-  /// - Rows indexed by (k+1)-dimensional elements
-  /// - Columns indexed by k-dimensional elements
-  /// - Entry (σ, τ) equals the orientation coefficient of τ in ∂σ where σ is (k+1)-dimensional and
-  ///   τ is k-dimensional
-  ///
-  /// # Arguments
-  /// * `dimension`: The dimension k of the domain (k-cochains)
-  ///
-  /// # Returns
-  /// A matrix representing δ^k: C^k → C^(k+1)
   pub fn coboundary(&self, dimension: usize) -> DMatrix<F> {
     // Get sorted k-dimensional and (k+1)-dimensional elements
     let k_elements = {
@@ -256,70 +238,63 @@ where T: Hash + Eq + Clone + Debug
     };
 
     if k_elements.is_empty() || k_plus_1_elements.is_empty() {
-      // No source elements or no target elements - return empty matrix
       return DMatrix::<F>::zeros(0, 0);
     }
 
     // Determine block sizes based on stalk dimensions
     let mut col_block_sizes = Vec::new();
     for k_element in &k_elements {
-      // Find any restriction involving this k_element to determine its stalk dimension
       let stalk_dim = self
         .restrictions
         .iter()
         .find_map(|((from, to), matrix)| {
           if from.same_content(k_element) {
-            Some(matrix.ncols()) // When k_element is the source, its stalk dimension is num_cols
+            Some(matrix.ncols())
           } else if to.same_content(k_element) {
-            Some(matrix.nrows()) // When k_element is the target, its stalk dimension is num_rows
+            Some(matrix.nrows())
           } else {
             None
           }
         })
-        .unwrap_or(1); // Default to 1 if no restriction found
+        .unwrap_or(1);
       col_block_sizes.push(stalk_dim);
     }
 
     let mut row_block_sizes = Vec::new();
     for k_plus_1_element in &k_plus_1_elements {
-      // Find any restriction involving this (k+1)-element to determine its stalk dimension
       let stalk_dim = self
         .restrictions
         .iter()
         .find_map(|((from, to), matrix)| {
           if from.same_content(k_plus_1_element) {
-            Some(matrix.ncols()) // When k_plus_1_element is the source, its stalk dimension is
-                                 // num_cols
+            Some(matrix.ncols())
           } else if to.same_content(k_plus_1_element) {
-            Some(matrix.nrows()) // When k_plus_1_element is the target, its stalk dimension is
-                                 // num_rows
+            Some(matrix.nrows())
           } else {
             None
           }
         })
-        .unwrap_or(1); // Default to 1 if no restriction found
+        .unwrap_or(1);
       row_block_sizes.push(stalk_dim);
     }
 
-    // Pre-compute offsets for each block row/column.
-    let row_offsets: Vec<usize> = {
-      let mut offs = Vec::with_capacity(row_block_sizes.len());
-      let mut acc = 0usize;
-      for &size in &row_block_sizes {
-        offs.push(acc);
-        acc += size;
-      }
-      offs
-    };
-    let col_offsets: Vec<usize> = {
-      let mut offs = Vec::with_capacity(col_block_sizes.len());
-      let mut acc = 0usize;
-      for &size in &col_block_sizes {
-        offs.push(acc);
-        acc += size;
-      }
-      offs
-    };
+    // Pre-compute offsets.
+    let row_offsets: Vec<usize> = row_block_sizes
+      .iter()
+      .scan(0usize, |acc, &sz| {
+        let start = *acc;
+        *acc += sz;
+        Some(start)
+      })
+      .collect();
+    let col_offsets: Vec<usize> = col_block_sizes
+      .iter()
+      .scan(0usize, |acc, &sz| {
+        let start = *acc;
+        *acc += sz;
+        Some(start)
+      })
+      .collect();
 
     let total_rows: usize = row_block_sizes.iter().sum();
     let total_cols: usize = col_block_sizes.iter().sum();
@@ -327,7 +302,6 @@ where T: Hash + Eq + Clone + Debug
 
     for (row_idx, k_plus_1_element) in k_plus_1_elements.iter().enumerate() {
       for (col_idx, k_element) in k_elements.iter().enumerate() {
-        // Determine if k_element is in boundary
         let boundary_with_orientations = k_plus_1_element.boundary_with_orientations();
         if let Some((_, orientation_coeff)) =
           boundary_with_orientations.iter().find(|(face, _)| face.same_content(k_element))
@@ -335,7 +309,6 @@ where T: Hash + Eq + Clone + Debug
           if let Some(restriction_matrix) =
             self.restrictions.get(&(k_element.clone(), k_plus_1_element.clone()))
           {
-            // Signed matrix
             let mut signed = restriction_matrix.clone();
             if *orientation_coeff < 0 {
               for val in signed.iter_mut() {
@@ -345,7 +318,6 @@ where T: Hash + Eq + Clone + Debug
               signed.fill(F::zero());
             }
 
-            // Place into result
             let row_offset = row_offsets[row_idx];
             let col_offset = col_offsets[col_idx];
             let r_rows = signed.nrows();
@@ -357,6 +329,47 @@ where T: Hash + Eq + Clone + Debug
     }
 
     result
+  }
+
+  /// Splits a concatenated k-cochain vector into per-stalk pieces.
+  pub fn cochain_to_section(
+    &self,
+    dimension: usize,
+    cochain: &DVector<F>,
+  ) -> HashMap<T, DVector<F>> {
+    let mut k_elements = self.space.elements_of_dimension(dimension);
+    k_elements.sort_unstable();
+
+    let mut block_sizes = Vec::with_capacity(k_elements.len());
+    for k_element in &k_elements {
+      let stalk_dim = self
+        .restrictions
+        .iter()
+        .find_map(|((from, to), matrix)| {
+          if from.same_content(k_element) {
+            Some(matrix.ncols())
+          } else if to.same_content(k_element) {
+            Some(matrix.nrows())
+          } else {
+            None
+          }
+        })
+        .unwrap_or(1);
+      block_sizes.push(stalk_dim);
+    }
+
+    let expected_len: usize = block_sizes.iter().sum();
+    assert_eq!(cochain.len(), expected_len);
+
+    let mut section = HashMap::with_capacity(k_elements.len());
+    let mut offset = 0usize;
+    for (elem, &size) in k_elements.into_iter().zip(block_sizes.iter()) {
+      let slice = cochain.rows(offset, size).into_owned();
+      section.insert(elem, slice);
+      offset += size;
+    }
+
+    section
   }
 
   pub fn laplacian(&self, dimension: usize) -> DMatrix<F> {
@@ -707,7 +720,7 @@ mod tests {
 
   #[test]
   fn test_simplicial_sheaf_laplacian_1d() {
-    let (cc, restrictions, ..) = simplicial_complex_1d();
+    let (cc, restrictions, v0, v1, e01) = simplicial_complex_1d();
     let sheaf = Sheaf::<SimplicialComplex, DVector<f64>>::new(cc, restrictions);
 
     let coboundary = sheaf.coboundary(0);
@@ -716,6 +729,11 @@ mod tests {
     let laplacian = sheaf.laplacian(0);
     println!("{laplacian}");
 
-    println!("kernel: {:?}", kernel(&laplacian));
+    let ker = kernel(&laplacian);
+    for v in &ker {
+      let section = sheaf.cochain_to_section(0, v);
+      assert_eq!(section.get(&v0).unwrap().data.as_slice(), &[1.0]);
+      assert_eq!(section.get(&v1).unwrap().data.as_slice(), &[0.5, 1.0]);
+    }
   }
 }
