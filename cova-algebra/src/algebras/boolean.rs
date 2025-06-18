@@ -49,6 +49,7 @@
 //! ```
 
 use super::*;
+use crate::arithmetic::ApproxZero;
 
 /// A wrapper around `bool` that implements algebraic operations.
 ///
@@ -96,6 +97,10 @@ impl Zero for Boolean {
   fn zero() -> Self { Self(false) }
 
   fn is_zero(&self) -> bool { !self.0 }
+}
+
+impl ApproxZero for Boolean {
+  fn is_approx_zero(&self) -> bool { !self.0 }
 }
 
 impl Add for Boolean {

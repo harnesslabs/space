@@ -48,7 +48,7 @@ where F: crate::rings::Field + Copy + Zero + PartialEq {
 
   for col in 0..ncols {
     // Search a pivot row.
-    if let Some(pivot_row) = (current_row..nrows).find(|&r| !mat[(r, col)].is_zero()) {
+    if let Some(pivot_row) = (current_row..nrows).find(|&r| !mat[(r, col)].is_approx_zero()) {
       // Move it to the current row.
       if pivot_row != current_row {
         mat.swap_rows(pivot_row, current_row);
@@ -175,7 +175,7 @@ where F: crate::rings::Field + Copy + Zero + PartialEq {
 /// variables in terms of the pivots; one basis vector per free column is produced.  The method is
 /// generic over any field `F` and does *not* require floating-point capabilities.
 pub fn kernel<F>(matrix: &DMatrix<F>) -> Vec<DVector<F>>
-where F: crate::rings::Field + PartialEq {
+where F: crate::rings::Field + ApproxZero + PartialEq {
   let ncols = matrix.ncols();
   if ncols == 0 {
     return Vec::new();
@@ -211,7 +211,7 @@ where F: crate::rings::Field + PartialEq {
 
     for (row_idx, &pivot_col) in pivot_cols.iter().enumerate() {
       let coeff = rref[(row_idx, free)];
-      if !coeff.is_zero() {
+      if !coeff.is_approx_zero() {
         comps[pivot_col] = -coeff;
       }
     }
@@ -332,7 +332,7 @@ impl<F: crate::rings::Field> Default for MatrixBuilder<F> {
   fn default() -> Self { Self::new() }
 }
 
-use crate::category::Category;
+use crate::{arithmetic::ApproxZero, category::Category};
 
 impl<F> Category for DVector<F>
 where F: crate::rings::Field + Copy + Zero + One

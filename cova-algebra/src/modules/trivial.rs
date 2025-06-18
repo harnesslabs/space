@@ -44,6 +44,7 @@
 //! ```
 
 use super::*;
+use crate::arithmetic::ApproxZero;
 
 /// A trivial module over a ring.
 ///
@@ -98,6 +99,10 @@ impl<R> Group for TrivialModule<R> {
   fn identity() -> Self { Self { _r: PhantomData } }
 
   fn inverse(&self) -> Self { Self { _r: PhantomData } }
+}
+
+impl<R> ApproxZero for TrivialModule<R> {
+  fn is_approx_zero(&self) -> bool { true }
 }
 
 impl<R: Ring> AbelianGroup for TrivialModule<R> {}

@@ -157,6 +157,10 @@ macro_rules! modular {
       fn inverse(&self) -> Self { Self(Self::MODULUS - self.0) }
     }
 
+    impl $crate::arithmetic::ApproxZero for $name {
+      fn is_approx_zero(&self) -> bool { self.0 == 0 }
+    }
+
     impl $crate::groups::AbelianGroup for $name {}
     impl $crate::rings::Ring for $name {}
 

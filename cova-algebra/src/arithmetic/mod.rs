@@ -65,3 +65,8 @@ pub trait Infinity {
   /// Returns the positive infinity value for the type.
   const INFINITY: Self;
 }
+
+pub trait ApproxZero {
+  /// Returns true if the value is approximately zero.
+  fn is_approx_zero(&self) -> bool;
+}

@@ -84,6 +84,7 @@ use num_traits::One;
 use super::*;
 use crate::{
   algebras::Algebra,
+  arithmetic::ApproxZero,
   groups::{AbelianGroup, Group},
   modules::{LeftModule, RightModule, TwoSidedModule},
   rings::Field,
@@ -499,6 +500,12 @@ where [(); 1 << N]:
   fn zero() -> Self { Self { value: SVector::<F, { 1 << N }>::zeros(), quadratic_form: None } }
 
   fn is_zero(&self) -> bool { self.value.iter().all(|x| x.is_zero()) }
+}
+
+impl<F: Field, const N: usize> ApproxZero for CliffordAlgebraElement<F, N>
+where [(); 1 << N]:
+{
+  fn is_approx_zero(&self) -> bool { self.value.iter().all(|x| x.is_approx_zero()) }
 }
 
 impl<F: Field, const N: usize> Additive for CliffordAlgebraElement<F, N> where [(); 1 << N]: {}

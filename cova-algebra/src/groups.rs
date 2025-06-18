@@ -4,6 +4,7 @@
 //! including both Abelian (commutative) and non-Abelian groups.
 
 use super::*;
+use crate::arithmetic::ApproxZero;
 
 /// A trait representing a mathematical group.
 ///
@@ -25,7 +26,7 @@ pub trait Group {
 /// that are natural for commutative groups. We mark this as an [`Additive`] structure since this is
 /// typical notation for Abelian groups.
 pub trait AbelianGroup:
-  Group + Zero + Additive + Neg<Output = Self> + Sub<Output = Self> + SubAssign {
+  Group + Zero + Additive + Neg<Output = Self> + Sub<Output = Self> + SubAssign + ApproxZero {
 }
 
 /// A trait representing a non-Abelian group.

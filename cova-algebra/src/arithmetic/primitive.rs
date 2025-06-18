@@ -64,3 +64,59 @@ impl Infinity for f32 {
 impl Infinity for f64 {
   const INFINITY: Self = Self::INFINITY;
 }
+
+impl ApproxZero for f32 {
+  fn is_approx_zero(&self) -> bool { self.abs() < 1e-6 }
+}
+
+impl ApproxZero for f64 {
+  fn is_approx_zero(&self) -> bool { self.abs() < 1e-12 }
+}
+
+impl ApproxZero for u8 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for u16 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for u32 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for u64 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for u128 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for usize {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for i8 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for i16 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for i32 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for i64 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for i128 {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
+
+impl ApproxZero for isize {
+  fn is_approx_zero(&self) -> bool { *self == 0 }
+}
