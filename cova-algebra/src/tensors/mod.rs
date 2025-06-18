@@ -175,7 +175,7 @@ where F: crate::rings::Field + Copy + Zero + PartialEq {
 /// variables in terms of the pivots; one basis vector per free column is produced.  The method is
 /// generic over any field `F` and does *not* require floating-point capabilities.
 pub fn kernel<F>(matrix: &DMatrix<F>) -> Vec<DVector<F>>
-where F: crate::rings::Field + Copy + Zero + One + PartialEq {
+where F: crate::rings::Field + PartialEq {
   let ncols = matrix.ncols();
   if ncols == 0 {
     return Vec::new();

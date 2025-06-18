@@ -358,6 +358,18 @@ where T: Hash + Eq + Clone + Debug
 
     result
   }
+
+  pub fn laplacian(&self, dimension: usize) -> DMatrix<F> {
+    let coboundary = self.coboundary(dimension);
+    let mut laplacian = coboundary.transpose() * &coboundary;
+
+    if dimension > 0 {
+      let coboundary_lower = self.coboundary(dimension - 1);
+      laplacian += &coboundary_lower * coboundary_lower.transpose();
+    }
+
+    laplacian
+  }
 }
 
 #[cfg(test)]
@@ -365,7 +377,7 @@ mod tests {
   #![allow(clippy::type_complexity)]
   #![allow(clippy::too_many_lines)]
   #![allow(clippy::float_cmp)]
-  use cova_algebra::tensors::{DMatrix, DVector, MatrixBuilder};
+  use cova_algebra::tensors::{kernel, DMatrix, DVector, MatrixBuilder};
 
   use super::*;
   use crate::complexes::{Cube, CubicalComplex, Simplex, SimplicialComplex};
@@ -691,5 +703,19 @@ mod tests {
 
     // Should be empty since no 3-cubes
     assert!(coboundary_2.is_empty());
+  }
+
+  #[test]
+  fn test_simplicial_sheaf_laplacian_1d() {
+    let (cc, restrictions, ..) = simplicial_complex_1d();
+    let sheaf = Sheaf::<SimplicialComplex, DVector<f64>>::new(cc, restrictions);
+
+    let coboundary = sheaf.coboundary(0);
+    println!("{coboundary}");
+
+    let laplacian = sheaf.laplacian(0);
+    println!("{laplacian}");
+
+    println!("kernel: {:?}", kernel(&laplacian));
   }
 }
